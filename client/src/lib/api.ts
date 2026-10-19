@@ -1,0 +1,126 @@
+export interface ServerClip {
+  id: string
+  duration: number
+  width: number
+  height: number
+  hasAudio: boolean
+  size: number
+  codec?: string | null
+}
+
+export interface ImportResult {
+  ok: true
+  platform: 'youtube' | 'tiktok' | 'instagram'
+  url: string
+  title: string | null
+  thumbnail: string | null
+  canDownload: false
+  message: string
+}
+
+export interface JobStatus {
+  id: string
+  status: 'queued' | 'preparing' | 'rendering' | 'verifying' | 'done' | 'error' | 'cancelled'
+  progress: number
+  message: string
+  error: string | null
+  warning: string | null
+  outputBytes: number | null
+  outputDuration: number | null
+  queuePosition: number
+  downloadName: string
+}
+
+export async function health(): Promise<boolean> {
+  try {
+    const response = await fetch('/api/health')
+    if (!response.ok) return false
+    const data = (await response.json()) as { ok?: boolean; ffmpeg?: boolean }
+    return Boolean(data.ok && data.ffmpeg)
+  } catch {
+    return false
+  }
+}
+
+export function uploadClip(file: File, onProgress: (fraction: number) => void): Promise<ServerClip> {
+  const body = new FormData()
+  body.append('file', file, file.name)
+  return sendForm<ServerClip>('/api/clips', body, onProgress)
+}
+
+export async function clipExists(id: string): Promise<boolean> {
+  const response = await fetch(`/api/clips/${id}`)
+  return response.ok
+}
+
+export async function deleteClip(id: string): Promise<{ ok: true } | { ok: false; error: string }> {
+  const response = await fetch(`/api/clips/${id}`, { method: 'DELETE' })
+  if (response.ok) return { ok: true }
+  return { ok: false, error: await readError(response) }
+}
+
+export async function importUrl(url: string): Promise<ImportResult> {
+  const response = await fetch('/api/import-url', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ url }),
+  })
+  if (!response.ok) throw new Error(await readError(response))
+  return (await response.json()) as ImportResult
+}
+
+export function startExport(body: FormData, onProgress: (fraction: number) => void, signal: AbortSignal): Promise<{ jobId: string }> {
+  return sendForm('/api/export', body, onProgress, signal)
+}
+
+export async function getJob(id: string): Promise<JobStatus> {
+  const response = await fetch(`/api/jobs/${id}`)
+  if (!response.ok) throw new Error(await readError(response))
+  return (await response.json()) as JobStatus
+}
+
+export async function cancelJob(id: string): Promise<void> {
+  await fetch(`/api/jobs/${id}/cancel`, { method: 'POST' }).catch(() => undefined)
+}
+
+function sendForm<T>(url: string, body: FormData, onProgress?: (fraction: number) => void, signal?: AbortSignal): Promise<T> {
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest()
+    const fail = (error: Error) => reject(error)
+    xhr.open('POST', url)
+    xhr.responseType = 'json'
+    xhr.upload.onprogress = (event) => {
+      if (event.lengthComputable && onProgress) onProgress(event.loaded / Math.max(1, event.total))
+    }
+    xhr.onload = () => {
+      const data = (xhr.response ?? parseJson(xhr.responseText)) as { error?: string }
+      if (xhr.status >= 200 && xhr.status < 300) {
+        resolve(data as T)
+        return
+      }
+      fail(new Error(data?.error || `Request failed (${xhr.status}).`))
+    }
+    xhr.onerror = () => fail(new Error('Cannot reach the renderer. Make sure the server is running.'))
+    xhr.onabort = () => fail(new DOMException('The upload was cancelled.', 'AbortError'))
+    signal?.addEventListener('abort', () => xhr.abort(), { once: true })
+    xhr.send(body)
+  })
+}
+
+async function readError(response: Response): Promise<string> {
+  try {
+    const data = (await response.json()) as { error?: string }
+    if (data.error) return data.error
+  } catch {
+    // The body was not JSON.
+  }
+  return `Request failed (${response.status}).`
+}
+
+function parseJson(raw: string): unknown {
+  try {
+    return JSON.parse(raw)
+  } catch {
+    return null
+  }
+}

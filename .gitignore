@@ -1,0 +1,10 @@
+node_modules
+dist
+client/dist
+client/node_modules
+server/tmp
+.DS_Store
+*.log
+.idea
+.vscode
+client/public/samples
