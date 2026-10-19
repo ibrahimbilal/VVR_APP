@@ -140,10 +140,22 @@ async function runFfmpeg(
   await writeFile(scriptPath, graph.filter)
   const outputPath = path.join(outputsDir, `${job.id}.mp4`)
 
-  const args: string[] = ['-y', '-hide_banner', '-progress', 'pipe:1', '-nostats']
-  for (const clip of job.clips) args.push('-fflags', '+genpts', '-i', clip.path)
-  for (const overlay of job.overlays) args.push('-i', overlay)
-  if (job.musicPath) args.push('-stream_loop', '-1', '-i', job.musicPath)
+  const args: string[] = [
+    '-y',
+    '-hide_banner',
+    '-threads',
+    '1',
+    '-filter_threads',
+    '1',
+    '-filter_complex_threads',
+    '1',
+    '-progress',
+    'pipe:1',
+    '-nostats',
+  ]
+  for (const clip of job.clips) args.push('-threads', '1', '-fflags', '+genpts', '-i', clip.path)
+  for (const overlay of job.overlays) args.push('-threads', '1', '-i', overlay)
+  if (job.musicPath) args.push('-threads', '1', '-stream_loop', '-1', '-i', job.musicPath)
   args.push('-filter_complex_script', scriptPath, '-map', `[${graph.videoLabel}]`)
   if (graph.audioLabel) args.push('-map', `[${graph.audioLabel}]`)
   args.push(
@@ -151,6 +163,10 @@ async function runFfmpeg(
     'libx264',
     '-preset',
     'veryfast',
+    '-threads',
+    '1',
+    '-x264-params',
+    'threads=1:lookahead_threads=1:sliced_threads=0',
     '-crf',
     '20',
     '-pix_fmt',
@@ -278,7 +294,11 @@ function buildFilter(
 
 function spawnFfmpeg(args: string[], expected: number, hooks: RenderHooks): Promise<void> {
   return new Promise((resolve, reject) => {
-    const child = spawn(ffmpegBinary(), args, { windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'] })
+    const child = spawn(ffmpegBinary(), args, {
+      windowsHide: true,
+      stdio: ['ignore', 'pipe', 'pipe'],
+      env: { ...process.env, OMP_NUM_THREADS: '1' },
+    })
     let stderr = ''
     let settled = false
     const fail = (error: Error) => {
@@ -316,6 +336,7 @@ function spawnFfmpeg(args: string[], expected: number, hooks: RenderHooks): Prom
         }
         return
       }
+      console.error(`ffmpeg render failed:\n${stderr.slice(-4000)}`)
       fail(new Error(friendlyFfmpegError(stderr)))
     })
   })
@@ -349,12 +370,13 @@ async function verifyOutput(
 }
 
 function friendlyFfmpegError(stderr: string): string {
-  if (/No space left on device/i.test(stderr)) return 'Not enough disk space to render the video.'
+  if (/No space left on device|Disk quota exceeded/i.test(stderr)) return 'Not enough disk space to render the video.'
+  const generic = /^(conversion failed!|error marking filters as finished|failed to inject frame into filter network:?)$/i
   const lines = stderr
     .split(/\r?\n/)
     .map((line) => line.trim())
-    .filter(Boolean)
-  const useful = lines.filter((line) => /error|invalid|failed|no such|mismatch|found/i.test(line))
+    .filter((line) => line && !generic.test(line))
+  const useful = lines.filter((line) => /error|invalid|failed|no such|mismatch|unrecognized|unavailable|denied|found/i.test(line))
   const detail = useful.at(-1) || lines.at(-1)
   return detail ? `Rendering failed. ${detail}` : 'Rendering failed.'
 }

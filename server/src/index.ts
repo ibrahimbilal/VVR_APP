@@ -8,7 +8,7 @@ import { moduleDir } from './moduleDir'
 import multer from 'multer'
 import { frameMetrics, isAllowedFps, isAllowedOutput } from '../../shared/frame'
 import { resolveFade, sequenceDuration } from '../../shared/timeline'
-import { checkFfmpeg } from './binaries'
+import { checkFfmpeg, logEncodeCheck } from './binaries'
 import { cancelJob, createJob, getJob, jobOutput } from './jobs'
 import { lookupUrl } from './oembed'
 import { probeAudioFile, probeMedia, probeStill } from './probe'
@@ -428,6 +428,7 @@ async function main(): Promise<void> {
     void sweepStorage()
   }, 10 * 60 * 1000)
   const ffmpegReady = await checkFfmpeg()
+  await logEncodeCheck()
   const server = app.listen(port, host, () => {
     console.log(`VVR renderer at http://${host}:${port} (ffmpeg: ${ffmpegReady ? 'ready' : 'missing'})`)
   })

@@ -77,7 +77,9 @@ async function readProbe(file: string): Promise<ProbeJson> {
       { windowsHide: true, maxBuffer: 20 * 1024 * 1024 },
     )
     return JSON.parse(result.stdout) as ProbeJson
-  } catch {
+  } catch (error) {
+    const stderr = error instanceof Error && 'stderr' in error ? String(error.stderr ?? '').trim() : ''
+    console.error(`ffprobe failed for ${file}: ${stderr || (error instanceof Error ? error.message : 'unknown error')}`)
     throw new Error('This file could not be read. It may be corrupted or use an unsupported format.')
   }
 }
