@@ -4,7 +4,7 @@ import { randomUUID } from 'node:crypto'
 import { existsSync } from 'node:fs'
 import { mkdir, rename, rm } from 'node:fs/promises'
 import path from 'node:path'
-import { fileURLToPath } from 'node:url'
+import { moduleDir } from './moduleDir'
 import multer from 'multer'
 import { frameMetrics, isAllowedFps, isAllowedOutput } from '../../shared/frame'
 import { resolveFade, sequenceDuration } from '../../shared/timeline'
@@ -229,7 +229,7 @@ app.use('/api', (_req, res) => {
   res.status(404).json({ error: 'Not found.' })
 })
 
-const clientDist = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../client/dist')
+const clientDist = path.resolve(moduleDir(import.meta.url), '../../client/dist')
 if (existsSync(path.join(clientDist, 'index.html'))) {
   app.use(express.static(clientDist))
   app.get('/{*splat}', (req, res, next) => {
@@ -419,14 +419,20 @@ function messageOf(error: unknown, fallback: string): string {
 }
 
 const port = Number(process.env.PORT) || 3001
-await ensureStorage()
-await sweepStorage()
-setInterval(() => {
-  void sweepStorage()
-}, 10 * 60 * 1000)
-const ffmpegReady = await checkFfmpeg()
-const server = app.listen(port, '127.0.0.1', () => {
-  console.log(`VVR renderer at http://127.0.0.1:${port} (ffmpeg: ${ffmpegReady ? 'ready' : 'missing'})`)
-})
-server.requestTimeout = 0
-server.headersTimeout = 0
+const host = process.env.HOST || (process.env.PORT ? '0.0.0.0' : '127.0.0.1')
+
+async function main(): Promise<void> {
+  await ensureStorage()
+  await sweepStorage()
+  setInterval(() => {
+    void sweepStorage()
+  }, 10 * 60 * 1000)
+  const ffmpegReady = await checkFfmpeg()
+  const server = app.listen(port, host, () => {
+    console.log(`VVR renderer at http://${host}:${port} (ffmpeg: ${ffmpegReady ? 'ready' : 'missing'})`)
+  })
+  server.requestTimeout = 0
+  server.headersTimeout = 0
+}
+
+void main()

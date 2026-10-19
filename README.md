@@ -22,9 +22,11 @@ Open [http://127.0.0.1:5173](http://127.0.0.1:5173).
 
 Other scripts:
 
+- `npm run dev` — editor and renderer with reload, on this computer
+- `npm run build:dev` / `npm run start:dev` — local build, then serve it at `http://127.0.0.1:3001`
+- `npm run build:prod` / `npm run start:prod` — production build. The renderer bundle listens on `PORT`, or on port 3001
+- `npm run build` and `npm start` — same as the local `build:dev` and `start:dev` commands
 - `npm run typecheck` — check the editor and the renderer
-- `npm run build` — build the editor
-- `npm start` — build the editor, then serve the editor and the renderer together on port 3001
 
 ## How to make a video
 

@@ -4,6 +4,8 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "build:dev": "vite build --mode development",
+    "build:prod": "vite build",
     "build": "vite build",
     "typecheck": "node ./scripts/typecheck.mjs",
     "preview": "vite preview"

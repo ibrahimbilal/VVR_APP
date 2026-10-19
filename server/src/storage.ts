@@ -1,10 +1,10 @@
 import { randomUUID } from 'node:crypto'
 import { mkdir, readFile, rename, rm, stat, writeFile } from 'node:fs/promises'
 import path from 'node:path'
-import { fileURLToPath } from 'node:url'
 import type { Probe } from './probe'
+import { moduleDir } from './moduleDir'
 
-const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
+const root = path.resolve(moduleDir(import.meta.url), '..')
 export const tmpDir = path.join(root, 'tmp')
 export const clipsDir = path.join(tmpDir, 'clips')
 export const jobsDir = path.join(tmpDir, 'jobs')
