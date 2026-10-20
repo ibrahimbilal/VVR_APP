@@ -178,6 +178,9 @@ export const useProjectStore = defineStore('project', () => {
         if (style.value.ranking.pageStyle !== 'fraction' && style.value.ranking.pageStyle !== 'number') {
           style.value.ranking.pageStyle = 'fraction'
         }
+        if (!Number.isFinite(style.value.ranking.itemSpacing)) {
+          style.value.ranking.itemSpacing = 8
+        }
         activePreset.value = saved.activePreset || 'custom'
         musicName.value = saved.musicName
         const music = await idb.loadMusicFile()

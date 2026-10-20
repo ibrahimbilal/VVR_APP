@@ -92,7 +92,7 @@ function drawRanks(ctx: CanvasRenderingContext2D, input: DrawInput): void {
   const pad = Math.round(28 * (input.width / 1080))
   const top = input.bannerHeight + Math.max(0, ranking.positionY)
   const available = Math.max(36, input.height - pad - top)
-  const fitted = fitRankSize(ranking.fontSize, ranking.outlineWidth, rows.length, available)
+  const fitted = fitRankSize(ranking.fontSize, ranking.outlineWidth, rows.length, available, ranking.itemSpacing)
   const x = Math.max(0, ranking.positionX)
   const opacity = Math.max(0.15, Math.min(1, ranking.opacity))
 
@@ -117,16 +117,23 @@ function drawRanks(ctx: CanvasRenderingContext2D, input: DrawInput): void {
   ctx.restore()
 }
 
-function fitRankSize(maxSize: number, maxOutline: number, count: number, available: number): { size: number; outline: number; lineGap: number } {
+function fitRankSize(
+  maxSize: number,
+  maxOutline: number,
+  count: number,
+  available: number,
+  itemSpacing: number,
+): { size: number; outline: number; lineGap: number } {
+  const extra = (Number.isFinite(itemSpacing) ? Math.max(0, itemSpacing) : 8) / 100
   let size = Math.max(28, Math.round(maxSize))
   for (let attempt = 0; attempt < 16; attempt += 1) {
     const outline = maxSize > 0 ? (maxOutline * size) / maxSize : 0
-    const lineGap = size + outline * 2 + size * 0.08
+    const lineGap = size + outline * 2 + size * extra
     if (count * lineGap <= available || size <= 28) return { size, outline, lineGap }
     size = Math.max(28, Math.round(size * 0.88))
   }
   const outline = maxSize > 0 ? (maxOutline * size) / maxSize : 0
-  return { size, outline, lineGap: size + outline * 2 + size * 0.08 }
+  return { size, outline, lineGap: size + outline * 2 + size * extra }
 }
 
 function ellipsis(ctx: CanvasRenderingContext2D, text: string, maxWidth: number): string {

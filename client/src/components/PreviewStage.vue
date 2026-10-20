@@ -1,10 +1,10 @@
 <script setup lang="ts">
 import { frameMetrics } from '@shared/frame'
-import { Pause, Play, SkipBack, SkipForward } from '@lucide/vue'
-import { computed, nextTick, onMounted, ref, watch } from 'vue'
+import { Maximize, Minimize, Pause, Play, Volume2, VolumeX } from '@lucide/vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { usePlayback } from '../composables/usePlayback'
 import { drawOverlay, ensureFonts } from '../lib/drawOverlay'
-import { formatClock, formatRank, overlayRanks, pageLabel } from '../lib/format'
+import { formatClock, overlayRanks } from '../lib/format'
 import { useProjectStore } from '../stores/project'
 
 const store = useProjectStore()
@@ -13,24 +13,28 @@ const {
   videoB,
   back,
   playing,
+  muted,
   playhead,
   duration,
   activeClip,
   activeIndex,
   segments,
   toggle,
+  toggleMute,
   seek,
-  next,
-  previous,
   onVideoError,
   slotOpacity,
   slotZ,
 } = usePlayback()
 
-const wrap = ref<HTMLElement | null>(null)
+const root = ref<HTMLElement | null>(null)
+const player = ref<HTMLElement | null>(null)
+const controlsEl = ref<HTMLElement | null>(null)
 const canvas = ref<HTMLCanvasElement | null>(null)
 const scale = ref(0.3)
 const fontsReady = ref(false)
+const fullscreen = ref(false)
+let resizeObserver: ResizeObserver | null = null
 
 const hasVideo = computed(() => store.clips.some((clip) => Boolean(clip.objectUrl)))
 const metrics = computed(() => frameMetrics(store.style.video.width, store.style.video.height, store.style.banner.height))
@@ -59,6 +63,14 @@ const videoBoxStyle = computed(() => {
   }
 })
 const objectFit = computed(() => (store.style.video.scaleMode === 'crop' ? 'cover' : 'contain'))
+const progress = computed(() => {
+  if (duration.value <= 0) return 0
+  return Math.min(100, (Math.min(playhead.value, duration.value) / duration.value) * 100)
+})
+const playerStyle = computed(() => {
+  if (fullscreen.value) return undefined
+  return { width: `${Math.max(180, metrics.value.width * scale.value)}px` }
+})
 const placeholder = computed(() => {
   if (!activeClip.value) return 'Add at least two videos.'
   if (!activeClip.value.objectUrl) return 'This slot needs a video file. Upload one you have permission to use.'
@@ -67,10 +79,31 @@ const placeholder = computed(() => {
 })
 
 function measure() {
-  const box = wrap.value
+  const box = fullscreen.value && player.value ? player.value : root.value
   if (!box) return
   if (box.clientWidth < 20 || box.clientHeight < 20) return
-  scale.value = Math.min(box.clientWidth / metrics.value.width, box.clientHeight / metrics.value.height)
+  const chrome = controlsEl.value?.offsetHeight ?? 68
+  const pad = fullscreen.value ? 0 : 32
+  const border = fullscreen.value ? 0 : 2
+  const availableW = Math.max(40, box.clientWidth - pad - border)
+  const availableH = Math.max(40, box.clientHeight - pad - chrome)
+  scale.value = Math.min(availableW / metrics.value.width, availableH / metrics.value.height)
+}
+
+function toggleFullscreen() {
+  const node = player.value
+  if (!node) return
+  if (document.fullscreenElement) {
+    void document.exitFullscreen()
+    return
+  }
+  void node.requestFullscreen()
+}
+
+function onFullscreenChange() {
+  fullscreen.value = document.fullscreenElement === player.value
+  measure()
+  requestAnimationFrame(measure)
 }
 
 function paint() {
@@ -112,13 +145,20 @@ onMounted(async () => {
   fontsReady.value = true
   measure()
   paint()
-  const box = wrap.value
-  if (box) {
-    const observer = new ResizeObserver(() => measure())
-    observer.observe(box)
-  }
+  resizeObserver = new ResizeObserver(() => measure())
+  if (root.value) resizeObserver.observe(root.value)
+  if (player.value) resizeObserver.observe(player.value)
+  if (controlsEl.value) resizeObserver.observe(controlsEl.value)
+  document.addEventListener('fullscreenchange', onFullscreenChange)
   await nextTick()
+  measure()
   if (segments.value.length > 0) void seek(0)
+})
+
+onBeforeUnmount(() => {
+  resizeObserver?.disconnect()
+  document.removeEventListener('fullscreenchange', onFullscreenChange)
+  if (document.fullscreenElement === player.value) void document.exitFullscreen()
 })
 
 watch(metrics, () => {
@@ -146,10 +186,15 @@ function onSeek(event: Event) {
 </script>
 
 <template>
-  <section class="flex min-h-0 flex-col bg-[#0b0c0f]">
-    <div ref="wrap" class="flex min-h-0 flex-1 items-center justify-center p-4">
+  <section ref="root" class="flex min-h-0 flex-1 items-center justify-center bg-[#0b0c0f] p-4">
+    <div
+      ref="player"
+      class="relative flex max-h-full flex-col overflow-hidden rounded-2xl border border-zinc-700 bg-black shadow-2xl"
+      :class="fullscreen ? 'h-full w-full items-center justify-center rounded-none border-0' : ''"
+      :style="playerStyle"
+    >
       <div :style="scaleBoxStyle">
-        <div class="relative cursor-pointer bg-black shadow-2xl ring-1 ring-white/10" :style="stageStyle" title="Play or pause" @click="toggle">
+        <div class="relative cursor-pointer bg-black" :style="stageStyle" title="Play or pause" @click="toggle">
           <div class="absolute left-0 z-0 w-full overflow-hidden" :style="videoBoxStyle">
             <div v-if="placeholder" class="absolute inset-0 z-0 flex items-center justify-center px-16 text-center text-[42px] leading-snug text-zinc-400">
               {{ placeholder }}
@@ -181,44 +226,84 @@ function onSeek(event: Event) {
           <canvas ref="canvas" class="pointer-events-none absolute inset-0 z-10 h-full w-full"></canvas>
         </div>
       </div>
-    </div>
 
-    <div class="border-t border-zinc-800 px-4 py-3">
-      <div class="mb-2 flex items-center gap-2">
-        <button class="btn cursor-pointer btn-ghost px-2" type="button" aria-label="Previous clip" title="Previous clip" @click="previous">
-          <SkipBack :size="16" />
-        </button>
-        <button class="btn cursor-pointer btn-primary px-3" type="button" :aria-label="playing ? 'Pause' : 'Play'" :title="playing ? 'Pause' : 'Play'" @click="toggle">
-          <Pause v-if="playing" :size="16" />
-          <Play v-else :size="16" />
-        </button>
-        <button class="btn cursor-pointer btn-ghost px-2" type="button" aria-label="Next clip" title="Next clip" @click="next">
-          <SkipForward :size="16" />
-        </button>
+      <div ref="controlsEl" class="w-full shrink-0 px-3 pb-3 pt-2 absolute bottom-0 left-0 right-0">
+        <div class="flex items-center gap-3 text-white">
+          <button class="cursor-pointer disabled:cursor-default disabled:opacity-40" type="button" :aria-label="playing ? 'Pause' : 'Play'" :title="playing ? 'Pause' : 'Play'" :disabled="duration <= 0" @click="toggle">
+            <Pause v-if="playing" :size="18" />
+            <Play v-else :size="18" />
+          </button>
+          <button class="cursor-pointer" type="button" :aria-label="muted ? 'Unmute' : 'Mute'" :title="muted ? 'Unmute' : 'Mute'" @click="toggleMute">
+            <VolumeX v-if="muted" :size="18" />
+            <Volume2 v-else :size="18" />
+          </button>
+          <span class="text-sm tabular-nums">{{ formatClock(playhead) }} / {{ formatClock(duration) }}</span>
+          <button class="ml-auto cursor-pointer" type="button" :aria-label="fullscreen ? 'Exit fullscreen' : 'Fullscreen'" :title="fullscreen ? 'Exit fullscreen' : 'Fullscreen'" @click="toggleFullscreen">
+            <Minimize v-if="fullscreen" :size="18" />
+            <Maximize v-else :size="18" />
+          </button>
+        </div>
         <input
-          class="mx-2 min-w-0 flex-1 cursor-pointer"
+          class="preview-seek mt-2"
           type="range"
           min="0"
           :max="Math.max(duration, 0.01)"
           step="0.01"
           :value="Math.min(playhead, duration)"
           :disabled="duration <= 0"
+          :style="{ '--progress': `${progress}%` }"
+          aria-label="Playback position"
           @input="onSeek"
         />
-        <span class="w-24 shrink-0 text-right text-xs tabular-nums text-zinc-300">
-          {{ formatClock(playhead) }} / {{ formatClock(duration) }}
-        </span>
-      </div>
-      <div class="flex items-center justify-between gap-3 text-xs text-zinc-400">
-        <p class="truncate">
-          <template v-if="activeClip && activeIndex >= 0">
-            <span class="text-amber-300">{{ store.style.ranking.display === 'page' && store.style.ranking.pageStyle !== 'number' ? `${pageLabel(activeIndex, store.clips.length)}` : `${formatRank(activeIndex, store.style.ranking.format)}` }}</span>
-            {{ activeClip.title }}
-          </template>
-          <template v-else>Nothing playing yet</template>
-        </p>
-        <p class="shrink-0 tabular-nums">{{ metrics.width }}×{{ metrics.height }} · {{ store.style.video.fps }} fps · 9:16</p>
       </div>
     </div>
   </section>
 </template>
+
+<style scoped>
+.preview-seek {
+  -webkit-appearance: none;
+  appearance: none;
+  display: block;
+  width: 100%;
+  height: 3px;
+  border-radius: 999px;
+  background: linear-gradient(to right, #f4f4f5 var(--progress, 0%), #3f3f46 var(--progress, 0%));
+  cursor: pointer;
+}
+
+.preview-seek:disabled {
+  cursor: default;
+  opacity: 0.45;
+}
+
+.preview-seek::-webkit-slider-runnable-track {
+  height: 3px;
+  background: transparent;
+}
+
+.preview-seek::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 10px;
+  height: 10px;
+  margin-top: -3.5px;
+  border: 0;
+  border-radius: 999px;
+  background: #f4f4f5;
+}
+
+.preview-seek::-moz-range-track {
+  height: 3px;
+  background: transparent;
+  border: 0;
+}
+
+.preview-seek::-moz-range-thumb {
+  width: 10px;
+  height: 10px;
+  border: 0;
+  border-radius: 999px;
+  background: #f4f4f5;
+}
+</style>

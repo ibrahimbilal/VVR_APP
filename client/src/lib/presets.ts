@@ -36,6 +36,7 @@ const classicRanking: RankingStyle = {
   fontSize: 85,
   fontWeight: 400,
   color: '#ffe14a',
+  itemSpacing: 8,
   positionX: 36,
   positionY: 200,
   outlineWidth: 6,

@@ -33,6 +33,7 @@ export interface RankingStyle {
   fontSize: number
   fontWeight: number
   color: string
+  itemSpacing: number
   positionX: number
   positionY: number
   outlineWidth: number

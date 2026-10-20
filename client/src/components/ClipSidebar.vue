@@ -118,7 +118,7 @@ function kept(duration: number, start: number, end: number): string {
       </form>
       <p v-if="store.urlNotice" class="text-xs leading-relaxed text-amber-200/90">{{ store.urlNotice }}</p>
       <button
-        class="flex w-full cursor-pointer flex-col items-center gap-1 rounded-lg border border-dashed px-3 py-4 text-sm font-semibold"
+        class="flex w-full cursor-pointer flex-col items-center gap-1 rounded-lg border border-dashed px-3 py-4 text-sm font-semibold mb-0"
         :class="fileDrag ? 'border-amber-300 bg-amber-300/10 text-amber-100' : 'border-zinc-600 bg-[#101114] text-zinc-100'"
         type="button"
         @click="fileInput?.click()"
@@ -128,9 +128,6 @@ function kept(duration: number, start: number, end: number): string {
         <span class="text-[11px] font-normal text-zinc-500">or click to browse</span>
       </button>
       <input ref="fileInput" class="hidden" type="file" accept="video/mp4,video/quicktime,video/webm,.mp4,.mov,.webm,.m4v" multiple @change="onFiles" />
-      <p class="text-[11px] leading-relaxed text-zinc-500">
-        Only use videos you own or have permission to use. A link is checked for a title when the platform allows it. It is not downloaded.
-      </p>
     </div>
 
     <div class="min-h-0 flex-1 space-y-2 overflow-y-auto p-3" @dragover.prevent>

@@ -275,6 +275,7 @@ function onResolution(event: Event) {
           </select>
         </label>
         <SliderField v-model="store.style.ranking.fontSize" label="Number size" :min="36" :max="360" suffix="px" />
+        <SliderField v-model="store.style.ranking.itemSpacing" label="Item spacing" :min="0" :max="100" suffix="%" />
         <SliderField v-model="store.style.ranking.positionX" label="Left position" :min="0" :max="Math.round(store.style.video.width * 0.7)" suffix="px" />
         <SliderField v-model="store.style.ranking.positionY" label="Top position" :min="0" :max="Math.round(metrics.videoHeight * 0.95)" suffix="px" />
         <SliderField v-model="store.style.ranking.outlineWidth" label="Outline" :min="0" :max="28" suffix="px" />

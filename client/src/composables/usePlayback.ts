@@ -18,6 +18,7 @@ function createPlayback() {
   const videoB = ref<HTMLVideoElement | null>(null)
   const back = ref<HTMLVideoElement | null>(null)
   const playing = ref(false)
+  const muted = ref(false)
   const playhead = ref(0)
   const primarySlot = ref<Slot>('a')
   const secondarySlot = ref<Slot | null>(null)
@@ -155,6 +156,12 @@ function createPlayback() {
   function toggle() {
     if (playing.value) pause()
     else void play()
+  }
+
+  function toggleMute() {
+    muted.value = !muted.value
+    syncVolumes()
+    syncMusic(false)
   }
 
   function next() {
@@ -330,7 +337,7 @@ function createPlayback() {
     for (const slot of ['a', 'b'] as const) {
       const video = element(slot)
       if (!video) continue
-      if (!store.style.video.keepAudio) {
+      if (muted.value || !store.style.video.keepAudio) {
         video.muted = true
         continue
       }
@@ -362,7 +369,7 @@ function createPlayback() {
 
   function syncMusic(force: boolean) {
     music.volume = store.style.video.musicVolume
-    if (!playing.value || !store.musicUrl || store.style.video.musicVolume <= 0) {
+    if (muted.value || !playing.value || !store.musicUrl || store.style.video.musicVolume <= 0) {
       music.pause()
       return
     }
@@ -388,6 +395,7 @@ function createPlayback() {
     videoB,
     back,
     playing,
+    muted,
     playhead,
     duration,
     activeClip,
@@ -395,6 +403,7 @@ function createPlayback() {
     segments,
     secondaryOpacity,
     toggle,
+    toggleMute,
     play,
     pause,
     seek,
