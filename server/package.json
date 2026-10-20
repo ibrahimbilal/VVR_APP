@@ -4,9 +4,9 @@
   "type": "module",
   "scripts": {
     "dev": "tsx watch src/index.ts",
-    "build:prod": "esbuild src/index.ts --bundle --platform=node --format=cjs --outfile=dist/index.cjs --packages=external",
+    "build:prod": "esbuild src/index.ts --bundle --platform=node --format=esm --outfile=dist/index.js --packages=external",
     "start:dev": "tsx src/index.ts",
-    "start:prod": "node dist/index.cjs",
+    "start:prod": "node dist/index.js",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
