@@ -65,7 +65,7 @@ function selectBlock(id: string, index: number) {
         <button
           v-for="block in blocks"
           :key="block.id"
-          class="absolute inset-y-1 flex items-center overflow-hidden rounded px-2 text-left text-[11px]"
+          class="absolute inset-y-1 flex cursor-pointer items-center overflow-hidden rounded px-2 text-left text-[11px]"
           :style="{
             left: `calc(${block.left}% + 2px)`,
             width: `calc(${Math.max(block.width, 0)}% - 4px)`,
@@ -80,18 +80,18 @@ function selectBlock(id: string, index: number) {
         <span class="pointer-events-none absolute inset-y-0 w-0.5 bg-amber-300" :style="{ left: `${playheadLeft}%` }"></span>
       </div>
       <div class="flex w-44 shrink-0 flex-col gap-2 sm:w-52">
-        <button class="btn btn-primary" type="button" :disabled="Boolean(store.exportBlocker) || store.exporting" @click="store.startExport">
+        <button class="btn cursor-pointer btn-primary" type="button" :disabled="Boolean(store.exportBlocker) || store.exporting" @click="store.startExport">
           <LoaderCircle v-if="store.exporting" class="animate-spin" :size="16" />
           <Download v-else :size="16" />
           {{ store.exporting ? busyLabel : 'Export MP4' }}
         </button>
-        <button v-if="store.exporting" class="btn btn-ghost" type="button" @click="store.cancelExport">
+        <button v-if="store.exporting" class="btn cursor-pointer btn-ghost" type="button" @click="store.cancelExport">
           <X :size="16" />
           Cancel
         </button>
         <a
           v-if="store.exportState.phase === 'done' && store.exportState.downloadUrl"
-          class="btn btn-ghost"
+          class="btn cursor-pointer btn-ghost"
           :href="store.exportState.downloadUrl"
           :download="store.downloadName()"
         >
@@ -110,9 +110,6 @@ function selectBlock(id: string, index: number) {
         <template v-else-if="store.exportBlocker">{{ store.exportBlocker }}</template>
         <template v-else>{{ store.clips.length }} clips · {{ formatClock(playback.duration.value) }}</template>
       </p>
-      <div v-if="store.exporting" class="h-1.5 w-40 overflow-hidden rounded bg-zinc-800">
-        <div class="h-full bg-amber-300" :style="{ width: `${Math.round(store.exportState.progress * 100)}%` }"></div>
-      </div>
     </div>
   </footer>
 </template>

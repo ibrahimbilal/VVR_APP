@@ -9,6 +9,7 @@ import { runExport } from '../lib/exportJob'
 import { formatRank, sourceLabel, titleFromFileName } from '../lib/format'
 import * as idb from '../lib/idb'
 import { readVideoFile, validateAudioFile, validateVideoFile } from '../lib/media'
+import { defaultColorSets, loadColorSets, saveColorSets, type ColorSet } from '../lib/colorSets'
 import { RANK_COLORS, createDefaultVideo, materializePreset } from '../lib/presets'
 import { retokenize } from '../lib/title'
 import type { Clip, ExportState, PersistedClip, PresetId, ProjectStyle, Source, TitleSpan } from '../types'
@@ -47,6 +48,7 @@ function blankClip(partial: Partial<Clip>): Clip {
     objectUrl: null,
     thumbnail: null,
     rankColor: null,
+    titleColor: null,
     width: 0,
     height: 0,
     hasAudio: true,
@@ -66,6 +68,10 @@ export const useProjectStore = defineStore('project', () => {
   const activePreset = ref<PresetId>('classic')
   const clips = ref<Clip[]>([])
   const selectedClipId = ref<string | null>(null)
+  const selectedPanelOpen = ref(false)
+  const storedColors = loadColorSets()
+  const colorSets = ref<ColorSet[]>(storedColors.sets)
+  const activeColorSetId = ref(storedColors.activeId)
   const musicUrl = ref<string | null>(null)
   const musicName = ref<string | null>(null)
   const serverOnline = ref(false)
@@ -75,6 +81,8 @@ export const useProjectStore = defineStore('project', () => {
   const urlNotice = ref('')
 
   const selectedClip = computed(() => clips.value.find((clip) => clip.id === selectedClipId.value) ?? null)
+  const activeColorSet = computed(() => colorSets.value.find((set) => set.id === activeColorSetId.value) ?? colorSets.value[0] ?? null)
+  const activeColors = computed(() => activeColorSet.value?.colors ?? [])
   const exporting = computed(() =>
     ['overlays', 'uploading', 'queued', 'preparing', 'rendering', 'verifying'].includes(exportState.value.phase),
   )
@@ -122,6 +130,14 @@ export const useProjectStore = defineStore('project', () => {
   )
 
   watch(
+    [colorSets, activeColorSetId],
+    () => {
+      saveColorSets(colorSets.value, activeColorSetId.value)
+    },
+    { deep: true },
+  )
+
+  watch(
     [name, titleText, spans, style, clips, activePreset, musicName],
     () => {
       if (!hydrated.value) return
@@ -156,6 +172,12 @@ export const useProjectStore = defineStore('project', () => {
         titleText.value = saved.titleText || ''
         spans.value = saved.spans
         style.value = saved.style
+        if (style.value.ranking.display !== 'page' && style.value.ranking.display !== 'stack') {
+          style.value.ranking.display = 'stack'
+        }
+        if (style.value.ranking.pageStyle !== 'fraction' && style.value.ranking.pageStyle !== 'number') {
+          style.value.ranking.pageStyle = 'fraction'
+        }
         activePreset.value = saved.activePreset || 'custom'
         musicName.value = saved.musicName
         const music = await idb.loadMusicFile()
@@ -306,7 +328,10 @@ export const useProjectStore = defineStore('project', () => {
     if (clip.objectUrl) URL.revokeObjectURL(clip.objectUrl)
     fileMap.delete(id)
     clips.value = clips.value.filter((item) => item.id !== id)
-    if (selectedClipId.value === id) selectedClipId.value = clips.value[0]?.id ?? null
+    if (selectedClipId.value === id) {
+      selectedClipId.value = clips.value[0]?.id ?? null
+      if (!selectedClipId.value) selectedPanelOpen.value = false
+    }
     void idb.deleteClipFile(id).catch(() => undefined)
   }
 
@@ -320,7 +345,13 @@ export const useProjectStore = defineStore('project', () => {
   }
 
   function selectClip(id: string) {
+    if (!clips.value.some((clip) => clip.id === id)) return
     selectedClipId.value = id
+    selectedPanelOpen.value = true
+  }
+
+  function closeSelectedPanel() {
+    selectedPanelOpen.value = false
   }
 
   function setTrim(id: string, start: number, end: number) {
@@ -353,6 +384,10 @@ export const useProjectStore = defineStore('project', () => {
     spans.value = spans.value.slice()
   }
 
+  function palette(): string[] {
+    return paletteFrom(activeColors.value)
+  }
+
   function applyPreset(id: 'classic' | 'tier' | 'minimal') {
     applying = true
     const next = materializePreset(id, style.value.video)
@@ -360,8 +395,9 @@ export const useProjectStore = defineStore('project', () => {
     titleText.value = next.titleText
     spans.value = next.spans
     activePreset.value = id
+    const colors = palette()
     clips.value.forEach((clip, index) => {
-      clip.rankColor = next.cycleRanks ? (RANK_COLORS[index % RANK_COLORS.length] ?? null) : null
+      clip.rankColor = next.cycleRanks ? (colors[index % colors.length] ?? null) : null
     })
     applying = false
   }
@@ -389,14 +425,67 @@ export const useProjectStore = defineStore('project', () => {
   }
 
   function cycleRankColors() {
+    const colors = palette()
     clips.value.forEach((clip, index) => {
-      clip.rankColor = RANK_COLORS[index % RANK_COLORS.length] ?? '#ffffff'
+      clip.rankColor = colors[index % colors.length] ?? '#ffffff'
     })
+  }
+
+  function setActiveColorSet(id: string) {
+    if (colorSets.value.some((set) => set.id === id)) activeColorSetId.value = id
+  }
+
+  function renameColorSet(name: string) {
+    const set = colorSets.value.find((item) => item.id === activeColorSetId.value)
+    if (!set) return
+    set.name = name.slice(0, 40)
+  }
+
+  function addColorSet() {
+    const id = crypto.randomUUID()
+    colorSets.value = [...colorSets.value, { id, name: 'Custom', colors: ['#ffffff', '#ffe14a', '#ff3b3b', '#3ee0ff'] }]
+    activeColorSetId.value = id
+  }
+
+  function removeColorSet(id: string) {
+    if (colorSets.value.length <= 1) return
+    colorSets.value = colorSets.value.filter((set) => set.id !== id)
+    if (!colorSets.value.some((set) => set.id === activeColorSetId.value)) {
+      activeColorSetId.value = colorSets.value[0]?.id ?? 'classic'
+    }
+  }
+
+  function addPaletteColor(color: string) {
+    const set = colorSets.value.find((item) => item.id === activeColorSetId.value)
+    if (!set || !/^#[0-9a-fA-F]{6}$/.test(color)) return
+    const normalized = color.toLowerCase()
+    if (set.colors.some((item) => item.toLowerCase() === normalized)) return
+    if (set.colors.length >= 12) {
+      toast('A color set can hold 12 colors.')
+      return
+    }
+    set.colors = [...set.colors, normalized]
+  }
+
+  function removePaletteColor(color: string) {
+    const set = colorSets.value.find((item) => item.id === activeColorSetId.value)
+    if (!set || set.colors.length <= 1) return
+    set.colors = set.colors.filter((item) => item.toLowerCase() !== color.toLowerCase())
+  }
+
+  function resetColorSets() {
+    colorSets.value = defaultColorSets()
+    activeColorSetId.value = 'classic'
   }
 
   function setRankColor(id: string, color: string | null) {
     const clip = clips.value.find((item) => item.id === id)
     if (clip) clip.rankColor = color
+  }
+
+  function setTitleColor(id: string, color: string | null) {
+    const clip = clips.value.find((item) => item.id === id)
+    if (clip) clip.titleColor = color
   }
 
   async function setMusic(file: File | null) {
@@ -442,6 +531,7 @@ export const useProjectStore = defineStore('project', () => {
     activePreset.value = 'classic'
     clips.value = []
     selectedClipId.value = null
+    selectedPanelOpen.value = false
     exportState.value = idleExport()
     urlNotice.value = ''
     applying = false
@@ -484,6 +574,10 @@ export const useProjectStore = defineStore('project', () => {
           exportState.value = { ...exportState.value, ...patch }
         },
       })
+      if (exportState.value.phase === 'done' && exportState.value.downloadUrl) {
+        triggerDownload(exportState.value.downloadUrl, downloadName())
+        toast('Download started.', 'info')
+      }
     } catch (error) {
       if (signal.aborted || (error instanceof DOMException && error.name === 'AbortError')) {
         exportState.value = {
@@ -602,6 +696,11 @@ export const useProjectStore = defineStore('project', () => {
     clips,
     selectedClipId,
     selectedClip,
+    selectedPanelOpen,
+    colorSets,
+    activeColorSetId,
+    activeColorSet,
+    activeColors,
     musicUrl,
     musicName,
     serverOnline,
@@ -620,13 +719,22 @@ export const useProjectStore = defineStore('project', () => {
     removeClip,
     moveClip,
     selectClip,
+    closeSelectedPanel,
     setTrim,
     setTitleText,
     setSpanColor,
     applyPreset,
     setResolution,
     cycleRankColors,
+    setActiveColorSet,
+    renameColorSet,
+    addColorSet,
+    removeColorSet,
+    addPaletteColor,
+    removePaletteColor,
+    resetColorSets,
     setRankColor,
+    setTitleColor,
     setMusic,
     newProject,
     retryUpload,
@@ -652,6 +760,7 @@ function clipFromMeta(meta: PersistedClip): Clip {
     serverId: meta.serverId,
     thumbnail: meta.thumbnail,
     rankColor: meta.rankColor,
+    titleColor: meta.titleColor ?? null,
     width: meta.width,
     height: meta.height,
     hasAudio: meta.hasAudio,
@@ -672,10 +781,25 @@ function persistableClip(clip: Clip): PersistedClip {
     serverId: clip.serverId,
     thumbnail: clip.thumbnail,
     rankColor: clip.rankColor,
+    titleColor: clip.titleColor,
     width: clip.width,
     height: clip.height,
     hasAudio: clip.hasAudio,
   }
+}
+
+function paletteFrom(colors: string[]): string[] {
+  return colors.length > 0 ? colors : RANK_COLORS
+}
+
+function triggerDownload(url: string, filename: string) {
+  const link = document.createElement('a')
+  link.href = url
+  link.download = filename
+  link.hidden = true
+  document.body.appendChild(link)
+  link.click()
+  link.remove()
 }
 
 function clamp(value: number, min: number, max: number): number {

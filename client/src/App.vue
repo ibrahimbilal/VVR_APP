@@ -3,6 +3,7 @@ import { CircleAlert, CircleCheck, FilePlus, ListVideo, MonitorPlay, SlidersHori
 import { onMounted, onBeforeUnmount, ref } from 'vue'
 import ClipSidebar from './components/ClipSidebar.vue'
 import PreviewStage from './components/PreviewStage.vue'
+import SelectedClipPanel from './components/SelectedClipPanel.vue'
 import StylePanel from './components/StylePanel.vue'
 import TimelineBar from './components/TimelineBar.vue'
 import { usePlayback } from './composables/usePlayback'
@@ -40,11 +41,11 @@ onBeforeUnmount(() => {
         <span class="grid h-7 w-7 place-items-center rounded-sm bg-amber-300 text-[10px] font-black text-black"><Film /></span>
         <span class="text-sm font-black tracking-[0.16em]">Vertical Video Ranking</span>
       </div>
-      <button class="btn btn-ghost" type="button" @click="store.newProject">
+      <button class="btn cursor-pointer btn-ghost" type="button" @click="store.newProject">
         <FilePlus :size="16" />
         New project
       </button>
-      <button class="ml-auto inline-flex items-center gap-2 text-xs font-semibold" type="button" aria-label="Refresh renderer status" @click="store.refreshServer">
+      <button class="ml-auto inline-flex cursor-pointer items-center gap-2 text-xs font-semibold" type="button" aria-label="Refresh renderer status" @click="store.refreshServer">
         <CircleCheck v-if="store.serverOnline" class="text-emerald-400" :size="16" />
         <CircleAlert v-else class="text-red-300" :size="16" />
         <span :class="store.serverOnline ? 'text-emerald-400' : 'text-red-300'">
@@ -54,23 +55,33 @@ onBeforeUnmount(() => {
     </header>
 
     <div class="flex gap-2 border-b border-zinc-800 p-2 xl:hidden">
-      <button class="btn flex-1" :class="tab === 'clips' ? 'btn-primary' : 'btn-ghost'" type="button" @click="tab = 'clips'">
+      <button class="btn cursor-pointer flex-1" :class="tab === 'clips' ? 'btn-primary' : 'btn-ghost'" type="button" @click="tab = 'clips'">
         <ListVideo :size="16" />
         Clips
       </button>
-      <button class="btn flex-1" :class="tab === 'preview' ? 'btn-primary' : 'btn-ghost'" type="button" @click="tab = 'preview'">
+      <button class="btn cursor-pointer flex-1" :class="tab === 'preview' ? 'btn-primary' : 'btn-ghost'" type="button" @click="tab = 'preview'">
         <MonitorPlay :size="16" />
         Preview
       </button>
-      <button class="btn flex-1" :class="tab === 'style' ? 'btn-primary' : 'btn-ghost'" type="button" @click="tab = 'style'">
+      <button class="btn cursor-pointer flex-1" :class="tab === 'style' ? 'btn-primary' : 'btn-ghost'" type="button" @click="tab = 'style'">
         <SlidersHorizontal :size="16" />
         Style
       </button>
     </div>
 
-    <div class="grid min-h-0 flex-1 grid-cols-1 xl:grid-cols-[340px_minmax(0,1fr)_340px]">
+    <div
+      class="grid min-h-0 flex-1 auto-rows-[minmax(0,1fr)] grid-cols-1"
+      :class="store.selectedPanelOpen && store.selectedClip ? 'xl:grid-cols-[350px_280px_minmax(0,1fr)_350px]' : 'xl:grid-cols-[350px_minmax(0,1fr)_350px]'"
+    >
       <div class="min-h-0 xl:flex" :class="tab === 'clips' ? 'flex' : 'hidden'">
         <ClipSidebar class="h-full w-full" />
+      </div>
+      <div
+        v-if="store.selectedPanelOpen && store.selectedClip"
+        class="min-h-0 xl:flex"
+        :class="tab === 'clips' ? 'flex' : 'hidden'"
+      >
+        <SelectedClipPanel class="h-full w-full" />
       </div>
       <div class="min-h-[70vh] xl:min-h-0 xl:flex" :class="tab === 'preview' ? 'flex' : 'hidden'">
         <PreviewStage class="h-full w-full" />
@@ -94,7 +105,7 @@ onBeforeUnmount(() => {
       >
         <div class="flex items-start gap-3">
           <p class="flex-1">{{ item.text }}</p>
-          <button class="text-zinc-400" type="button" aria-label="Dismiss" title="Dismiss" @click="store.dismissToast(item.id)">
+          <button class="cursor-pointer text-zinc-400" type="button" aria-label="Dismiss" title="Dismiss" @click="store.dismissToast(item.id)">
             <X :size="16" />
           </button>
         </div>

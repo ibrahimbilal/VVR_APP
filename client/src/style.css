@@ -64,6 +64,7 @@ input[type='color'] {
     font-size: 0.8125rem;
     font-weight: 650;
     line-height: 1.1;
+    cursor: pointer;
   }
 
   .btn:disabled {
@@ -110,4 +111,8 @@ input[type='color'] {
     padding: 0.15rem 0.3rem 0.15rem 0.65rem;
     font-size: 0.75rem;
   }
+}
+
+button:disabled {
+  cursor: not-allowed;
 }

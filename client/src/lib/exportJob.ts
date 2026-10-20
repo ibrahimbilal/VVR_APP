@@ -48,7 +48,16 @@ export async function runExport(input: ExportInput): Promise<void> {
       spans: input.spans,
       ranking: input.style.ranking,
       caption: input.style.caption,
-      ranks: overlayRanks(input.clips, index, input.style.ranking.format, input.style.ranking.color, input.style.caption.enabled),
+      ranks: overlayRanks(
+        input.clips,
+        index,
+        input.style.ranking.format,
+        input.style.ranking.color,
+        input.style.caption.enabled,
+        input.style.ranking.display,
+        input.style.caption.color,
+        input.style.ranking.pageStyle,
+      ),
     })
     overlays.push(await canvasToPng(canvas))
     input.onUpdate({ progress: 0.02 + ((index + 1) / input.clips.length) * 0.06 })

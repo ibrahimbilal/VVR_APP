@@ -3,6 +3,8 @@ export type UploadState = 'empty' | 'uploading' | 'ready' | 'error'
 export type ScaleMode = 'crop' | 'fit' | 'blur'
 export type Transition = 'cut' | 'fade'
 export type NumberFormat = 'dot' | 'plain' | 'hash' | 'pad'
+export type RankDisplay = 'stack' | 'page'
+export type RankPageStyle = 'fraction' | 'number'
 export type TextAlign = 'left' | 'center' | 'right'
 export type PresetId = 'classic' | 'tier' | 'minimal' | 'custom'
 
@@ -38,6 +40,8 @@ export interface RankingStyle {
   shadow: boolean
   opacity: number
   format: NumberFormat
+  display: RankDisplay
+  pageStyle: RankPageStyle
 }
 
 export interface CaptionStyle {
@@ -86,6 +90,7 @@ export interface Clip {
   objectUrl: string | null
   thumbnail: string | null
   rankColor: string | null
+  titleColor: string | null
   width: number
   height: number
   hasAudio: boolean
@@ -130,6 +135,7 @@ export interface PersistedClip {
   serverId: string | null
   thumbnail: string | null
   rankColor: string | null
+  titleColor: string | null
   width: number
   height: number
   hasAudio: boolean

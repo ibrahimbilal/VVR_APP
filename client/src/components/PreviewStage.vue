@@ -4,7 +4,7 @@ import { Pause, Play, SkipBack, SkipForward } from '@lucide/vue'
 import { computed, nextTick, onMounted, ref, watch } from 'vue'
 import { usePlayback } from '../composables/usePlayback'
 import { drawOverlay, ensureFonts } from '../lib/drawOverlay'
-import { formatClock, formatRank, overlayRanks } from '../lib/format'
+import { formatClock, formatRank, overlayRanks, pageLabel } from '../lib/format'
 import { useProjectStore } from '../stores/project'
 
 const store = useProjectStore()
@@ -32,6 +32,7 @@ const canvas = ref<HTMLCanvasElement | null>(null)
 const scale = ref(0.3)
 const fontsReady = ref(false)
 
+const hasVideo = computed(() => store.clips.some((clip) => Boolean(clip.objectUrl)))
 const metrics = computed(() => frameMetrics(store.style.video.width, store.style.video.height, store.style.banner.height))
 const stageStyle = computed(() => ({
   width: `${metrics.value.width}px`,
@@ -43,14 +44,23 @@ const scaleBoxStyle = computed(() => ({
   width: `${metrics.value.width * scale.value}px`,
   height: `${metrics.value.height * scale.value}px`,
 }))
-const videoBoxStyle = computed(() => ({
-  top: `${metrics.value.bannerHeight}px`,
-  height: `${metrics.value.videoHeight}px`,
-  background: store.style.video.scaleMode === 'crop' ? '#000000' : store.style.video.backgroundColor,
-}))
+const videoBoxStyle = computed(() => {
+  if (!hasVideo.value) {
+    return {
+      top: '0px',
+      height: `${metrics.value.height}px`,
+      background: '#000000',
+    }
+  }
+  return {
+    top: `${metrics.value.bannerHeight}px`,
+    height: `${metrics.value.videoHeight}px`,
+    background: store.style.video.scaleMode === 'crop' ? '#000000' : store.style.video.backgroundColor,
+  }
+})
 const objectFit = computed(() => (store.style.video.scaleMode === 'crop' ? 'cover' : 'contain'))
 const placeholder = computed(() => {
-  if (!activeClip.value) return 'Add at least two videos. The title stays fixed while the clips play underneath.'
+  if (!activeClip.value) return 'Add at least two videos.'
   if (!activeClip.value.objectUrl) return 'This slot needs a video file. Upload one you have permission to use.'
   if (activeClip.value.previewBlocked) return 'This browser cannot play this codec. Export can still try to render it.'
   return ''
@@ -70,6 +80,10 @@ function paint() {
   if (!context) return
   target.width = metrics.value.width
   target.height = metrics.value.height
+  if (!hasVideo.value) {
+    context.clearRect(0, 0, target.width, target.height)
+    return
+  }
   const clip = activeClip.value
   const index = activeIndex.value
   drawOverlay(context, {
@@ -80,7 +94,16 @@ function paint() {
     spans: store.spans,
     ranking: store.style.ranking,
     caption: store.style.caption,
-    ranks: overlayRanks(store.clips, index, store.style.ranking.format, store.style.ranking.color, store.style.caption.enabled && Boolean(clip?.objectUrl)),
+    ranks: overlayRanks(
+      store.clips,
+      index,
+      store.style.ranking.format,
+      store.style.ranking.color,
+      store.style.caption.enabled && Boolean(clip?.objectUrl),
+      store.style.ranking.display,
+      store.style.caption.color,
+      store.style.ranking.pageStyle,
+    ),
   })
 }
 
@@ -109,7 +132,7 @@ watch(
     store.style.ranking,
     store.style.caption,
     activeIndex.value,
-    store.clips.map((clip) => `${clip.title}\n${clip.rankColor ?? ''}`).join('\n'),
+    store.clips.map((clip) => `${clip.title}\n${clip.rankColor ?? ''}\n${clip.titleColor ?? ''}\n${clip.objectUrl ? '1' : '0'}`).join('\n'),
   ],
   () => paint(),
   { deep: true },
@@ -126,7 +149,7 @@ function onSeek(event: Event) {
   <section class="flex min-h-0 flex-col bg-[#0b0c0f]">
     <div ref="wrap" class="flex min-h-0 flex-1 items-center justify-center p-4">
       <div :style="scaleBoxStyle">
-        <div class="relative bg-black shadow-2xl ring-1 ring-white/10" :style="stageStyle">
+        <div class="relative cursor-pointer bg-black shadow-2xl ring-1 ring-white/10" :style="stageStyle" title="Play or pause" @click="toggle">
           <div class="absolute left-0 z-0 w-full overflow-hidden" :style="videoBoxStyle">
             <div v-if="placeholder" class="absolute inset-0 z-0 flex items-center justify-center px-16 text-center text-[42px] leading-snug text-zinc-400">
               {{ placeholder }}
@@ -141,6 +164,7 @@ function onSeek(event: Event) {
             <video
               ref="videoA"
               class="absolute inset-0 h-full w-full"
+              :class="hasVideo ? '' : 'hidden'"
               :style="{ objectFit, opacity: slotOpacity('a'), zIndex: slotZ('a') }"
               playsinline
               @error="onVideoError"
@@ -148,6 +172,7 @@ function onSeek(event: Event) {
             <video
               ref="videoB"
               class="absolute inset-0 h-full w-full"
+              :class="hasVideo ? '' : 'hidden'"
               :style="{ objectFit, opacity: slotOpacity('b'), zIndex: slotZ('b') }"
               playsinline
               @error="onVideoError"
@@ -160,18 +185,18 @@ function onSeek(event: Event) {
 
     <div class="border-t border-zinc-800 px-4 py-3">
       <div class="mb-2 flex items-center gap-2">
-        <button class="btn btn-ghost px-2" type="button" aria-label="Previous clip" title="Previous clip" @click="previous">
+        <button class="btn cursor-pointer btn-ghost px-2" type="button" aria-label="Previous clip" title="Previous clip" @click="previous">
           <SkipBack :size="16" />
         </button>
-        <button class="btn btn-primary px-3" type="button" :aria-label="playing ? 'Pause' : 'Play'" :title="playing ? 'Pause' : 'Play'" @click="toggle">
+        <button class="btn cursor-pointer btn-primary px-3" type="button" :aria-label="playing ? 'Pause' : 'Play'" :title="playing ? 'Pause' : 'Play'" @click="toggle">
           <Pause v-if="playing" :size="16" />
           <Play v-else :size="16" />
         </button>
-        <button class="btn btn-ghost px-2" type="button" aria-label="Next clip" title="Next clip" @click="next">
+        <button class="btn cursor-pointer btn-ghost px-2" type="button" aria-label="Next clip" title="Next clip" @click="next">
           <SkipForward :size="16" />
         </button>
         <input
-          class="mx-2 min-w-0 flex-1"
+          class="mx-2 min-w-0 flex-1 cursor-pointer"
           type="range"
           min="0"
           :max="Math.max(duration, 0.01)"
@@ -187,7 +212,7 @@ function onSeek(event: Event) {
       <div class="flex items-center justify-between gap-3 text-xs text-zinc-400">
         <p class="truncate">
           <template v-if="activeClip && activeIndex >= 0">
-            <span class="text-amber-300">{{ formatRank(activeIndex, store.style.ranking.format) }}</span>
+            <span class="text-amber-300">{{ store.style.ranking.display === 'page' && store.style.ranking.pageStyle !== 'number' ? `${pageLabel(activeIndex, store.clips.length)}` : `${formatRank(activeIndex, store.style.ranking.format)}` }}</span>
             {{ activeClip.title }}
           </template>
           <template v-else>Nothing playing yet</template>

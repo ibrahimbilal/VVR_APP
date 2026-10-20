@@ -1,15 +1,19 @@
 <script setup lang="ts">
-import { ChevronDown, ChevronUp, FilePlus, GripVertical, Plus, Replace, RotateCcw, Trash2, Undo2, Upload } from '@lucide/vue'
+import { ChevronDown, ChevronUp, FilePlus, GripVertical, Plus, RotateCcw, Trash2, Upload } from '@lucide/vue'
 import { ref } from 'vue'
+import { usePlayback } from '../composables/usePlayback'
 import { formatClock, sourceLabel } from '../lib/format'
 import { useProjectStore } from '../stores/project'
-import SliderField from './SliderField.vue'
 
 const store = useProjectStore()
+const playback = usePlayback()
 const urlInput = ref('')
 const dragIndex = ref<number | null>(null)
+const fileDrag = ref(false)
 const fileInput = ref<HTMLInputElement | null>(null)
 const replaceInput = ref<HTMLInputElement | null>(null)
+const replaceId = ref<string | null>(null)
+let dragDepth = 0
 
 function submitUrl() {
   const value = urlInput.value
@@ -24,20 +28,50 @@ function onFiles(event: Event) {
   target.value = ''
 }
 
+function pickReplace(id: string) {
+  replaceId.value = id
+  replaceInput.value?.click()
+}
+
 function onReplace(event: Event) {
   const target = event.target
-  const id = store.selectedClipId
+  const id = replaceId.value
   if (!(target instanceof HTMLInputElement) || !target.files?.[0] || !id) return
   void store.attachFile(id, target.files[0])
   target.value = ''
 }
 
-function onDropFiles(event: DragEvent) {
+function isFileDrag(event: DragEvent): boolean {
+  const types = event.dataTransfer?.types
+  if (!types) return false
+  const list = Array.from(types)
+  return list.includes('Files') && !list.includes('application/x-vvr-clip')
+}
+
+function onFileDragEnter(event: DragEvent) {
+  if (!isFileDrag(event)) return
+  dragDepth += 1
+  fileDrag.value = true
+}
+
+function onFileDragLeave() {
+  dragDepth = Math.max(0, dragDepth - 1)
+  if (dragDepth === 0) fileDrag.value = false
+}
+
+function onSidebarDrop(event: DragEvent) {
+  dragDepth = 0
+  fileDrag.value = false
+  dragIndex.value = null
+  if (!isFileDrag(event)) return
   const files = event.dataTransfer?.files
-  if (files && files.length > 0) {
-    void store.addFiles(files)
-    dragIndex.value = null
-  }
+  if (files && files.length > 0) void store.addFiles(files)
+}
+
+function onSelectClip(id: string) {
+  store.selectClip(id)
+  const segment = playback.segments.value.find((item) => item.clip.id === id)
+  if (segment) void playback.seek(segment.start)
 }
 
 function onDragStart(event: DragEvent, index: number) {
@@ -48,11 +82,7 @@ function onDragStart(event: DragEvent, index: number) {
 
 function onDropItem(event: DragEvent, index: number) {
   const files = event.dataTransfer?.files
-  if (files && files.length > 0) {
-    void store.addFiles(files)
-    dragIndex.value = null
-    return
-  }
+  if (files && files.length > 0) return
   const raw = event.dataTransfer?.getData('application/x-vvr-clip')
   const from = raw ? Number(raw) : dragIndex.value
   if (from == null || Number.isNaN(from)) return
@@ -67,7 +97,14 @@ function kept(duration: number, start: number, end: number): string {
 </script>
 
 <template>
-  <aside class="flex min-h-0 flex-col border-zinc-800 bg-[#16181d] xl:border-r">
+  <aside
+    class="flex min-h-0 flex-col border-zinc-800 bg-[#16181d] xl:border-r"
+    :class="fileDrag ? 'ring-2 ring-inset ring-amber-300' : ''"
+    @dragenter.prevent="onFileDragEnter"
+    @dragover.prevent
+    @dragleave.prevent="onFileDragLeave"
+    @drop.prevent="onSidebarDrop"
+  >
     <div class="space-y-3 border-b border-zinc-800 p-4">
       <label class="block">
         <span class="mb-1 block text-[11px] font-semibold uppercase tracking-[0.14em] text-zinc-500">Project</span>
@@ -75,14 +112,20 @@ function kept(duration: number, start: number, end: number): string {
       </label>
       <form class="flex gap-2" @submit.prevent="submitUrl">
         <input v-model="urlInput" class="field" placeholder="Paste a YouTube, TikTok, or Reel link" />
-        <button class="btn btn-ghost shrink-0 px-2" type="submit" aria-label="Add link" title="Add link">
+        <button class="btn cursor-pointer btn-ghost shrink-0 px-2" type="submit" aria-label="Add link" title="Add link">
           <Plus :size="16" />
         </button>
       </form>
       <p v-if="store.urlNotice" class="text-xs leading-relaxed text-amber-200/90">{{ store.urlNotice }}</p>
-      <button class="btn btn-primary w-full" type="button" @click="fileInput?.click()">
-        <Upload :size="16" />
-        Upload video
+      <button
+        class="flex w-full cursor-pointer flex-col items-center gap-1 rounded-lg border border-dashed px-3 py-4 text-sm font-semibold"
+        :class="fileDrag ? 'border-amber-300 bg-amber-300/10 text-amber-100' : 'border-zinc-600 bg-[#101114] text-zinc-100'"
+        type="button"
+        @click="fileInput?.click()"
+      >
+        <Upload :size="18" />
+        <span>{{ fileDrag ? 'Drop to upload' : 'Drop videos here' }}</span>
+        <span class="text-[11px] font-normal text-zinc-500">or click to browse</span>
       </button>
       <input ref="fileInput" class="hidden" type="file" accept="video/mp4,video/quicktime,video/webm,.mp4,.mov,.webm,.m4v" multiple @change="onFiles" />
       <p class="text-[11px] leading-relaxed text-zinc-500">
@@ -90,23 +133,19 @@ function kept(duration: number, start: number, end: number): string {
       </p>
     </div>
 
-    <div
-      class="min-h-0 flex-1 space-y-2 overflow-y-auto p-3"
-      @dragover.prevent
-      @drop.prevent="onDropFiles"
-    >
+    <div class="min-h-0 flex-1 space-y-2 overflow-y-auto p-3" @dragover.prevent>
       <p v-if="store.clips.length === 0" class="px-2 py-8 text-center text-sm text-zinc-500">
         Drop MP4, MOV, or WebM files here. Export stays off until there are two clips.
       </p>
       <article
         v-for="(clip, index) in store.clips"
         :key="clip.id"
-        class="rounded-lg border bg-[#101114] p-2"
+        class="rounded-lg border cursor-pointer bg-[#101114] p-2"
         :class="[
           store.selectedClipId === clip.id ? 'border-zinc-200' : 'border-zinc-800',
           dragIndex === index ? 'opacity-50' : '',
         ]"
-        @click="store.selectClip(clip.id)"
+        @click="onSelectClip(clip.id)"
         @dragover.prevent
         @drop.prevent="onDropItem($event, index)"
       >
@@ -144,72 +183,23 @@ function kept(duration: number, start: number, end: number): string {
         </div>
         <p v-if="clip.error" class="mt-2 text-xs text-red-300">{{ clip.error }}</p>
         <div class="mt-2 flex flex-wrap gap-2">
-          <button class="btn btn-ghost px-2 py-1" type="button" aria-label="Move up" title="Move up" :disabled="index === 0" @click.stop="store.moveClip(index, index - 1)">
+          <button class="btn cursor-pointer btn-ghost px-2 py-1" type="button" aria-label="Move up" title="Move up" :disabled="index === 0" @click.stop="store.moveClip(index, index - 1)">
             <ChevronUp :size="16" />
           </button>
-          <button class="btn btn-ghost px-2 py-1" type="button" aria-label="Move down" title="Move down" :disabled="index === store.clips.length - 1" @click.stop="store.moveClip(index, index + 1)">
+          <button class="btn cursor-pointer btn-ghost px-2 py-1" type="button" aria-label="Move down" title="Move down" :disabled="index === store.clips.length - 1" @click.stop="store.moveClip(index, index + 1)">
             <ChevronDown :size="16" />
           </button>
-          <button v-if="clip.uploadState === 'error'" class="btn btn-ghost px-2 py-1" type="button" aria-label="Retry upload" title="Retry upload" @click.stop="store.retryUpload(clip.id)">
+          <button v-if="clip.uploadState === 'error'" class="btn cursor-pointer btn-ghost px-2 py-1" type="button" aria-label="Retry upload" title="Retry upload" @click.stop="store.retryUpload(clip.id)">
             <RotateCcw :size="16" />
           </button>
-          <button v-if="clip.uploadState === 'empty'" class="btn btn-ghost px-2 py-1" type="button" aria-label="Add file" title="Add file" @click.stop="replaceInput?.click()">
+          <button v-if="clip.uploadState === 'empty'" class="btn cursor-pointer btn-ghost px-2 py-1" type="button" aria-label="Add file" title="Add file" @click.stop="pickReplace(clip.id)">
             <FilePlus :size="16" />
           </button>
-          <button class="btn btn-danger ml-auto px-2 py-1" type="button" aria-label="Remove clip" title="Remove clip" @click.stop="store.removeClip(clip.id)">
+          <button class="btn cursor-pointer btn-danger ml-auto px-2 py-1" type="button" aria-label="Remove clip" title="Remove clip" @click.stop="store.removeClip(clip.id)">
             <Trash2 :size="16" />
           </button>
         </div>
       </article>
-    </div>
-
-    <div v-if="store.selectedClip" class="max-h-[46%] space-y-3 overflow-y-auto border-t border-zinc-800 p-4">
-      <p class="text-[11px] font-semibold uppercase tracking-[0.14em] text-zinc-500">Selected clip</p>
-      <p class="truncate text-sm">{{ store.selectedClip.title }}</p>
-      <div v-if="store.selectedClip.duration > 0" class="space-y-2">
-        <SliderField
-          label="Trim start"
-          :model-value="store.selectedClip.trimStart"
-          :min="0"
-          :max="store.selectedClip.duration"
-          :step="0.1"
-          suffix="s"
-          @update:model-value="store.setTrim(store.selectedClip.id, $event, store.selectedClip.trimEnd)"
-        />
-        <SliderField
-          label="Trim end"
-          :model-value="store.selectedClip.trimEnd"
-          :min="0"
-          :max="store.selectedClip.duration"
-          :step="0.1"
-          suffix="s"
-          @update:model-value="store.setTrim(store.selectedClip.id, store.selectedClip.trimStart, $event)"
-        />
-        <p class="text-xs text-zinc-500">
-          Keeping {{ (store.selectedClip.trimEnd - store.selectedClip.trimStart).toFixed(1) }}s of {{ store.selectedClip.duration.toFixed(1) }}s
-        </p>
-      </div>
-      <div>
-        <p class="mb-2 text-xs text-zinc-400">Number color</p>
-        <div class="flex flex-wrap gap-2">
-          <button
-            v-for="color in ['#ffe14a', '#ff3b3b', '#3ee0ff', '#ffffff']"
-            :key="color"
-            class="h-7 w-7 rounded-full border border-white/20"
-            :style="{ background: color }"
-            type="button"
-            :aria-label="`Set number color ${color}`"
-            @click="store.setRankColor(store.selectedClip.id, color)"
-          ></button>
-          <button class="btn btn-ghost px-2 py-1" type="button" aria-label="Use default number color" title="Use default number color" @click="store.setRankColor(store.selectedClip.id, null)">
-            <Undo2 :size="16" />
-          </button>
-        </div>
-      </div>
-      <button class="btn btn-ghost w-full" type="button" @click="replaceInput?.click()">
-        <Replace :size="16" />
-        Replace video file
-      </button>
       <input ref="replaceInput" class="hidden" type="file" accept="video/mp4,video/quicktime,video/webm,.mp4,.mov,.webm,.m4v" @change="onReplace" />
     </div>
   </aside>

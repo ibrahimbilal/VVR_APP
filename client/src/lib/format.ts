@@ -1,26 +1,45 @@
-import type { NumberFormat, Source } from '../types'
+import type { NumberFormat, RankDisplay, RankPageStyle, Source } from '../types'
 
 export interface OverlayRank {
   label: string
   color: string
   title: string | null
+  titleColor: string
 }
 
 export function overlayRanks(
-  clips: { title: string; rankColor: string | null }[],
+  clips: { title: string; rankColor: string | null; titleColor?: string | null }[],
   activeIndex: number,
   format: NumberFormat,
   fallbackColor: string,
   showTitle: boolean,
+  display: RankDisplay = 'stack',
+  fallbackTitleColor = '#ffffff',
+  pageStyle: RankPageStyle = 'fraction',
 ): OverlayRank[] {
-  return clips.map((clip, index) => {
+  const rows = clips.map((clip, index) => {
     const title = clip.title.trim()
     return {
       label: formatRank(index, format),
       color: clip.rankColor || fallbackColor,
       title: showTitle && index === activeIndex && title ? title : null,
+      titleColor: clip.titleColor || fallbackTitleColor,
     }
   })
+  if (display !== 'page' || rows.length === 0) return rows
+  const index = activeIndex >= 0 && activeIndex < rows.length ? activeIndex : 0
+  const row = rows[index]
+  const clip = clips[index]
+  if (!row || !clip) return []
+  const title = clip.title.trim()
+  const label = pageStyle === 'number' ? formatRank(index, format) : `${pageLabel(index, clips.length)}`
+  return [{ ...row, label, title: title || null }]
+}
+
+export function pageLabel(index: number, total: number): string {
+  const safeTotal = Math.max(1, total)
+  const safeIndex = index >= 0 && index < total ? index : 0
+  return `${safeIndex + 1} / ${safeTotal}`
 }
 
 export function formatRank(index: number, format: NumberFormat): string {

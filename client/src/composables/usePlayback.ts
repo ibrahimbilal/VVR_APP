@@ -74,8 +74,12 @@ function createPlayback() {
   watch(
     () => segments.value.map((segment) => segment.clip.id).join('|'),
     (next, previous) => {
+      if (!next) {
+        clearStage()
+        return
+      }
       if (primarySegment >= segments.value.length) primarySegment = 0
-      if (!playing.value && next && next !== previous && !element(primarySlot.value)?.dataset.clipId) {
+      if (!playing.value && next !== previous && !element(primarySlot.value)?.dataset.clipId) {
         void seek(Math.min(playhead.value, Math.max(0, duration.value - 0.01)))
       }
     },
@@ -116,8 +120,7 @@ function createPlayback() {
   async function seek(time: number) {
     const spot = locate(time)
     if (!spot) {
-      playhead.value = 0
-      pauseMedia()
+      clearStage()
       return
     }
     playhead.value = Math.max(0, Math.min(time, duration.value))
@@ -272,6 +275,28 @@ function createPlayback() {
     } finally {
       secondaryLoading = false
     }
+  }
+
+  function unload(video: HTMLVideoElement | null) {
+    if (!video) return
+    video.pause()
+    delete video.dataset.clipId
+    video.removeAttribute('src')
+    video.src = ''
+    video.load()
+  }
+
+  function clearStage() {
+    playing.value = false
+    playhead.value = 0
+    primarySegment = 0
+    secondarySlot.value = null
+    secondarySegment = -1
+    secondaryOpacity.value = 0
+    unload(videoA.value)
+    unload(videoB.value)
+    unload(back.value)
+    music.pause()
   }
 
   function clearSecondary() {

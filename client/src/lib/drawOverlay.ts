@@ -102,7 +102,7 @@ function drawRanks(ctx: CanvasRenderingContext2D, input: DrawInput): void {
     const y = top + index * fitted.lineGap
     ctx.font = font(ranking.fontWeight, fitted.size, ranking.fontFamily)
     paintText(ctx, row.label, x, y, row.color, fitted.outline, ranking.outlineColor, ranking.shadow)
-    if (!row.title || !input.caption.enabled) return
+    if (!row.title) return
     const gap = Math.max(12, Math.round(fitted.size * 0.22))
     const titleX = x + ctx.measureText(row.label).width + gap
     const titleMax = input.width - pad - titleX
@@ -112,7 +112,7 @@ function drawRanks(ctx: CanvasRenderingContext2D, input: DrawInput): void {
     ctx.font = font(input.caption.fontWeight, titleSize, input.caption.fontFamily)
     const title = ellipsis(ctx, row.title, titleMax)
     const titleY = y + Math.max(0, (fitted.size - titleSize) / 2)
-    paintText(ctx, title, titleX, titleY, input.caption.color, titleOutline, input.caption.outlineColor, input.caption.shadow)
+    paintText(ctx, title, titleX, titleY, row.titleColor || input.caption.color, titleOutline, input.caption.outlineColor, input.caption.shadow)
   })
   ctx.restore()
 }

@@ -43,6 +43,8 @@ const classicRanking: RankingStyle = {
   shadow: true,
   opacity: 1,
   format: 'dot',
+  display: 'stack',
+  pageStyle: 'fraction',
 }
 
 const classicCaption: CaptionStyle = {
@@ -108,7 +110,6 @@ export const PRESETS: Record<PresetDefinition['id'], PresetDefinition> = {
     ],
     banner: {
       ...classicBanner,
-      height: 150,
       fontFamily: 'Inter',
       fontSize: 52,
       fontWeight: 700,
@@ -128,8 +129,8 @@ export const PRESETS: Record<PresetDefinition['id'], PresetDefinition> = {
       positionY: 32,
     },
     caption: { ...classicCaption, enabled: false },
-    scaleMode: 'fit',
-    backgroundColor: '#050505',
+    scaleMode: 'crop',
+    backgroundColor: '#000000',
     transition: 'cut',
     cycleRanks: false,
   },
