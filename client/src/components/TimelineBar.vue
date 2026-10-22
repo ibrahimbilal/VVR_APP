@@ -60,8 +60,8 @@ function selectBlock(id: string, index: number) {
 
 <template>
   <footer class="border-t border-zinc-800 bg-[#121318] px-4 py-3">
-    <div class="mb-3 flex items-center gap-3">
-      <div class="relative h-14 min-w-0 flex-1 overflow-hidden rounded-md bg-zinc-900" @click="onTimelineClick">
+    <div class="mb-3 flex flex-col xl:flex-row items-center justify-end gap-3">
+      <div v-if="blocks.length > 0" class="relative h-10 w-full overflow-hidden rounded-md bg-zinc-900" @click="onTimelineClick">
         <button
           v-for="block in blocks"
           :key="block.id"
