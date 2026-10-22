@@ -1,15 +1,22 @@
 # Video's Factory
 
-A local web app for building 9:16 ranking compilations. Upload clips you have the right to use, order them, style a fixed title banner and ranking numbers, preview the sequence, and export one MP4.
+A local web platform for video production. It hosts independent editor apps in one shell:
+
+- **Ranking Videos** — 9:16 ranking and compilation videos (the original VVR editor).
+- **Frame Screensaver** — long-form 16:9 ambient videos from a single image or looping video clip.
+
+There are no accounts and no cloud project storage. The Vue client talks to an Express renderer with bundled FFmpeg.
+
+Production: [https://vvr.ibrahimbilal.com](https://vvr.ibrahimbilal.com) (see `.cursor/skills/hostinger-vvr-deploy/SKILL.md`).
 
 ## Requirements
 
-- Node.js 20.19 or newer, or 22.12 or newer
+- Node.js 20.19+ or 22.12+
 - npm
 - About 1 GB free for dependencies and temporary media
-- Ports `5173` (editor) and `3001` (renderer) available on this computer
+- Ports `5173` (dev client) and `3001` (API) in local development
 
-FFmpeg and ffprobe are installed with the server package. You do not need a system-wide FFmpeg install.
+FFmpeg and ffprobe ship with the server package (`ffmpeg-static`, `ffprobe-static`).
 
 ## Setup
 
@@ -20,46 +27,96 @@ npm run dev
 
 Open [http://127.0.0.1:5173](http://127.0.0.1:5173).
 
-Other scripts:
+### Scripts
 
-- `npm run dev` — editor and renderer with reload, on this computer
-- `npm run build:dev` / `npm run start:dev` — local build, then serve it at `http://127.0.0.1:3001`
-- `npm run build:prod` / `npm run start:prod` — production build. The renderer bundle listens on `PORT`, or on port 3001
-- `npm run build` and `npm start` — same as the local `build:dev` and `start:dev` commands
-- `npm run typecheck` — check the editor and the renderer
+| Script | Purpose |
+| --- | --- |
+| `npm run dev` | API + Vite dev server with hot reload |
+| `npm run build:prod` / `npm run start:prod` | Production client build + server bundle |
+| `npm run typecheck` | Client and server TypeScript |
+| `npm run test:screensaver` | Short static-image screensaver render + ffprobe check |
 
-## How to make a video
+## Architecture
 
-1. Upload at least two MP4, MOV, or WebM files, or paste a YouTube, TikTok, or Instagram link.
-2. Drag clips into order and edit each clip title. Trim the start and end if you want a shorter section.
-3. Edit the banner title. Each word has its own color.
-4. Adjust ranking numbers, scaling, transitions, and audio in the style panel, or start from a preset.
-5. Play the preview. The banner and rank stay in place while the clips change.
-6. Export MP4. The download appears after the file has been checked.
+```
+client/src/
+  App.vue                 Platform shell (sidebar, header, toasts)
+  app/router.ts           Routes: /, /ranking-videos, /frame-screensaver
+  apps/ranking-videos/    Ranking editor view + existing components
+  apps/frame-screensaver/ Frame Screensaver editor
+  stores/platform.ts      Renderer health, global toasts, navigation UI
+  stores/project.ts       Ranking project state (unchanged responsibilities)
+server/src/
+  index.ts                HTTP API
+  jobs.ts                 Single render queue (ranking + screensaver jobs)
+  render.ts               Ranking FFmpeg pipeline
+  renderScreensaver.ts    Screensaver FFmpeg pipeline
+shared/
+  frame.ts, timeline.ts   Ranking layout and timing
+  screensaver.ts            Screensaver resolutions, durations, limits
+```
 
-A link only looks up a public title when the platform allows it. It does not download the video. Attach a file you are allowed to use before that clip can be exported.
+### Routes
 
-## Completed
+- `/` — Dashboard with app cards
+- `/ranking-videos` — Ranking editor
+- `/frame-screensaver` — Screensaver editor
 
-- Local upload of MP4, MOV, and WebM, with format and duration checks
-- YouTube and TikTok title lookup, plus Instagram link recognition, without downloading
-- Clip list with thumbnails, titles, duration, source, remove, replace, and drag reorder
-- Fixed top banner with per-word colors, font, size, weight, alignment, line spacing, outline, and shadow
-- Ranking numbers generated from clip order, with color, size, position, outline, opacity, and format
-- Live 9:16 preview, play/pause, seek, sequential playback, and clip trimming
-- Crop, fit, and blurred-background scaling, hard cuts or crossfades, original audio, loudness normalization, and optional music
-- Presets: Classic Ranking, Tier List, and Minimal
-- Server-side FFmpeg export to 1080×1920 or 720×1280, H.264, AAC when audio is present, 24/30/60 fps
-- Export progress, cancellation, and a download only after the output file is verified
-- Project layout saved in the browser
+Direct URLs and refresh work in production; Express serves `client/dist` with SPA fallback.
+
+### Persistence
+
+- **Ranking** — IndexedDB `vvr` v2, key `meta/ranking-videos` (migrated from legacy `meta/current`). Clip files and music unchanged.
+- **Frame Screensaver** — IndexedDB `screensaver` store (`project`, `source`, `audio`). Ranking “New project” does not clear screensaver data.
+
+### Rendering
+
+One FFmpeg job runs at a time globally. Both apps share `GET/POST /api/jobs/:id` for progress, cancel, and download.
+
+Screensaver limits (also enforced on the server):
+
+- Output: 1920×1080, 2560×1440, or 3840×2160; 1, 24, or 30 fps
+- Duration: 30 minutes to 10 hours (presets or custom minutes in the UI)
+- Source: one image (static) or one video (loop); optional background audio
+
+## Ranking Videos
+
+Same workflow as before: upload clips, order and trim, style banner and ranks, preview, export MP4. See the project map in `.cursor/skills/vvr-project/PROJECT.md` for file-level detail.
+
+## Frame Screensaver
+
+1. Upload a JPG, PNG, WebP, MP4, MOV, or WebM file.
+2. Place the image on the canvas: drag, scale from the corners, rotate, and crop. The original file is kept. Fit, fill, and center change the export. The zoom slider only changes the view.
+3. Pick a frame (classic, mat, rounded, or arch). The image is clipped to that opening.
+4. Adjust brightness, contrast, saturation, exposure, temperature, tint, highlights, shadows, sharpness, blur, grayscale, and sepia. Each slider resets on its own, or reset them all. Before/after compares with the adjustments off.
+5. Choose duration, resolution, a profile, and an encoding method. New static images use Static Art at 1 fps. Auto uses a hardware encoder only after a short timed test beats libx264. If a hardware encoder you picked cannot start, the job stops and offers CPU.
+6. Optionally add audio (source track or upload) with volume and fades.
+7. Export MP4. The panel shows stage, encoder, speed, and remaining time from FFmpeg’s progress output. Download starts after the file is checked.
+
+Static images are drawn once at the output size and then looped. A matching H.264 video with no crop, frame, or color change is copied instead of re-encoded. Undo is Ctrl+Z or Cmd+Z. Redo is Ctrl+Shift+Z or Cmd+Shift+Z. Arrow keys nudge the image when the canvas is focused.
+
+Long 4K exports can still take a long time. The size estimate is an extrapolation from short local encodes, not a bitrate guarantee. The measured times are in `.cursor/skills/vvr-project/PROJECT.md`.
+
+## Adding another app
+
+1. Add a route in `client/src/app/router.ts` and an entry in `client/src/app/navigation.ts`.
+2. Create `client/src/apps/<app-name>/` with its own view, store, and components.
+3. Add API routes under a dedicated prefix (e.g. `/api/my-app/...`) if server rendering is needed.
+4. Register new job types in `server/src/jobs.ts` if the app exports video.
+
+## Migration from single-app VVR
+
+- Saved ranking projects load automatically (`current` → `ranking-videos`).
+- Bookmark `/ranking-videos` instead of `/` for the editor.
+- No change to ranking export API (`POST /api/export`).
 
 ## Limitations
 
-- Social platforms are not a download source. If a link cannot be turned into a file, upload a permitted video instead.
-- Instagram titles are not fetched. There is no Meta token in this app.
-- The preview plays formats the browser can decode. Export can still fail on a file the browser plays if FFmpeg cannot read it, and the other way around.
-- One render runs at a time, on this computer. Temporary files live in `server/tmp` and are removed on a schedule.
-- Practical limits: 30 clips, 20 minutes per clip, 30 minutes per compilation, 500 MB per video upload.
-- The project is stored in this browser. Clearing site data removes it. Uploaded files on the renderer expire after several days.
-- Preview timing can differ slightly from the exported file.
-- There are no accounts, cloud storage, or a public hosting setup. The app listens on localhost.
+- One render queue for the whole platform.
+- Server temp files expire on the existing schedule (`server/tmp`).
+- Smooth video loops encode one crossfaded cycle and then copy it when that file is valid; otherwise the export falls back and says so.
+- Stream copy is only used for H.264 yuv420p sources that already match the output and have no crop, rotation, frame, or color change.
+- 1 fps is the default for new static images. Some players want 24 or 30; both are still available.
+- Video color adjustments use FFmpeg filters with the same slider values. A moving preview can differ slightly from the file because the canvas blur is not `gblur`. Static exports are the editor bitmap.
+- Preview does not play the full multi-hour timeline; duration is applied at export.
+- Auto will not silently replace an encoder you picked. It does fall back to CPU when Auto itself fails.

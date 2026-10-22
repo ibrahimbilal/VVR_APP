@@ -8,7 +8,7 @@ defineProps<{
   suffix?: string
 }>()
 
-const emit = defineEmits<{ 'update:modelValue': [value: number] }>()
+const emit = defineEmits<{ 'update:modelValue': [value: number]; change: [] }>()
 
 function onInput(event: Event) {
   const target = event.target
@@ -31,6 +31,7 @@ function onInput(event: Event) {
       :step="step ?? 1"
       :value="modelValue"
       @input="onInput"
+      @change="emit('change')"
     />
   </label>
 </template>

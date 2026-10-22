@@ -39,9 +39,16 @@ export function getClip(id: string): StoredClip | undefined {
   return clips.get(id)
 }
 
+function mediaExt(originalName: string, probe: Probe): string {
+  const ext = path.extname(originalName).toLowerCase()
+  if (ext === '.jpg' || ext === '.jpeg' || ext === '.png' || ext === '.webp') return ext === '.jpeg' ? '.jpg' : ext
+  if (probe.duration === 0 && !probe.hasAudio) return '.jpg'
+  return safeVideoExt(originalName)
+}
+
 export async function addClip(filePath: string, originalName: string, probe: Probe): Promise<StoredClip> {
   const id = randomUUID()
-  const ext = safeVideoExt(originalName)
+  const ext = mediaExt(originalName, probe)
   const finalPath = path.join(clipsDir, `${id}${ext}`)
   await rename(filePath, finalPath)
   const stored: StoredClip = {
@@ -105,6 +112,15 @@ export function safeVideoExt(name: string): string {
   const ext = path.extname(name).toLowerCase()
   if (ext === '.mp4' || ext === '.mov' || ext === '.webm' || ext === '.m4v') return ext
   return '.mp4'
+}
+
+export function safeImageExt(name: string, sniffed: 'jpeg' | 'png' | 'webp' | null): string {
+  const ext = path.extname(name).toLowerCase()
+  if (ext === '.jpg' || ext === '.jpeg' || ext === '.png' || ext === '.webp') return ext === '.jpg' ? '.jpg' : ext
+  if (sniffed === 'jpeg') return '.jpg'
+  if (sniffed === 'png') return '.png'
+  if (sniffed === 'webp') return '.webp'
+  return '.jpg'
 }
 
 export function safeAudioExt(name: string): string {

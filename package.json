@@ -20,7 +20,8 @@
     "start:prod": "npm run build:prod && npm run start:prod -w server",
     "build": "npm run build:dev -w client",
     "start": "npm run build:dev && npm run start:dev -w server",
-    "typecheck": "npm run typecheck -w client && npm run typecheck -w server"
+    "typecheck": "npm run typecheck -w client && npm run typecheck -w server",
+    "test:screensaver": "npm run test:screensaver -w server"
   },
   "devDependencies": {
     "concurrently": "^10.0.6"

@@ -29,6 +29,20 @@ export interface JobStatus {
   outputDuration: number | null
   queuePosition: number
   downloadName: string
+  encoder?: string | null
+  hardware?: boolean | null
+  encodeFps?: number | null
+  encodeSpeed?: number | null
+  elapsedSec?: number | null
+  etaSec?: number | null
+  stage?: string | null
+}
+
+export interface EncoderCatalog {
+  version: string
+  encoders: { id: string; label: string; hardware: boolean; listed: boolean; verified: boolean; detail: string | null }[]
+  autoStill: string | null
+  autoMotion: string | null
 }
 
 export async function health(): Promise<boolean> {
@@ -71,6 +85,36 @@ export async function importUrl(url: string): Promise<ImportResult> {
 
 export function startExport(body: FormData, onProgress: (fraction: number) => void, signal: AbortSignal): Promise<{ jobId: string }> {
   return sendForm('/api/export', body, onProgress, signal)
+}
+
+export interface ScreensaverMedia {
+  id: string
+  kind: 'image' | 'video'
+  duration: number | null
+  width: number
+  height: number
+  hasAudio: boolean
+  size: number
+}
+
+export function uploadScreensaverMedia(file: File, onProgress: (fraction: number) => void): Promise<ScreensaverMedia> {
+  const body = new FormData()
+  body.append('file', file, file.name)
+  return sendForm<ScreensaverMedia>('/api/screensaver/media', body, onProgress)
+}
+
+export async function screensaverEncoders(): Promise<EncoderCatalog> {
+  const response = await fetch('/api/screensaver/encoders')
+  if (!response.ok) throw new Error(await readError(response))
+  return (await response.json()) as EncoderCatalog
+}
+
+export function startScreensaverExport(
+  body: FormData,
+  onProgress: (fraction: number) => void,
+  signal: AbortSignal,
+): Promise<{ jobId: string }> {
+  return sendForm('/api/screensaver/export', body, onProgress, signal)
 }
 
 export async function getJob(id: string): Promise<JobStatus> {

@@ -1,11 +1,11 @@
-import { spawn } from 'node:child_process'
-import { mkdir, rm, stat, writeFile } from 'node:fs/promises'
+import { mkdir, rm, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import { frameMetrics } from '../../shared/frame'
 import { resolveFade, sequenceDuration } from '../../shared/timeline'
-import { ffmpegBinary } from './binaries'
-import { probeMedia } from './probe'
+import { RenderCancelled, ffColor, n, spawnFfmpeg, verifyVideoOutput } from './ffmpegUtil'
 import { jobsDir, outputsDir } from './storage'
+
+export { RenderCancelled }
 
 export interface RenderClip {
   id: string
@@ -41,13 +41,6 @@ export interface RenderHooks {
   registerKill: (kill: () => void) => void
 }
 
-export class RenderCancelled extends Error {
-  constructor() {
-    super('Render cancelled.')
-    this.name = 'RenderCancelled'
-  }
-}
-
 interface Attempt {
   fade: number
   normalize: boolean
@@ -81,12 +74,13 @@ export async function renderProject(
       await runFfmpeg(job, metrics, attempt, useClipAudio, attemptExpected, hooks)
       if (hooks.cancelled()) throw new RenderCancelled()
       hooks.onStatus('verifying', 'Checking the finished file.')
-      const verified = await verifyOutput(
+      const verified = await verifyVideoOutput(
         path.join(outputsDir, `${job.id}.mp4`),
         metrics.width,
         metrics.height,
         attemptExpected,
         useClipAudio || job.musicPath != null,
+        'The export did not match the 9:16 frame. It was discarded.',
       )
       return { ...verified, warning }
     } catch (error) {
@@ -292,106 +286,9 @@ function buildFilter(
   return { filter: lines.join(';\n'), videoLabel, audioLabel }
 }
 
-function spawnFfmpeg(args: string[], expected: number, hooks: RenderHooks): Promise<void> {
-  return new Promise((resolve, reject) => {
-    const child = spawn(ffmpegBinary(), args, {
-      windowsHide: true,
-      stdio: ['ignore', 'pipe', 'pipe'],
-      env: { ...process.env, OMP_NUM_THREADS: '1' },
-    })
-    let stderr = ''
-    let settled = false
-    const fail = (error: Error) => {
-      if (settled) return
-      settled = true
-      reject(error)
-    }
-    hooks.registerKill(() => {
-      child.kill()
-    })
-    child.stdout.on('data', (chunk: Buffer) => {
-      const text = chunk.toString()
-      for (const line of text.split(/\r?\n/)) {
-        const stamp = /^out_time=(\d+):(\d+):(\d+(?:\.\d+)?)/.exec(line)
-        if (!stamp) continue
-        const seconds = Number(stamp[1]) * 3600 + Number(stamp[2]) * 60 + Number(stamp[3])
-        hooks.onProgress(Math.max(0, Math.min(0.99, seconds / Math.max(expected, 0.1))))
-      }
-    })
-    child.stderr.on('data', (chunk: Buffer) => {
-      stderr = (stderr + chunk.toString()).slice(-8000)
-    })
-    child.on('error', (error) => {
-      fail(new Error(error.message.includes('ENOENT') ? 'FFmpeg binary is missing. Reinstall dependencies with npm install.' : error.message))
-    })
-    child.on('close', (code) => {
-      if (hooks.cancelled()) {
-        fail(new RenderCancelled())
-        return
-      }
-      if (code === 0) {
-        if (!settled) {
-          settled = true
-          resolve()
-        }
-        return
-      }
-      console.error(`ffmpeg render failed:\n${stderr.slice(-4000)}`)
-      fail(new Error(friendlyFfmpegError(stderr)))
-    })
-  })
-}
-
-async function verifyOutput(
-  file: string,
-  width: number,
-  height: number,
-  expected: number,
-  expectAudio: boolean,
-): Promise<{ outputPath: string; bytes: number; duration: number }> {
-  const probed = await probeMedia(file)
-  const info = await stat(file)
-  if (!probed.hasVideo || probed.width !== width || probed.height !== height) {
-    throw new Error('The export did not match the 9:16 frame. It was discarded.')
-  }
-  if (probed.codec !== 'h264') {
-    throw new Error('The export was not encoded as H.264. It was discarded.')
-  }
-  if (info.size < 2048 || probed.duration < Math.max(0.4, expected - 0.75)) {
-    throw new Error('The export looked incomplete, so it was discarded.')
-  }
-  if (probed.duration > expected + 1.5) {
-    throw new Error('The export was longer than the timeline, so it was discarded.')
-  }
-  if (expectAudio && !probed.hasAudio) {
-    throw new Error('The export is missing its audio track. It was discarded.')
-  }
-  return { outputPath: file, bytes: info.size, duration: probed.duration }
-}
-
-function friendlyFfmpegError(stderr: string): string {
-  if (/No space left on device|Disk quota exceeded/i.test(stderr)) return 'Not enough disk space to render the video.'
-  const generic = /^(conversion failed!|error marking filters as finished|failed to inject frame into filter network:?)$/i
-  const lines = stderr
-    .split(/\r?\n/)
-    .map((line) => line.trim())
-    .filter((line) => line && !generic.test(line))
-  const useful = lines.filter((line) => /error|invalid|failed|no such|mismatch|unrecognized|unavailable|denied|found/i.test(line))
-  const detail = useful.at(-1) || lines.at(-1)
-  return detail ? `Rendering failed. ${detail}` : 'Rendering failed.'
-}
-
 function isRetryable(message: string): boolean {
   return /loudnorm|xfade|acrossfade|aformat|channel_layout|mismatch|filter|Invalid argument|Error reinitializing|conversion failed|incomplete|longer than the timeline|did not match/i.test(
     message,
   )
 }
 
-function ffColor(hex: string): string {
-  const match = /^#([0-9a-fA-F]{6})$/.exec(hex)
-  return match ? `0x${match[1]}` : '0x000000'
-}
-
-function n(value: number): string {
-  return (Math.round(value * 1000) / 1000).toFixed(3)
-}

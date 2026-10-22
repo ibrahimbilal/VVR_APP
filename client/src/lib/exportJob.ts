@@ -1,20 +1,12 @@
 import { frameMetrics } from '@shared/frame'
-import { cancelJob, getJob, startExport, type JobStatus } from './api'
+import { cancelJob, startExport } from './api'
+import { pollJobUntilDone, type JobPollUpdate } from './jobPoll'
 import { drawOverlay, ensureFonts } from './drawOverlay'
 import { overlayRanks } from './format'
 import { playbackOrder } from './order'
 import type { Clip, ExportState, ProjectStyle, TitleSpan } from '../types'
 
-export interface ExportUpdate {
-  phase?: ExportState['phase']
-  progress?: number
-  message?: string
-  error?: string | null
-  warning?: string | null
-  downloadUrl?: string | null
-  bytes?: number | null
-  jobId?: string | null
-}
+export type ExportUpdate = JobPollUpdate & { phase?: ExportState['phase'] }
 
 interface ExportInput {
   filename: string
@@ -112,54 +104,16 @@ export async function runExport(input: ExportInput): Promise<void> {
     throw new DOMException('The export was cancelled.', 'AbortError')
   }
 
-  const onAbort = () => {
-    void cancelJob(started.jobId)
-  }
-  input.signal.addEventListener('abort', onAbort)
   try {
-    let latest: JobStatus | null = null
-    while (!input.signal.aborted) {
-      latest = await getJob(started.jobId)
-      input.onUpdate(updateFromJob(latest))
-      if (latest.status === 'done' || latest.status === 'error' || latest.status === 'cancelled') break
-      await wait(700, input.signal)
-    }
-    if (input.signal.aborted) throw new DOMException('The export was cancelled.', 'AbortError')
-    if (!latest || latest.status === 'cancelled') {
+    await pollJobUntilDone(started.jobId, input.signal, (patch) => {
+      input.onUpdate(patch as ExportUpdate)
+    })
+  } catch (error) {
+    if (error instanceof DOMException && error.name === 'AbortError') {
       input.onUpdate({ phase: 'cancelled', message: 'Export cancelled.', error: null })
       return
     }
-    if (latest.status === 'error') throw new Error(latest.error || 'Rendering failed.')
-    input.onUpdate({
-      phase: 'done',
-      progress: 1,
-      message: 'Export verified.',
-      downloadUrl: `/api/jobs/${latest.id}/download`,
-      bytes: latest.outputBytes,
-      warning: latest.warning,
-      jobId: latest.id,
-      error: null,
-    })
-  } finally {
-    input.signal.removeEventListener('abort', onAbort)
-  }
-}
-
-function updateFromJob(job: JobStatus): ExportUpdate {
-  let progress = 0.16
-  if (job.status === 'preparing') progress = 0.2
-  if (job.status === 'rendering') progress = 0.2 + job.progress * 0.75
-  if (job.status === 'verifying') progress = 0.97
-  if (job.status === 'done') progress = 1
-  const phase = job.status === 'queued' ? 'queued' : job.status
-  return {
-    phase,
-    progress,
-    message: job.queuePosition > 1 ? `Waiting in the render queue (position ${job.queuePosition}).` : job.message,
-    error: job.error,
-    warning: job.warning,
-    jobId: job.id,
-    bytes: job.outputBytes,
+    throw error
   }
 }
 
@@ -172,20 +126,3 @@ function canvasToPng(canvas: HTMLCanvasElement): Promise<Blob> {
   })
 }
 
-function wait(ms: number, signal: AbortSignal): Promise<void> {
-  return new Promise((resolve, reject) => {
-    const timer = window.setTimeout(() => {
-      signal.removeEventListener('abort', onAbort)
-      resolve()
-    }, ms)
-    const onAbort = () => {
-      window.clearTimeout(timer)
-      reject(new DOMException('The export was cancelled.', 'AbortError'))
-    }
-    if (signal.aborted) {
-      onAbort()
-      return
-    }
-    signal.addEventListener('abort', onAbort, { once: true })
-  })
-}

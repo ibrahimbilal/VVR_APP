@@ -24,6 +24,92 @@ export function validateAudioFile(file: File): string | null {
   return null
 }
 
+export interface LocalImageMeta {
+  width: number
+  height: number
+  thumbnail: string | null
+}
+
+const IMAGE_SIGNATURES: { mime: string; bytes: number[] }[] = [
+  { mime: 'image/jpeg', bytes: [0xff, 0xd8, 0xff] },
+  { mime: 'image/png', bytes: [0x89, 0x50, 0x4e, 0x47] },
+  { mime: 'image/webp', bytes: [0x52, 0x49, 0x46, 0x46] },
+]
+
+export async function sniffImageMime(file: File): Promise<string | null> {
+  const buffer = await file.slice(0, 16).arrayBuffer()
+  const view = new Uint8Array(buffer)
+  for (const sig of IMAGE_SIGNATURES) {
+    if (sig.bytes.every((byte, index) => view[index] === byte)) {
+      if (sig.mime === 'image/webp') {
+        const webp = [0x57, 0x45, 0x42, 0x50]
+        if (webp.every((byte, index) => view[8 + index] === byte)) return 'image/webp'
+        continue
+      }
+      return sig.mime
+    }
+  }
+  return null
+}
+
+export async function validateImageFile(file: File): Promise<string | null> {
+  const extension = file.name.split('.').pop()?.toLowerCase() ?? ''
+  const extensionOk = ['jpg', 'jpeg', 'png', 'webp'].includes(extension)
+  const sniffed = await sniffImageMime(file)
+  if (!sniffed && !extensionOk) return `${file.name} is not a JPG, PNG, or WebP image.`
+  if (file.size < 64) return `${file.name} looks empty.`
+  if (file.size > 80 * 1024 * 1024) return `${file.name} is larger than 80 MB.`
+  return null
+}
+
+export function validateScreensaverVideoFile(file: File): string | null {
+  const extension = file.name.split('.').pop()?.toLowerCase() ?? ''
+  const extensionOk = ['mp4', 'mov', 'webm'].includes(extension)
+  const typeOk = /^video\/(mp4|quicktime|webm)$/.test(file.type)
+  if (!extensionOk && !typeOk) return `${file.name} is not an MP4, MOV, or WebM file.`
+  if (file.size < 1024) return `${file.name} looks empty.`
+  if (file.size > 500 * 1024 * 1024) return `${file.name} is larger than 500 MB.`
+  return null
+}
+
+export function readImageFile(objectUrl: string): Promise<LocalImageMeta | null> {
+  return new Promise((resolve) => {
+    const image = new Image()
+    let settled = false
+    const finish = (value: LocalImageMeta | null) => {
+      if (settled) return
+      settled = true
+      image.onload = null
+      image.onerror = null
+      resolve(value)
+    }
+    image.onload = () => {
+      const width = image.naturalWidth
+      const height = image.naturalHeight
+      if (width <= 0 || height <= 0) {
+        finish(null)
+        return
+      }
+      let thumbnail: string | null = null
+      try {
+        const canvas = document.createElement('canvas')
+        canvas.width = 160
+        canvas.height = Math.max(90, Math.round((height / width) * 160))
+        const context = canvas.getContext('2d')
+        if (context) {
+          context.drawImage(image, 0, 0, canvas.width, canvas.height)
+          thumbnail = canvas.toDataURL('image/jpeg', 0.72)
+        }
+      } catch {
+        thumbnail = null
+      }
+      finish({ width, height, thumbnail })
+    }
+    image.onerror = () => finish(null)
+    image.src = objectUrl
+  })
+}
+
 export function readVideoFile(objectUrl: string): Promise<LocalVideoMeta | null> {
   return new Promise((resolve) => {
     const video = document.createElement('video')
