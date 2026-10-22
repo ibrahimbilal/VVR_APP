@@ -1,0 +1,14 @@
+---
+description: Deploy VVR to Hostinger; read the hostinger-vvr-deploy skill before uploading or rebuilding the live site.
+alwaysApply: false
+---
+
+# Hostinger deploy
+
+When the user asks to deploy, upload, publish, or update VVR on Hostinger:
+
+1. Read `.cursor/skills/hostinger-vvr-deploy/SKILL.md` and follow its checklist.
+2. Use fixed domain and build settings from `.cursor/skills/hostinger-vvr-deploy/REFERENCE.md`.
+3. Use the **user-hostinger** MCP server; do not guess hPanel clicks if the API can do the step.
+4. Never write upload auth keys or API tokens into the repo or skills.
+5. After a successful deploy, verify `https://vvr.ibrahimbilal.com/api/health`.

@@ -2,7 +2,7 @@
 
 Local web app that builds a 9:16 ranking compilation. The user uploads clips they have rights to (or pastes a YouTube, TikTok, or Instagram link for a title only), orders them, styles a fixed title banner and ranking numbers, previews the sequence, and exports one MP4.
 
-There are no accounts, no cloud storage, and no public hosting setup. The editor is a Vue app. The renderer is an Express process on this computer with bundled FFmpeg.
+There are no accounts and no cloud project storage. The editor is a Vue app. The renderer is Express with bundled FFmpeg. **Production** runs on Hostinger Node.js at `https://vvr.ibrahimbilal.com` (deploy steps: `.cursor/skills/hostinger-vvr-deploy/SKILL.md`). Local dev still uses separate Vite (5173) and API (3001) processes.
 
 ## Run
 
@@ -263,6 +263,7 @@ Sweep every 10 minutes: outputs older than 2 hours, jobs and incoming older than
 
 ## Changelog
 
+- 2026-10-22 — Documented Hostinger production URL and added `hostinger-vvr-deploy` skill for archive-based redeploys.
 - 2026-10-22 — Timeline uses one export button (progress fill, hover-to-cancel, download when ready); project edits after export clear the ready state.
 - 2026-10-22 — Ranking overlay keeps list order when sort is “As listed”; `playAtEnd` affects playback only, not stack position.
 - 2026-10-22 — Created this map from the current client, server, and shared code. No product behavior changed.
