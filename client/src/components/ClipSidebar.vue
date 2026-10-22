@@ -99,7 +99,6 @@ function kept(duration: number, start: number, end: number): string {
 <template>
   <aside
     class="flex min-h-0 flex-col border-zinc-800 bg-[#16181d] xl:border-r"
-    :class="fileDrag ? 'ring-2 ring-inset ring-amber-300' : ''"
     @dragenter.prevent="onFileDragEnter"
     @dragover.prevent
     @dragleave.prevent="onFileDragLeave"

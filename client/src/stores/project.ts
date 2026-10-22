@@ -2,7 +2,9 @@ import { frameMetrics } from '@shared/frame'
 import { clipDuration, resolveFade, sequenceDuration } from '@shared/timeline'
 import { parseVideoUrl } from '@shared/urls'
 import { defineStore } from 'pinia'
+import { storeToRefs } from 'pinia'
 import { computed, ref, watch } from 'vue'
+import { usePlatformStore } from './platform'
 import { OUTPUTS } from '@shared/frame'
 import * as api from '../lib/api'
 import { runExport } from '../lib/exportJob'
@@ -63,6 +65,8 @@ function blankClip(partial: Partial<Clip>): Clip {
 }
 
 export const useProjectStore = defineStore('project', () => {
+  const platform = usePlatformStore()
+  const { serverOnline } = storeToRefs(platform)
   const name = ref('Untitled ranking')
   const titleText = ref(initial.titleText)
   const spans = ref<TitleSpan[]>(initial.spans)
@@ -76,10 +80,8 @@ export const useProjectStore = defineStore('project', () => {
   const activeColorSetId = ref(storedColors.activeId)
   const musicUrl = ref<string | null>(null)
   const musicName = ref<string | null>(null)
-  const serverOnline = ref(false)
   const hydrated = ref(false)
   const exportState = ref<ExportState>(idleExport())
-  const toasts = ref<{ id: string; text: string; tone: 'info' | 'error' }[]>([])
   const urlNotice = ref('')
 
   const selectedClip = computed(() => clips.value.find((clip) => clip.id === selectedClipId.value) ?? null)
@@ -154,15 +156,7 @@ export const useProjectStore = defineStore('project', () => {
   )
 
   function toast(text: string, tone: 'info' | 'error' = 'error') {
-    const id = crypto.randomUUID()
-    toasts.value = [...toasts.value.slice(-3), { id, text, tone }]
-    window.setTimeout(() => {
-      toasts.value = toasts.value.filter((item) => item.id !== id)
-    }, 5200)
-  }
-
-  function dismissToast(id: string) {
-    toasts.value = toasts.value.filter((item) => item.id !== id)
+    platform.toast(text, tone)
   }
 
   function invalidateCompletedExport() {
@@ -174,8 +168,8 @@ export const useProjectStore = defineStore('project', () => {
     if (hydrated.value) return
     applying = true
     try {
-      const saved = await idb.loadProject()
-      serverOnline.value = await api.health()
+      const saved = await idb.loadRankingProject()
+      await platform.refreshServer()
       if (saved?.version === 1 && saved.style && saved.spans) {
         name.value = saved.name || 'Untitled ranking'
         titleText.value = saved.titleText || ''
@@ -235,7 +229,7 @@ export const useProjectStore = defineStore('project', () => {
   }
 
   async function refreshServer() {
-    serverOnline.value = await api.health()
+    await platform.refreshServer()
     if (!serverOnline.value) return
     for (const clip of clips.value) {
       if (clip.uploadState === 'error' && fileMap.has(clip.id)) void upload(clip.id)
@@ -557,7 +551,7 @@ export const useProjectStore = defineStore('project', () => {
     exportState.value = idleExport()
     urlNotice.value = ''
     applying = false
-    await idb.clearSavedProject().catch(() => undefined)
+    await idb.clearRankingProject().catch(() => undefined)
   }
 
   function retryUpload(id: string) {
@@ -633,7 +627,7 @@ export const useProjectStore = defineStore('project', () => {
     const clip = clips.value.find((item) => item.id === id)
     const file = fileMap.get(id)
     if (!clip || !file) return
-    if (!serverOnline.value) serverOnline.value = await api.health()
+    if (!serverOnline.value) await platform.refreshServer()
     if (!serverOnline.value) {
       clip.uploadState = 'error'
       clip.error = 'The renderer is offline, so this clip is not uploaded yet.'
@@ -709,7 +703,7 @@ export const useProjectStore = defineStore('project', () => {
       musicName: musicName.value,
       clips: clips.value.map(persistableClip),
     }
-    await idb.saveProject(payload).catch(() => undefined)
+    await idb.saveRankingProject(payload).catch(() => undefined)
   }
 
   return {
@@ -734,7 +728,6 @@ export const useProjectStore = defineStore('project', () => {
     exporting,
     exportBlocker,
     timeline,
-    toasts,
     urlNotice,
     init,
     refreshServer,
@@ -769,7 +762,6 @@ export const useProjectStore = defineStore('project', () => {
     downloadExport,
     downloadName,
     toast,
-    dismissToast,
     formatRank,
   }
 })

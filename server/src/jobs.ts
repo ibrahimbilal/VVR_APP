@@ -2,6 +2,7 @@ import { rm } from 'node:fs/promises'
 import path from 'node:path'
 import { releaseClips, retainClips, jobsDir, outputsDir } from './storage'
 import { renderProject, type RenderRequest } from './render'
+import { renderScreensaver, type ScreensaverRenderRequest } from './renderScreensaver'
 
 export type JobStatus = 'queued' | 'preparing' | 'rendering' | 'verifying' | 'done' | 'error' | 'cancelled'
 
@@ -16,9 +17,16 @@ export interface JobView {
   outputDuration: number | null
   queuePosition: number
   downloadName: string
+  encoder: string | null
+  hardware: boolean | null
+  encodeFps: number | null
+  encodeSpeed: number | null
+  elapsedSec: number | null
+  etaSec: number | null
+  stage: string | null
 }
 
-interface Job extends RenderRequest {
+interface JobBase {
   id: string
   status: JobStatus
   progress: number
@@ -32,7 +40,26 @@ interface Job extends RenderRequest {
   cancelRequested: boolean
   kill: (() => void) | null
   createdAt: number
+  encoderLabel: string | null
+  hardware: boolean | null
+  encodeFps: number | null
+  encodeSpeed: number | null
+  elapsedSec: number | null
+  etaSec: number | null
+  stage: string | null
+  encodeStarted: number | null
 }
+
+interface RankingJob extends JobBase, RenderRequest {
+  kind: 'ranking'
+}
+
+interface ScreensaverJob extends JobBase, ScreensaverRenderRequest {
+  kind: 'screensaver'
+  mediaId: string
+}
+
+type Job = RankingJob | ScreensaverJob
 
 const jobs = new Map<string, Job>()
 const queue: string[] = []
@@ -40,7 +67,8 @@ let pumping = false
 let activeId: string | null = null
 
 export function createJob(id: string, input: RenderRequest & { downloadName: string }): JobView {
-  const job: Job = {
+  const job: RankingJob = {
+    kind: 'ranking',
     ...input,
     id,
     status: 'queued',
@@ -55,9 +83,39 @@ export function createJob(id: string, input: RenderRequest & { downloadName: str
     cancelRequested: false,
     kill: null,
     createdAt: Date.now(),
+    ...emptyDiagnostics(),
   }
   jobs.set(id, job)
   retainClips(input.clips.map((clip) => clip.id))
+  queue.push(id)
+  void pump()
+  return view(job)
+}
+
+export function createScreensaverJob(
+  id: string,
+  input: ScreensaverRenderRequest & { downloadName: string; mediaId: string },
+): JobView {
+  const job: ScreensaverJob = {
+    kind: 'screensaver',
+    ...input,
+    id,
+    status: 'queued',
+    progress: 0,
+    message: 'Waiting to render.',
+    error: null,
+    warning: null,
+    outputBytes: null,
+    outputDuration: null,
+    outputPath: null,
+    downloadName: input.downloadName,
+    cancelRequested: false,
+    kill: null,
+    createdAt: Date.now(),
+    ...emptyDiagnostics(),
+  }
+  jobs.set(id, job)
+  retainClips([input.mediaId])
   queue.push(id)
   void pump()
   return view(job)
@@ -99,29 +157,48 @@ async function pump(): Promise<void> {
       }
       activeId = id
       try {
-        const result = await renderProject(job, {
+        const hooks = {
           cancelled: () => job.cancelRequested || job.status === 'cancelled',
-          onProgress: (progress, message) => {
+          onProgress: (progress: number, message?: string) => {
             if (job.cancelRequested) return
             job.progress = progress
             if (message) job.message = message
+            noteTiming(job)
           },
-          onStatus: (status, message) => {
+          onStats: (stats: { fps: number | null; speed: number | null }) => {
+            if (job.cancelRequested || job.kind !== 'screensaver') return
+            job.encodeFps = stats.fps
+            job.encodeSpeed = stats.speed
+            noteTiming(job)
+          },
+          onEncode: (info: { encoder: string; hardware: boolean }) => {
+            job.encoderLabel = info.encoder
+            job.hardware = info.hardware
+          },
+          onStatus: (status: JobStatus, message: string) => {
             if (job.cancelRequested && status !== 'cancelled') return
             job.status = status
             job.message = message
+            job.stage = stageLabel(status, message)
+            if (status === 'rendering' && job.encodeStarted == null) job.encodeStarted = Date.now()
           },
-          registerKill: (kill) => {
+          registerKill: (kill: () => void) => {
             job.kill = kill
             if (job.cancelRequested) kill()
           },
-        })
+        }
+        const result =
+          job.kind === 'ranking'
+            ? await renderProject(job, hooks)
+            : await renderScreensaver(job, hooks)
         if (job.cancelRequested) {
           job.status = 'cancelled'
           job.message = 'Render cancelled.'
         } else {
           job.status = 'done'
           job.progress = 1
+          job.stage = 'Completed'
+          job.etaSec = 0
           job.message = 'Export verified.'
           job.warning = result.warning
           job.outputPath = result.outputPath
@@ -151,7 +228,11 @@ async function pump(): Promise<void> {
 }
 
 async function finish(job: Job): Promise<void> {
-  releaseClips(job.clips.map((clip) => clip.id))
+  if (job.kind === 'ranking') {
+    releaseClips(job.clips.map((clip) => clip.id))
+  } else {
+    releaseClips([job.mediaId])
+  }
   const dir = path.join(jobsDir, job.id)
   await rm(dir, { recursive: true, force: true })
   if (job.status !== 'done' && job.outputPath) {
@@ -178,7 +259,46 @@ function view(job: Job): JobView {
     outputDuration: job.outputDuration,
     queuePosition,
     downloadName: job.downloadName,
+    encoder: job.encoderLabel,
+    hardware: job.hardware,
+    encodeFps: job.encodeFps,
+    encodeSpeed: job.encodeSpeed,
+    elapsedSec: job.elapsedSec,
+    etaSec: job.etaSec,
+    stage: job.stage,
   }
+}
+
+function emptyDiagnostics(): Pick<JobBase, 'encoderLabel' | 'hardware' | 'encodeFps' | 'encodeSpeed' | 'elapsedSec' | 'etaSec' | 'stage' | 'encodeStarted'> {
+  return {
+    encoderLabel: null,
+    hardware: null,
+    encodeFps: null,
+    encodeSpeed: null,
+    elapsedSec: null,
+    etaSec: null,
+    stage: null,
+    encodeStarted: null,
+  }
+}
+
+function noteTiming(job: Job): void {
+  if (job.encodeStarted == null) return
+  const elapsed = (Date.now() - job.encodeStarted) / 1000
+  job.elapsedSec = Math.round(elapsed * 10) / 10
+  if (job.progress > 0.02 && elapsed > 2) {
+    job.etaSec = Math.round((elapsed * (1 - job.progress)) / job.progress)
+  } else {
+    job.etaSec = null
+  }
+}
+
+function stageLabel(status: JobStatus, message: string): string {
+  if (status === 'preparing') return 'Preparing media'
+  if (status === 'rendering') return 'Encoding'
+  if (status === 'verifying') return 'Validating output'
+  if (status === 'done') return 'Completed'
+  return message
 }
 
 export function outputFile(id: string): string {

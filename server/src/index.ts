@@ -7,11 +7,24 @@ import path from 'node:path'
 import { moduleDir } from './moduleDir'
 import multer from 'multer'
 import { frameMetrics, isAllowedFps, isAllowedOutput } from '../../shared/frame'
+import { sanitizeComposition } from '../../shared/screensaverComposition'
+import {
+  isAllowedScreensaverFps,
+  isAllowedScreensaverOutput,
+  isEncoderChoice,
+  isScreensaverProfile,
+  MAX_DURATION_SECONDS,
+  MIN_DURATION_SECONDS,
+  TEST_MIN_DURATION_SECONDS,
+  type EncoderChoice,
+  type ScreensaverProfile,
+} from '../../shared/screensaver'
 import { resolveFade, sequenceDuration } from '../../shared/timeline'
 import { checkFfmpeg, logEncodeCheck } from './binaries'
-import { cancelJob, createJob, getJob, jobOutput } from './jobs'
+import { cancelJob, createJob, createScreensaverJob, getJob, jobOutput } from './jobs'
 import { lookupUrl } from './oembed'
-import { probeAudioFile, probeMedia, probeStill } from './probe'
+import { encoderCatalog } from './encoders'
+import { probeAudioFile, probeImage, probeMedia, probeSourceDetails, probeStill, sniffMediaKind } from './probe'
 import {
   addClip,
   clipIsBusy,
@@ -41,6 +54,16 @@ const clipUpload = multer({
 const exportUpload = multer({
   dest: incomingDir,
   limits: { fileSize: 40 * 1024 * 1024, files: 31 },
+})
+
+const screensaverMediaUpload = multer({
+  dest: incomingDir,
+  limits: { fileSize: 500 * 1024 * 1024, files: 1 },
+})
+
+const screensaverExportUpload = multer({
+  dest: incomingDir,
+  limits: { fileSize: 80 * 1024 * 1024, files: 4 },
 })
 
 app.get('/api/health', async (_req, res) => {
@@ -185,6 +208,179 @@ app.post('/api/export', exportUpload.fields([{ name: 'overlays', maxCount: 30 },
     res.status(status).json({ error: messageOf(error, 'The export could not be started.') })
   }
 })
+
+app.post('/api/screensaver/media', screensaverMediaUpload.single('file'), async (req, res) => {
+  const file = req.file
+  if (!file) {
+    res.status(400).json({ error: 'Choose an image or video file.' })
+    return
+  }
+  try {
+    const sniffed = await sniffMediaKind(file.path)
+    const isImage = sniffed === 'jpeg' || sniffed === 'png' || sniffed === 'webp'
+    const isVideo = sniffed === 'mp4' || sniffed === 'mov' || sniffed === 'webm'
+    if (!isImage && !isVideo) throw new Error('Use a JPG, PNG, WebP, MP4, MOV, or WebM file.')
+    if (isImage) {
+      const still = await probeImage(file.path)
+      const { stat: statFile } = await import('node:fs/promises')
+      const info = await statFile(file.path)
+      const probe = {
+        duration: 0,
+        width: still.width,
+        height: still.height,
+        hasAudio: false,
+        hasVideo: true,
+        codec: 'mjpeg',
+        size: info.size,
+      }
+      const stored = await addClip(file.path, file.originalname, probe)
+      res.json({
+        id: stored.id,
+        kind: 'image',
+        duration: null,
+        width: stored.width,
+        height: stored.height,
+        hasAudio: false,
+        size: stored.size,
+      })
+      return
+    }
+    const probed = await probeMedia(file.path)
+    if (probed.duration > 20 * 60) throw new Error('Source videos must be 20 minutes or shorter.')
+    const stored = await addClip(file.path, file.originalname, probed)
+    res.json({
+      id: stored.id,
+      kind: 'video',
+      duration: stored.duration,
+      width: stored.width,
+      height: stored.height,
+      hasAudio: stored.hasAudio,
+      size: stored.size,
+    })
+  } catch (error) {
+    await rm(file.path, { force: true }).catch(() => undefined)
+    res.status(400).json({ error: messageOf(error, 'This file could not be imported.') })
+  }
+})
+
+app.get('/api/screensaver/encoders', async (_req, res) => {
+  try {
+    if (!(await checkFfmpeg())) {
+      res.status(500).json({ error: 'FFmpeg is missing. Reinstall dependencies with npm install, then restart the server.' })
+      return
+    }
+    res.json(await encoderCatalog())
+  } catch (error) {
+    res.status(500).json({ error: messageOf(error, 'Encoder detection failed.') })
+  }
+})
+
+app.post(
+  '/api/screensaver/export',
+  screensaverExportUpload.fields([
+    { name: 'audio', maxCount: 1 },
+    { name: 'composition', maxCount: 1 },
+    { name: 'frame', maxCount: 1 },
+    { name: 'mask', maxCount: 1 },
+  ]),
+  async (req, res) => {
+    const files = req.files as
+      | { audio?: Express.Multer.File[]; composition?: Express.Multer.File[]; frame?: Express.Multer.File[]; mask?: Express.Multer.File[] }
+      | undefined
+    const audioFile = files?.audio?.[0]
+    const compositionFile = files?.composition?.[0]
+    const frameFile = files?.frame?.[0]
+    const maskFile = files?.mask?.[0]
+    const uploaded = [audioFile, compositionFile, frameFile, maskFile].filter((file): file is Express.Multer.File => Boolean(file))
+    try {
+      if (!(await checkFfmpeg())) {
+        throw new Error('FFmpeg is missing. Reinstall dependencies with npm install, then restart the server.')
+      }
+      const project = parseScreensaverProject(req.body?.project)
+      const stored = getClip(project.mediaId)
+      if (!stored) throw new ClientError(400, 'Upload the source media again.')
+      const id = randomUUID()
+      const dir = path.join(jobsDir, id)
+      await mkdir(dir, { recursive: true })
+      let musicPath: string | null = null
+      let compositionPath: string | null = null
+      let framePath: string | null = null
+      let maskPath: string | null = null
+      try {
+        if (audioFile) {
+          const ext = safeAudioExt(audioFile.originalname)
+          if (!ext) throw new Error('Background audio must be an MP3, WAV, M4A, AAC, or OGG file.')
+          musicPath = path.join(dir, `music${ext}`)
+          await rename(audioFile.path, musicPath)
+          audioFile.path = musicPath
+          await probeAudioFile(musicPath)
+        }
+        if (compositionFile) {
+          compositionPath = path.join(dir, 'composition.png')
+          await rename(compositionFile.path, compositionPath)
+          compositionFile.path = compositionPath
+          const still = await probeStill(compositionPath)
+          if (still.width !== project.width || still.height !== project.height) {
+            throw new ClientError(400, 'The composed image did not match the output resolution.')
+          }
+        }
+        if (frameFile) {
+          framePath = path.join(dir, 'frame.png')
+          await rename(frameFile.path, framePath)
+          frameFile.path = framePath
+        }
+        if (maskFile) {
+          maskPath = path.join(dir, 'mask.png')
+          await rename(maskFile.path, maskPath)
+          maskFile.path = maskPath
+        }
+        const details = await probeSourceDetails(stored.path)
+        const job = createScreensaverJob(id, {
+          mediaId: stored.id,
+          mediaPath: stored.path,
+          mediaKind: project.kind,
+          mode: project.mode,
+          width: project.width,
+          height: project.height,
+          fps: project.fps,
+          duration: project.duration,
+          fit: project.fit,
+          loopType: project.loopType,
+          crossfadeSeconds: project.crossfadeSeconds,
+          audioMode: project.audioMode,
+          audioVolume: project.audioVolume,
+          audioFadeIn: project.audioFadeIn,
+          audioFadeOut: project.audioFadeOut,
+          loopAudio: project.loopAudio,
+          backgroundColor: project.backgroundColor,
+          musicPath,
+          sourceDuration: stored.duration || details.duration || project.duration,
+          sourceHasAudio: stored.hasAudio,
+          downloadName: safeDownloadName(project.filename),
+          profile: project.profile,
+          encoder: project.encoder,
+          composition: project.composition,
+          compositionPath,
+          framePath,
+          maskPath,
+          sourceWidth: details.width || stored.width,
+          sourceHeight: details.height || stored.height,
+          sourceCodec: details.codec,
+          sourcePixFmt: details.pixFmt,
+          sourceAudioCodec: details.audioCodec,
+        })
+        res.json({ jobId: job.id })
+      } catch (error) {
+        await rm(dir, { recursive: true, force: true }).catch(() => undefined)
+        throw error
+      }
+    } catch (error) {
+      await Promise.all(uploaded.map((file) => rm(file.path, { force: true }).catch(() => undefined)))
+      const status = error instanceof ClientError ? error.status : 400
+      res.status(status).json({ error: messageOf(error, 'The export could not be started.') })
+    }
+  },
+)
 
 app.get('/api/jobs/:id', (req, res) => {
   if (!UUID.test(req.params.id)) {
@@ -412,6 +608,86 @@ function clampUnit(value: unknown): number {
   const number = Number(value)
   if (!Number.isFinite(number)) return 1
   return Math.max(0, Math.min(1, number))
+}
+
+interface ScreensaverProjectInput {
+  filename: string
+  mediaId: string
+  kind: 'image' | 'video'
+  mode: 'static' | 'loop'
+  width: number
+  height: number
+  fps: number
+  duration: number
+  fit: 'contain' | 'cover' | 'blur'
+  loopType: 'hard' | 'smooth'
+  crossfadeSeconds: number
+  audioMode: 'none' | 'source' | 'upload'
+  audioVolume: number
+  audioFadeIn: number
+  audioFadeOut: number
+  loopAudio: boolean
+  backgroundColor: string
+  profile: ScreensaverProfile
+  encoder: EncoderChoice
+  composition: ReturnType<typeof sanitizeComposition>
+}
+
+function parseScreensaverProject(raw: unknown): ScreensaverProjectInput {
+  if (typeof raw !== 'string') throw new ClientError(400, 'The export settings were missing.')
+  let data: Partial<ScreensaverProjectInput>
+  try {
+    data = JSON.parse(raw) as Partial<ScreensaverProjectInput>
+  } catch {
+    throw new ClientError(400, 'The export settings could not be read.')
+  }
+  if (!UUID.test(String(data.mediaId))) throw new ClientError(400, 'Upload the source media again.')
+  const kind = data.kind === 'image' || data.kind === 'video' ? data.kind : null
+  if (!kind) throw new ClientError(400, 'The media type is missing.')
+  const mode = data.mode === 'static' || data.mode === 'loop' ? data.mode : null
+  if (!mode) throw new ClientError(400, 'Choose static or looping mode.')
+  if (!isAllowedScreensaverOutput(Number(data.width), Number(data.height))) {
+    throw new ClientError(400, 'Choose a supported 16:9 output resolution.')
+  }
+  if (!isAllowedScreensaverFps(Number(data.fps))) throw new ClientError(400, 'Choose 1, 24, or 30 fps.')
+  const minDuration = process.env.VVR_SCREENSAVER_TEST === '1' ? TEST_MIN_DURATION_SECONDS : MIN_DURATION_SECONDS
+  const duration = Number(data.duration)
+  if (!Number.isFinite(duration) || duration < minDuration || duration > MAX_DURATION_SECONDS) {
+    throw new ClientError(400, 'Choose a duration between 30 minutes and 10 hours.')
+  }
+  if (!HEX.test(String(data.backgroundColor))) throw new ClientError(400, 'Use a hex background color.')
+  const fit = data.fit
+  if (fit !== 'contain' && fit !== 'cover' && fit !== 'blur') throw new ClientError(400, 'Choose contain, cover, or blur.')
+  const loopType = data.loopType === 'smooth' ? 'smooth' : 'hard'
+  const audioMode = data.audioMode === 'source' || data.audioMode === 'upload' ? data.audioMode : 'none'
+  if (mode === 'static' && kind !== 'image') {
+    throw new ClientError(400, 'Static art mode requires an image source.')
+  }
+  if (mode === 'loop' && kind !== 'video') {
+    throw new ClientError(400, 'Looping mode requires a video source.')
+  }
+  return {
+    filename: typeof data.filename === 'string' ? data.filename : 'screensaver',
+    mediaId: String(data.mediaId),
+    kind,
+    mode,
+    width: Number(data.width),
+    height: Number(data.height),
+    fps: Number(data.fps),
+    duration,
+    fit,
+    loopType,
+    crossfadeSeconds: Math.max(0.25, Math.min(5, Number(data.crossfadeSeconds) || 1)),
+    audioMode,
+    audioVolume: clampUnit(data.audioVolume),
+    audioFadeIn: Math.max(0, Math.min(30, Number(data.audioFadeIn) || 0)),
+    audioFadeOut: Math.max(0, Math.min(30, Number(data.audioFadeOut) || 0)),
+    loopAudio: Boolean(data.loopAudio),
+    backgroundColor: String(data.backgroundColor),
+    profile: isScreensaverProfile(data.profile) ? data.profile : 'balanced',
+    encoder: isEncoderChoice(data.encoder) ? data.encoder : 'auto',
+    composition: sanitizeComposition(data.composition),
+  }
 }
 
 function messageOf(error: unknown, fallback: string): string {

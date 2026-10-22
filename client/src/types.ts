@@ -127,6 +127,13 @@ export interface ExportState {
   downloadUrl: string | null
   bytes: number | null
   jobId: string | null
+  encoder?: string | null
+  hardware?: boolean | null
+  encodeFps?: number | null
+  encodeSpeed?: number | null
+  elapsedSec?: number | null
+  etaSec?: number | null
+  stage?: string | null
 }
 
 export interface PersistedClip {

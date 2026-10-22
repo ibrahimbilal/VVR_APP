@@ -14,6 +14,7 @@ export interface Probe {
 interface ProbeStream {
   codec_type?: string
   codec_name?: string
+  pix_fmt?: string
   width?: number
   height?: number
   duration?: string
@@ -24,7 +25,17 @@ interface ProbeStream {
 
 interface ProbeJson {
   streams?: ProbeStream[]
-  format?: { duration?: string }
+  format?: { duration?: string; start_time?: string }
+}
+
+export interface SourceDetails {
+  codec: string | null
+  pixFmt: string | null
+  audioCodec: string | null
+  width: number
+  height: number
+  duration: number
+  startTime: number
 }
 
 export async function probeMedia(file: string): Promise<Probe> {
@@ -50,6 +61,51 @@ export async function probeMedia(file: string): Promise<Probe> {
     codec: video.codec_name ?? null,
     size: info.size,
   }
+}
+
+export async function probeSourceDetails(file: string): Promise<SourceDetails> {
+  const data = await readProbe(file)
+  const streams = data.streams ?? []
+  const video = streams.find((stream) => stream.codec_type === 'video' && stream.disposition?.attached_pic !== 1) ?? streams.find((stream) => stream.codec_type === 'video')
+  const audio = streams.find((stream) => stream.codec_type === 'audio')
+  return {
+    codec: video?.codec_name ?? null,
+    pixFmt: video?.pix_fmt ?? null,
+    audioCodec: audio?.codec_name ?? null,
+    width: video?.width ?? 0,
+    height: video?.height ?? 0,
+    duration: positiveNumber(video?.duration) || positiveNumber(data.format?.duration),
+    startTime: finiteNumber(data.format?.start_time),
+  }
+}
+
+export async function probeImage(file: string): Promise<{ width: number; height: number }> {
+  const data = await readProbe(file)
+  const stream =
+    (data.streams ?? []).find((s) => s.codec_type === 'video') ??
+    (data.streams ?? []).find((s) => s.codec_type === 'video' || s.codec_name === 'png' || s.codec_name === 'mjpeg')
+  if (!stream?.width || !stream.height) {
+    throw new Error('This image could not be read.')
+  }
+  return { width: stream.width, height: stream.height }
+}
+
+export type SniffedKind = 'jpeg' | 'png' | 'webp' | 'mp4' | 'mov' | 'webm' | null
+
+export async function sniffMediaKind(filePath: string): Promise<SniffedKind> {
+  const { readFile } = await import('node:fs/promises')
+  const head = await readFile(filePath)
+  const view = head.subarray(0, 16)
+  if (view[0] === 0xff && view[1] === 0xd8 && view[2] === 0xff) return 'jpeg'
+  if (view[0] === 0x89 && view[1] === 0x50 && view[2] === 0x4e && view[3] === 0x47) return 'png'
+  if (view[0] === 0x52 && view[1] === 0x49 && view[2] === 0x46 && view[3] === 0x46 && view[8] === 0x57) return 'webp'
+  if (view[4] === 0x66 && view[5] === 0x74 && view[6] === 0x79 && view[7] === 0x70) {
+    const brand = head.subarray(8, 12).toString('ascii')
+    if (brand.includes('qt')) return 'mov'
+    return 'mp4'
+  }
+  if (view[0] === 0x1a && view[1] === 0x45 && view[2] === 0xdf && view[3] === 0xa3) return 'webm'
+  return null
 }
 
 export async function probeStill(file: string): Promise<{ width: number; height: number }> {
@@ -88,6 +144,11 @@ function positiveNumber(value: string | undefined): number {
   const parsed = Number(value)
   if (!Number.isFinite(parsed) || parsed <= 0) return 0
   return parsed
+}
+
+function finiteNumber(value: string | undefined): number {
+  const parsed = Number(value)
+  return Number.isFinite(parsed) ? parsed : 0
 }
 
 function streamRotation(stream: ProbeStream): number {
