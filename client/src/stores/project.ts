@@ -10,6 +10,7 @@ import { formatRank, sourceLabel, titleFromFileName } from '../lib/format'
 import * as idb from '../lib/idb'
 import { readVideoFile, validateAudioFile, validateVideoFile } from '../lib/media'
 import { defaultColorSets, loadColorSets, saveColorSets, type ColorSet } from '../lib/colorSets'
+import { playbackOrder } from '../lib/order'
 import { RANK_COLORS, createDefaultVideo, materializePreset } from '../lib/presets'
 import { retokenize } from '../lib/title'
 import type { Clip, ExportState, PersistedClip, PresetId, ProjectStyle, Source, TitleSpan } from '../types'
@@ -49,6 +50,7 @@ function blankClip(partial: Partial<Clip>): Clip {
     thumbnail: null,
     rankColor: null,
     titleColor: null,
+    playAtEnd: false,
     width: 0,
     height: 0,
     hasAudio: true,
@@ -97,13 +99,14 @@ export const useProjectStore = defineStore('project', () => {
     return ''
   })
   const timeline = computed(() => {
-    const durations = clips.value.map((clip) => (clip.objectUrl ? clipDuration(clip) : 0))
+    const ordered = playbackOrder(clips.value)
+    const durations = ordered.map((clip) => (clip.objectUrl ? clipDuration(clip) : 0))
     const fade = resolveFade(
       durations.filter((duration) => duration > 0),
       style.value.video.transition,
       style.value.video.fadeDuration,
     )
-    const playable = clips.value
+    const playable = ordered
       .map((clip, index) => ({ clip, index, duration: clip.objectUrl ? clipDuration(clip) : 0 }))
       .filter((item) => item.duration >= 0.05)
     return {
@@ -141,6 +144,7 @@ export const useProjectStore = defineStore('project', () => {
     [name, titleText, spans, style, clips, activePreset, musicName],
     () => {
       if (!hydrated.value) return
+      invalidateCompletedExport()
       window.clearTimeout(metaTimer)
       metaTimer = window.setTimeout(() => {
         void persistMeta()
@@ -159,6 +163,11 @@ export const useProjectStore = defineStore('project', () => {
 
   function dismissToast(id: string) {
     toasts.value = toasts.value.filter((item) => item.id !== id)
+  }
+
+  function invalidateCompletedExport() {
+    if (!hydrated.value || exporting.value) return
+    if (exportState.value.phase === 'done') exportState.value = idleExport()
   }
 
   async function init() {
@@ -181,6 +190,7 @@ export const useProjectStore = defineStore('project', () => {
         if (!Number.isFinite(style.value.ranking.itemSpacing)) {
           style.value.ranking.itemSpacing = 8
         }
+        normalizeStyle(style.value)
         activePreset.value = saved.activePreset || 'custom'
         musicName.value = saved.musicName
         const music = await idb.loadMusicFile()
@@ -208,6 +218,11 @@ export const useProjectStore = defineStore('project', () => {
             clip.error = 'The video file is no longer saved in this browser. Upload it again.'
             clips.value.push(clip)
           }
+        }
+        let finaleSeen = false
+        for (const clip of clips.value) {
+          if (clip.playAtEnd && !finaleSeen) finaleSeen = true
+          else clip.playAtEnd = false
         }
         selectedClipId.value = clips.value[0]?.id ?? null
       }
@@ -491,6 +506,10 @@ export const useProjectStore = defineStore('project', () => {
     if (clip) clip.titleColor = color
   }
 
+  function setPlayAtEnd(id: string, enabled: boolean) {
+    for (const clip of clips.value) clip.playAtEnd = enabled && clip.id === id
+  }
+
   async function setMusic(file: File | null) {
     if (musicUrl.value) URL.revokeObjectURL(musicUrl.value)
     if (!file) {
@@ -551,8 +570,12 @@ export const useProjectStore = defineStore('project', () => {
 
   async function startExport() {
     if (exportBlocker.value || exporting.value) return
-    const metrics = frameMetrics(style.value.video.width, style.value.video.height, style.value.banner.height)
-    const durations = clips.value.map((clip) => clipDuration(clip))
+    const metrics = frameMetrics(
+      style.value.video.width,
+      style.value.video.height,
+      style.value.banner.visible === false ? 0 : style.value.banner.height,
+    )
+    const durations = playbackOrder(clips.value).map((clip) => clipDuration(clip))
     const total = sequenceDuration(
       durations,
       resolveFade(durations, style.value.video.transition, style.value.video.fadeDuration),
@@ -577,18 +600,10 @@ export const useProjectStore = defineStore('project', () => {
           exportState.value = { ...exportState.value, ...patch }
         },
       })
-      if (exportState.value.phase === 'done' && exportState.value.downloadUrl) {
-        triggerDownload(exportState.value.downloadUrl, downloadName())
-        toast('Download started.', 'info')
-      }
     } catch (error) {
       if (signal.aborted || (error instanceof DOMException && error.name === 'AbortError')) {
-        exportState.value = {
-          ...exportState.value,
-          phase: 'cancelled',
-          message: 'Export cancelled.',
-          error: null,
-        }
+        exportState.value = idleExport()
+        toast('Export cancelled.', 'info')
         return
       }
       const text = error instanceof Error ? error.message : 'Export failed.'
@@ -598,6 +613,13 @@ export const useProjectStore = defineStore('project', () => {
 
   function cancelExport() {
     exportAbort?.abort()
+  }
+
+  function downloadExport() {
+    const url = exportState.value.downloadUrl
+    if (exportState.value.phase !== 'done' || !url) return
+    triggerDownload(url, downloadName())
+    toast('Download started.', 'info')
   }
 
   function downloadName(): string {
@@ -738,11 +760,13 @@ export const useProjectStore = defineStore('project', () => {
     resetColorSets,
     setRankColor,
     setTitleColor,
+    setPlayAtEnd,
     setMusic,
     newProject,
     retryUpload,
     startExport,
     cancelExport,
+    downloadExport,
     downloadName,
     toast,
     dismissToast,
@@ -764,6 +788,7 @@ function clipFromMeta(meta: PersistedClip): Clip {
     thumbnail: meta.thumbnail,
     rankColor: meta.rankColor,
     titleColor: meta.titleColor ?? null,
+    playAtEnd: meta.playAtEnd === true,
     width: meta.width,
     height: meta.height,
     hasAudio: meta.hasAudio,
@@ -785,9 +810,18 @@ function persistableClip(clip: Clip): PersistedClip {
     thumbnail: clip.thumbnail,
     rankColor: clip.rankColor,
     titleColor: clip.titleColor,
+    playAtEnd: clip.playAtEnd === true,
     width: clip.width,
     height: clip.height,
     hasAudio: clip.hasAudio,
+  }
+}
+
+function normalizeStyle(value: ProjectStyle) {
+  value.banner.visible = value.banner.visible !== false
+  value.ranking.showPreviousTitles = value.ranking.showPreviousTitles === true
+  if (value.ranking.sort !== 'reverse' && value.ranking.sort !== 'title' && value.ranking.sort !== 'titleDesc') {
+    value.ranking.sort = 'list'
   }
 }
 

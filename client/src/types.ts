@@ -5,6 +5,7 @@ export type Transition = 'cut' | 'fade'
 export type NumberFormat = 'dot' | 'plain' | 'hash' | 'pad'
 export type RankDisplay = 'stack' | 'page'
 export type RankPageStyle = 'fraction' | 'number'
+export type RankSort = 'list' | 'reverse' | 'title' | 'titleDesc'
 export type TextAlign = 'left' | 'center' | 'right'
 export type PresetId = 'classic' | 'tier' | 'minimal' | 'custom'
 
@@ -16,6 +17,7 @@ export interface TitleSpan {
 }
 
 export interface BannerStyle {
+  visible: boolean
   background: string
   height: number
   fontFamily: string
@@ -43,6 +45,8 @@ export interface RankingStyle {
   format: NumberFormat
   display: RankDisplay
   pageStyle: RankPageStyle
+  showPreviousTitles: boolean
+  sort: RankSort
 }
 
 export interface CaptionStyle {
@@ -92,6 +96,7 @@ export interface Clip {
   thumbnail: string | null
   rankColor: string | null
   titleColor: string | null
+  playAtEnd: boolean
   width: number
   height: number
   hasAudio: boolean
@@ -137,6 +142,7 @@ export interface PersistedClip {
   thumbnail: string | null
   rankColor: string | null
   titleColor: string | null
+  playAtEnd: boolean
   width: number
   height: number
   hasAudio: boolean

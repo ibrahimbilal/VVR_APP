@@ -37,7 +37,13 @@ const fullscreen = ref(false)
 let resizeObserver: ResizeObserver | null = null
 
 const hasVideo = computed(() => store.clips.some((clip) => Boolean(clip.objectUrl)))
-const metrics = computed(() => frameMetrics(store.style.video.width, store.style.video.height, store.style.banner.height))
+const metrics = computed(() =>
+  frameMetrics(
+    store.style.video.width,
+    store.style.video.height,
+    store.style.banner.visible === false ? 0 : store.style.banner.height,
+  ),
+)
 const stageStyle = computed(() => ({
   width: `${metrics.value.width}px`,
   height: `${metrics.value.height}px`,
@@ -136,6 +142,8 @@ function paint() {
       store.style.ranking.display,
       store.style.caption.color,
       store.style.ranking.pageStyle,
+      store.style.ranking.showPreviousTitles,
+      store.style.ranking.sort,
     ),
   })
 }
@@ -172,7 +180,7 @@ watch(
     store.style.ranking,
     store.style.caption,
     activeIndex.value,
-    store.clips.map((clip) => `${clip.title}\n${clip.rankColor ?? ''}\n${clip.titleColor ?? ''}\n${clip.objectUrl ? '1' : '0'}`).join('\n'),
+    store.clips.map((clip) => `${clip.title}\n${clip.rankColor ?? ''}\n${clip.titleColor ?? ''}\n${clip.playAtEnd ? '1' : '0'}\n${clip.objectUrl ? '1' : '0'}`).join('\n'),
   ],
   () => paint(),
   { deep: true },

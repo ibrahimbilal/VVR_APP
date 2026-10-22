@@ -1,24 +1,12 @@
 <script setup lang="ts">
-import { Download, LoaderCircle, X } from '@lucide/vue'
 import { computed } from 'vue'
+import ExportActionButton from './ExportActionButton.vue'
 import { usePlayback } from '../composables/usePlayback'
-import { formatBytes, formatClock } from '../lib/format'
+import { formatClock } from '../lib/format'
 import { useProjectStore } from '../stores/project'
 
 const store = useProjectStore()
 const playback = usePlayback()
-
-const busyLabel = computed(() => {
-  const phase = store.exportState.phase
-  const percent = Math.round(store.exportState.progress * 100)
-  if (phase === 'overlays') return 'Preparing overlays'
-  if (phase === 'uploading') return 'Uploading overlays'
-  if (phase === 'queued') return 'Queued'
-  if (phase === 'preparing') return 'Preparing'
-  if (phase === 'rendering') return `Rendering ${percent}%`
-  if (phase === 'verifying') return 'Verifying file'
-  return 'Export MP4'
-})
 
 const blocks = computed(() => {
   const list = playback.segments.value
@@ -79,25 +67,8 @@ function selectBlock(id: string, index: number) {
         </button>
         <span class="pointer-events-none absolute inset-y-0 w-0.5 bg-amber-300" :style="{ left: `${playheadLeft}%` }"></span>
       </div>
-      <div class="flex w-44 shrink-0 flex-col gap-2 sm:w-52">
-        <button class="btn cursor-pointer btn-primary" type="button" :disabled="Boolean(store.exportBlocker) || store.exporting" @click="store.startExport">
-          <LoaderCircle v-if="store.exporting" class="animate-spin" :size="16" />
-          <Download v-else :size="16" />
-          {{ store.exporting ? busyLabel : 'Export MP4' }}
-        </button>
-        <button v-if="store.exporting" class="btn cursor-pointer btn-ghost" type="button" @click="store.cancelExport">
-          <X :size="16" />
-          Cancel
-        </button>
-        <a
-          v-if="store.exportState.phase === 'done' && store.exportState.downloadUrl"
-          class="btn cursor-pointer btn-ghost"
-          :href="store.exportState.downloadUrl"
-          :download="store.downloadName()"
-        >
-          <Download :size="16" />
-          {{ store.exportState.bytes ? formatBytes(store.exportState.bytes) : 'MP4' }}
-        </a>
+      <div class="w-44 shrink-0 sm:w-52">
+        <ExportActionButton />
       </div>
     </div>
     <div class="flex items-center justify-between gap-3 text-xs text-zinc-400">
@@ -105,7 +76,7 @@ function selectBlock(id: string, index: number) {
         <template v-if="store.exporting">{{ store.exportState.message }}</template>
         <template v-else-if="store.exportState.phase === 'error'">{{ store.exportState.error }}</template>
         <template v-else-if="store.exportState.phase === 'done'">
-          Export verified{{ store.exportState.warning ? `. ${store.exportState.warning}` : '.' }}
+          Export ready{{ store.exportState.warning ? `. ${store.exportState.warning}` : '.' }} Tap download when you are ready.
         </template>
         <template v-else-if="store.exportBlocker">{{ store.exportBlocker }}</template>
         <template v-else>{{ store.clips.length }} clips · {{ formatClock(playback.duration.value) }}</template>

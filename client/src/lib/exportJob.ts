@@ -2,6 +2,7 @@ import { frameMetrics } from '@shared/frame'
 import { cancelJob, getJob, startExport, type JobStatus } from './api'
 import { drawOverlay, ensureFonts } from './drawOverlay'
 import { overlayRanks } from './format'
+import { playbackOrder } from './order'
 import type { Clip, ExportState, ProjectStyle, TitleSpan } from '../types'
 
 export interface ExportUpdate {
@@ -26,7 +27,11 @@ interface ExportInput {
 }
 
 export async function runExport(input: ExportInput): Promise<void> {
-  const metrics = frameMetrics(input.style.video.width, input.style.video.height, input.style.banner.height)
+  const metrics = frameMetrics(
+    input.style.video.width,
+    input.style.video.height,
+    input.style.banner.visible === false ? 0 : input.style.banner.height,
+  )
   input.onUpdate({ phase: 'overlays', progress: 0.02, message: 'Drawing the title and rankings.', error: null, warning: null, downloadUrl: null })
   await ensureFonts()
   if (input.signal.aborted) throw new DOMException('The export was cancelled.', 'AbortError')
@@ -36,10 +41,12 @@ export async function runExport(input: ExportInput): Promise<void> {
   const context = canvas.getContext('2d')
   if (!context) throw new Error('This browser cannot draw the title overlay.')
 
+  const sequence = playbackOrder(input.clips)
   const overlays: Blob[] = []
-  for (let index = 0; index < input.clips.length; index += 1) {
-    const clip = input.clips[index]
+  for (let index = 0; index < sequence.length; index += 1) {
+    const clip = sequence[index]
     if (!clip) continue
+    const listIndex = input.clips.findIndex((item) => item.id === clip.id)
     drawOverlay(context, {
       width: metrics.width,
       height: metrics.height,
@@ -50,17 +57,19 @@ export async function runExport(input: ExportInput): Promise<void> {
       caption: input.style.caption,
       ranks: overlayRanks(
         input.clips,
-        index,
+        listIndex,
         input.style.ranking.format,
         input.style.ranking.color,
         input.style.caption.enabled,
         input.style.ranking.display,
         input.style.caption.color,
         input.style.ranking.pageStyle,
+        input.style.ranking.showPreviousTitles,
+        input.style.ranking.sort,
       ),
     })
     overlays.push(await canvasToPng(canvas))
-    input.onUpdate({ progress: 0.02 + ((index + 1) / input.clips.length) * 0.06 })
+    input.onUpdate({ progress: 0.02 + ((index + 1) / sequence.length) * 0.06 })
     if (input.signal.aborted) throw new DOMException('The export was cancelled.', 'AbortError')
   }
 
@@ -69,7 +78,7 @@ export async function runExport(input: ExportInput): Promise<void> {
     'project',
     JSON.stringify({
       filename: input.filename,
-      clips: input.clips.map((clip) => ({
+      clips: sequence.map((clip) => ({
         id: clip.serverId,
         trimStart: clip.trimStart,
         trimEnd: clip.trimEnd,

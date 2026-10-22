@@ -101,6 +101,17 @@ input[type='color'] {
     background: #3a1d1d;
   }
 
+  .btn-success {
+    border-color: #2d6a4f;
+    background: #1b4332;
+    color: #bbf7d0;
+  }
+
+  .btn-success:hover:not(:disabled) {
+    background: #22543d;
+    border-color: #40916c;
+  }
+
   .chip {
     display: inline-flex;
     align-items: center;

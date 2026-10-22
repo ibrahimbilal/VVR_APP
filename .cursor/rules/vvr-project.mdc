@@ -1,0 +1,15 @@
+---
+description: Read and update the VVR project map before and after every task
+alwaysApply: true
+---
+
+# VVR project map
+
+Before any task in this repo — a question, a bugfix, a feature, or a review — read these two files and use them instead of scanning the tree:
+
+1. `.cursor/skills/vvr-project/SKILL.md`
+2. `.cursor/skills/vvr-project/PROJECT.md`
+
+Open source files only for the area the map names. If the map and the code disagree, trust the code, then fix the map.
+
+After the task, if behavior, data shapes, APIs, limits, storage, layout, or file responsibilities changed, update `PROJECT.md` in the same turn and add one line to its changelog. Skip the update when the project itself did not change.

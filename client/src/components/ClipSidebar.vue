@@ -165,6 +165,7 @@ function kept(duration: number, start: number, end: number): string {
             <div class="mb-1 flex items-center gap-2 text-[11px] text-zinc-500">
               <span class="font-semibold text-amber-300">{{ index + 1 }}</span>
               <span>{{ sourceLabel(clip.source) }}</span>
+              <span v-if="clip.playAtEnd" class="font-semibold text-amber-300">Plays last</span>
               <span v-if="clip.duration > 0" class="ml-auto tabular-nums">{{ kept(clip.duration, clip.trimStart, clip.trimEnd) }}</span>
             </div>
             <input

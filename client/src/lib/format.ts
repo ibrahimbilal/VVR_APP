@@ -1,4 +1,5 @@
-import type { NumberFormat, RankDisplay, RankPageStyle, Source } from '../types'
+import type { NumberFormat, RankDisplay, RankPageStyle, RankSort, Source } from '../types'
+import { playbackOrder } from './order'
 
 export interface OverlayRank {
   label: string
@@ -7,8 +8,44 @@ export interface OverlayRank {
   titleColor: string
 }
 
+export interface RankingSource {
+  title: string
+  rankColor: string | null
+  titleColor?: string | null
+  playAtEnd?: boolean
+}
+
+interface RankingRow extends RankingSource {
+  listIndex: number
+  playbackIndex: number
+}
+
+export function rankingRows(clips: RankingSource[], sort: RankSort = 'list'): RankingRow[] {
+  const tagged = clips.map((clip, listIndex) => ({ ...clip, id: String(listIndex), listIndex }))
+  const playback = playbackOrder(tagged)
+  const playbackIndexOf = new Map(playback.map((clip, playbackIndex) => [clip.listIndex, playbackIndex]))
+  const visual = tagged.slice()
+  if (sort === 'reverse') {
+    visual.reverse()
+  } else if (sort === 'title' || sort === 'titleDesc') {
+    visual.sort((a, b) => {
+      const compared = a.title.localeCompare(b.title, undefined, { sensitivity: 'base' })
+      if (compared !== 0) return sort === 'title' ? compared : -compared
+      return a.listIndex - b.listIndex
+    })
+  }
+  return visual.map((clip) => ({
+    title: clip.title,
+    rankColor: clip.rankColor,
+    titleColor: clip.titleColor,
+    playAtEnd: clip.playAtEnd,
+    listIndex: clip.listIndex,
+    playbackIndex: playbackIndexOf.get(clip.listIndex) ?? clip.listIndex,
+  }))
+}
+
 export function overlayRanks(
-  clips: { title: string; rankColor: string | null; titleColor?: string | null }[],
+  clips: RankingSource[],
   activeIndex: number,
   format: NumberFormat,
   fallbackColor: string,
@@ -16,24 +53,29 @@ export function overlayRanks(
   display: RankDisplay = 'stack',
   fallbackTitleColor = '#ffffff',
   pageStyle: RankPageStyle = 'fraction',
+  showPreviousTitles = false,
+  sort: RankSort = 'list',
 ): OverlayRank[] {
-  const rows = clips.map((clip, index) => {
-    const title = clip.title.trim()
+  const rows = rankingRows(clips, sort)
+  const active = rows.find((row) => row.listIndex === activeIndex) ?? rows.find((row) => row.playbackIndex === 0) ?? rows[0]
+  if (!active) return []
+  const painted = rows.map((row) => {
+    const title = row.title.trim()
+    const current = row.listIndex === active.listIndex
+    const previous = showPreviousTitles && row.playbackIndex < active.playbackIndex
     return {
-      label: formatRank(index, format),
-      color: clip.rankColor || fallbackColor,
-      title: showTitle && index === activeIndex && title ? title : null,
-      titleColor: clip.titleColor || fallbackTitleColor,
+      label: formatRank(row.listIndex, format),
+      color: row.rankColor || fallbackColor,
+      title: showTitle && title && (current || previous) ? title : null,
+      titleColor: row.titleColor || fallbackTitleColor,
     }
   })
-  if (display !== 'page' || rows.length === 0) return rows
-  const index = activeIndex >= 0 && activeIndex < rows.length ? activeIndex : 0
-  const row = rows[index]
-  const clip = clips[index]
-  if (!row || !clip) return []
-  const title = clip.title.trim()
-  const label = pageStyle === 'number' ? formatRank(index, format) : `${pageLabel(index, clips.length)}`
-  return [{ ...row, label, title: title || null }]
+  if (display !== 'page') return painted
+  const row = painted.find((item, index) => rows[index]?.listIndex === active.listIndex)
+  if (!row) return []
+  const title = active.title.trim()
+  const label = pageStyle === 'number' ? formatRank(active.listIndex, format) : pageLabel(active.listIndex, clips.length)
+  return [{ ...row, label, title: showTitle && title ? title : null }]
 }
 
 export function pageLabel(index: number, total: number): string {

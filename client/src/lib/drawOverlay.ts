@@ -41,15 +41,19 @@ export async function ensureFonts(): Promise<void> {
 }
 
 export function drawOverlay(ctx: CanvasRenderingContext2D, input: DrawInput): void {
-  ctx.clearRect(0, 0, input.width, input.height)
-  ctx.fillStyle = input.banner.background
-  ctx.fillRect(0, 0, input.width, input.bannerHeight)
-  drawTitle(ctx, input)
+  const bannerHeight = input.banner.visible === false ? 0 : input.bannerHeight
+  const frame = { ...input, bannerHeight }
+  ctx.clearRect(0, 0, frame.width, frame.height)
+  if (bannerHeight > 0) {
+    ctx.fillStyle = frame.banner.background
+    ctx.fillRect(0, 0, frame.width, bannerHeight)
+    drawTitle(ctx, frame)
+  }
   ctx.save()
   ctx.beginPath()
-  ctx.rect(0, input.bannerHeight, input.width, input.height - input.bannerHeight)
+  ctx.rect(0, bannerHeight, frame.width, frame.height - bannerHeight)
   ctx.clip()
-  drawRanks(ctx, input)
+  drawRanks(ctx, frame)
   ctx.restore()
 }
 

@@ -37,6 +37,13 @@ const wordIndex = ref(0)
 const activeWord = computed(() => store.spans[Math.min(wordIndex.value, Math.max(0, store.spans.length - 1))] ?? null)
 const bannerLimit = computed(() => Math.round(store.style.video.height * 0.42))
 const metrics = computed(() => frameMetrics(store.style.video.width, store.style.video.height, store.style.banner.height))
+const layoutMetrics = computed(() =>
+  frameMetrics(
+    store.style.video.width,
+    store.style.video.height,
+    store.style.banner.visible === false ? 0 : store.style.banner.height,
+  ),
+)
 
 function onMusic(event: Event) {
   const target = event.target
@@ -187,6 +194,11 @@ function onResolution(event: Event) {
     </SettingsAccordion>
 
     <SettingsAccordion title="Title">
+        <label class="flex items-center justify-between text-xs text-zinc-300">
+          Show title
+          <input v-model="store.style.banner.visible" type="checkbox" />
+        </label>
+        <p v-if="store.style.banner.visible === false" class="text-[11px] leading-relaxed text-zinc-500">The title banner is hidden and the video fills the frame.</p>
         <textarea
           class="field min-h-20 resize-y"
           :value="store.titleText"
@@ -266,6 +278,16 @@ function onResolution(event: Event) {
           </select>
         </label>
         <label class="block text-xs text-zinc-400">
+          Sort ranking
+          <select v-model="store.style.ranking.sort" class="field mt-1">
+            <option value="list">As listed</option>
+            <option value="reverse">Reverse</option>
+            <option value="title">Title A–Z</option>
+            <option value="titleDesc">Title Z–A</option>
+          </select>
+        </label>
+        <p class="text-[11px] leading-relaxed text-zinc-500">Reorders the numbers on the video. Rank numbers stay with each clip. Play at the end only changes playback order, not this list.</p>
+        <label class="block text-xs text-zinc-400">
           Format
           <select v-model="store.style.ranking.format" class="field mt-1">
             <option value="dot">1.</option>
@@ -277,7 +299,7 @@ function onResolution(event: Event) {
         <SliderField v-model="store.style.ranking.fontSize" label="Number size" :min="36" :max="360" suffix="px" />
         <SliderField v-model="store.style.ranking.itemSpacing" label="Item spacing" :min="0" :max="100" suffix="%" />
         <SliderField v-model="store.style.ranking.positionX" label="Left position" :min="0" :max="Math.round(store.style.video.width * 0.7)" suffix="px" />
-        <SliderField v-model="store.style.ranking.positionY" label="Top position" :min="0" :max="Math.round(metrics.videoHeight * 0.95)" suffix="px" />
+        <SliderField v-model="store.style.ranking.positionY" label="Top position" :min="0" :max="Math.round(layoutMetrics.videoHeight * 0.95)" suffix="px" />
         <SliderField v-model="store.style.ranking.outlineWidth" label="Outline" :min="0" :max="28" suffix="px" />
         <ColorField v-model="store.style.ranking.outlineColor" label="Outline color" />
         <SliderField v-model="store.style.ranking.opacity" label="Opacity" :min="0.2" :max="1" :step="0.05" />
@@ -329,6 +351,11 @@ function onResolution(event: Event) {
           Show clip titles
           <input v-model="store.style.caption.enabled" type="checkbox" />
         </label>
+        <label v-if="store.style.caption.enabled" class="flex items-center justify-between text-xs text-zinc-300">
+          Show previous titles
+          <input v-model="store.style.ranking.showPreviousTitles" type="checkbox" />
+        </label>
+        <p v-if="store.style.caption.enabled" class="text-[11px] leading-relaxed text-zinc-500">On the full ranking list, a clip title stays visible after that clip has played.</p>
         <SliderField v-if="store.style.caption.enabled" v-model="store.style.caption.fontSize" label="Clip title size" :min="18" :max="90" suffix="px" />
         <p v-if="store.style.caption.enabled" class="text-[11px] leading-relaxed text-zinc-500">Each clip has its own title color in the selected clip column.</p>
     </SettingsAccordion>

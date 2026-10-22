@@ -37,9 +37,9 @@ onBeforeUnmount(() => {
 <template>
   <div class="relative flex h-[100dvh] flex-col overflow-hidden bg-[#101114] text-zinc-100">
     <header class="flex h-14 shrink-0 items-center gap-3 border-b border-zinc-800 px-4">
-      <div class="flex items-center gap-2">
+      <div class="flex min-w-0 items-center gap-2">
         <span class="grid h-7 w-7 place-items-center rounded-sm bg-amber-300 text-[10px] font-black text-black"><Film /></span>
-        <span class="hidden xl:block text-sm font-black tracking-[0.16em]">Vertical Video Ranking</span>
+        <span class="hidden xl:block min-w-0 truncate text-sm font-black tracking-[0.08em]">Video's Factory</span>
       </div>
       <button class="btn cursor-pointer btn-ghost" type="button" @click="store.newProject">
         <FilePlus :size="16" />

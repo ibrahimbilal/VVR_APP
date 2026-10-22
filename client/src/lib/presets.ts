@@ -19,6 +19,7 @@ export interface PresetDefinition {
 }
 
 const classicBanner: BannerStyle = {
+  visible: true,
   background: '#000000',
   height: 240,
   fontFamily: 'Oswald',
@@ -46,6 +47,8 @@ const classicRanking: RankingStyle = {
   format: 'dot',
   display: 'stack',
   pageStyle: 'fraction',
+  showPreviousTitles: false,
+  sort: 'list',
 }
 
 const classicCaption: CaptionStyle = {

@@ -1,5 +1,6 @@
 import { clipDuration, resolveFade } from '@shared/timeline'
 import { computed, onBeforeUnmount, ref, watch } from 'vue'
+import { playbackOrder } from '../lib/order'
 import { useProjectStore } from '../stores/project'
 import type { Clip } from '../types'
 
@@ -33,8 +34,12 @@ function createPlayback() {
   music.loop = true
 
   const playable = computed(() =>
-    store.clips
-      .map((clip, index) => ({ clip, index, duration: clip.objectUrl ? clipDuration(clip) : 0 }))
+    playbackOrder(store.clips)
+      .map((clip) => ({
+        clip,
+        index: store.clips.findIndex((item) => item.id === clip.id),
+        duration: clip.objectUrl ? clipDuration(clip) : 0,
+      }))
       .filter((item) => item.duration >= 0.05),
   )
   const fade = computed(() =>
@@ -73,14 +78,17 @@ function createPlayback() {
     },
   )
   watch(
-    () => segments.value.map((segment) => segment.clip.id).join('|'),
+    () => segments.value.map((segment) => `${segment.index}:${segment.clip.id}`).join('|'),
     (next, previous) => {
       if (!next) {
         clearStage()
         return
       }
       if (primarySegment >= segments.value.length) primarySegment = 0
-      if (!playing.value && next !== previous && !element(primarySlot.value)?.dataset.clipId) {
+      if (next === previous) return
+      const spot = locate(playhead.value)
+      const loaded = element(primarySlot.value)?.dataset.clipId
+      if (!loaded || loaded !== spot?.segment.clip.id) {
         void seek(Math.min(playhead.value, Math.max(0, duration.value - 0.01)))
       }
     },

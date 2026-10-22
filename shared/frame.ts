@@ -30,6 +30,14 @@ export function frameMetrics(width: number, height: number, bannerHeight: number
   const allowed = OUTPUTS.find((output) => output.width === width && output.height === height) ?? OUTPUTS[0]
   const frameWidth = allowed.width
   const frameHeight = allowed.height
+  if (!Number.isFinite(bannerHeight) || bannerHeight <= 0) {
+    return {
+      width: frameWidth,
+      height: frameHeight,
+      bannerHeight: 0,
+      videoHeight: frameHeight,
+    }
+  }
   const maxBanner = even(Math.floor(frameHeight * 0.42))
   let banner = even(bannerHeight)
   banner = Math.min(Math.max(banner, 80), maxBanner)

@@ -1,4 +1,4 @@
-# VVR — Vertical Video Ranking
+# Video's Factory
 
 A local web app for building 9:16 ranking compilations. Upload clips you have the right to use, order them, style a fixed title banner and ranking numbers, preview the sequence, and export one MP4.
 
