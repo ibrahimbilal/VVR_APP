@@ -2,12 +2,12 @@
 
 | Field | Value |
 | --- | --- |
-| Domain | `vvr.ibrahimbilal.com` |
-| Hosting username | `u841849106` |
-| Site type | Node.js (`website_type: nodejs`) |
-| Public URL | `https://vvr.ibrahimbilal.com` |
+| Domains | `videos.ibrahimbilal.com` (current), `vvr.ibrahimbilal.com` (legacy) |
+| Hosting username | `u841849106` (same account; each domain has its own `public_html`) |
+| Site type | Node.js (`website_type: nodejs` after first deploy) |
+| Public URL | `https://videos.ibrahimbilal.com` |
 | Health check | `GET /api/health` → `{ "ok": true, "ffmpeg": true }` |
-| Archive on server | `vvr-app.zip` (relative to `public_html`) |
+| Archive on server | `vvr-app.zip` (relative to each domain’s `public_html`) |
 
 ## Node.js build settings (stored on Hostinger)
 

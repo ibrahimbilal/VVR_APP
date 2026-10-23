@@ -2,12 +2,13 @@ import cors from 'cors'
 import express, { type NextFunction, type Request, type Response } from 'express'
 import { randomUUID } from 'node:crypto'
 import { existsSync } from 'node:fs'
-import { mkdir, rename, rm } from 'node:fs/promises'
+import { copyFile, mkdir, rename, rm } from 'node:fs/promises'
 import path from 'node:path'
 import { moduleDir } from './moduleDir'
 import multer from 'multer'
 import { frameMetrics, isAllowedFps, isAllowedOutput } from '../../shared/frame'
 import { sanitizeComposition } from '../../shared/screensaverComposition'
+import { FRAME_FILE_LIMIT, hasCustomFrame } from '../../shared/screensaverFrames'
 import {
   isAllowedScreensaverFps,
   isAllowedScreensaverOutput,
@@ -21,9 +22,10 @@ import {
 } from '../../shared/screensaver'
 import { resolveFade, sequenceDuration } from '../../shared/timeline'
 import { checkFfmpeg, logEncodeCheck } from './binaries'
-import { cancelJob, createJob, createScreensaverJob, getJob, jobOutput } from './jobs'
+import { cancelJob, createJob, createScreensaverJob, dropJobOutput, getJob, jobOutput, outputPathsInUse } from './jobs'
 import { lookupUrl } from './oembed'
 import { encoderCatalog } from './encoders'
+import { addFrame, ensureFrames, getFrame, listFrames, removeAllFrames, removeFrame } from './frames'
 import { probeAudioFile, probeImage, probeMedia, probeSourceDetails, probeStill, sniffMediaKind } from './probe'
 import {
   addClip,
@@ -32,6 +34,8 @@ import {
   getClip,
   incomingDir,
   jobsDir,
+  purgeOutputFiles,
+  purgeScreensaverClips,
   removeStoredClip,
   safeAudioExt,
   safeDownloadName,
@@ -64,6 +68,11 @@ const screensaverMediaUpload = multer({
 const screensaverExportUpload = multer({
   dest: incomingDir,
   limits: { fileSize: 80 * 1024 * 1024, files: 4 },
+})
+
+const screensaverFrameUpload = multer({
+  dest: incomingDir,
+  limits: { fileSize: FRAME_FILE_LIMIT, files: 1 },
 })
 
 app.get('/api/health', async (_req, res) => {
@@ -233,7 +242,7 @@ app.post('/api/screensaver/media', screensaverMediaUpload.single('file'), async 
         codec: 'mjpeg',
         size: info.size,
       }
-      const stored = await addClip(file.path, file.originalname, probe)
+      const stored = await addClip(file.path, file.originalname, probe, 'screensaver')
       res.json({
         id: stored.id,
         kind: 'image',
@@ -247,7 +256,7 @@ app.post('/api/screensaver/media', screensaverMediaUpload.single('file'), async 
     }
     const probed = await probeMedia(file.path)
     if (probed.duration > 20 * 60) throw new Error('Source videos must be 20 minutes or shorter.')
-    const stored = await addClip(file.path, file.originalname, probed)
+    const stored = await addClip(file.path, file.originalname, probed, 'screensaver')
     res.json({
       id: stored.id,
       kind: 'video',
@@ -261,6 +270,94 @@ app.post('/api/screensaver/media', screensaverMediaUpload.single('file'), async 
     await rm(file.path, { force: true }).catch(() => undefined)
     res.status(400).json({ error: messageOf(error, 'This file could not be imported.') })
   }
+})
+
+app.get('/api/screensaver/frames', (_req, res) => {
+  res.json({
+    frames: listFrames().map((frame) => ({
+      id: frame.id,
+      name: frame.originalName,
+      width: frame.width,
+      height: frame.height,
+    })),
+  })
+})
+
+app.post('/api/screensaver/frames', screensaverFrameUpload.single('file'), async (req, res) => {
+  const file = req.file
+  if (!file) {
+    res.status(400).json({ error: 'Choose a PNG file.' })
+    return
+  }
+  try {
+    if ((await sniffMediaKind(file.path)) !== 'png') throw new Error('Upload a PNG file.')
+    const probed = await probeImage(file.path)
+    const stored = await addFrame(file.path, file.originalname, probed)
+    res.json({
+      id: stored.id,
+      name: stored.originalName,
+      width: stored.width,
+      height: stored.height,
+    })
+  } catch (error) {
+    await rm(file.path, { force: true }).catch(() => undefined)
+    res.status(400).json({ error: messageOf(error, 'This PNG could not be saved.') })
+  }
+})
+
+app.get('/api/screensaver/frames/:id', (req, res) => {
+  if (!UUID.test(req.params.id)) {
+    res.status(400).json({ error: 'Unknown frame.' })
+    return
+  }
+  const stored = getFrame(req.params.id)
+  if (!stored) {
+    res.status(404).json({ error: 'That frame is no longer on the server.' })
+    return
+  }
+  res.set('Cache-Control', 'public, max-age=86400')
+  res.type('png')
+  res.sendFile(stored.path)
+})
+
+async function handleUploadsCleanup(req: Request, res: Response): Promise<void> {
+  const purgeAll = req.body?.purgeAll !== false
+  if (purgeAll) {
+    const jobId = typeof req.body?.jobId === 'string' && UUID.test(req.body.jobId) ? req.body.jobId : null
+    await removeAllFrames()
+    if (jobId) await dropJobOutput(jobId)
+    await purgeScreensaverClips()
+    await purgeOutputFiles(outputPathsInUse())
+    res.json({ ok: true })
+    return
+  }
+  const mediaId = typeof req.body?.mediaId === 'string' && UUID.test(req.body.mediaId) ? req.body.mediaId : null
+  const frameIds = Array.isArray(req.body?.frameIds)
+    ? req.body.frameIds.filter((id: unknown): id is string => typeof id === 'string' && UUID.test(id)).slice(0, 200)
+    : []
+  for (const id of frameIds) {
+    await removeFrame(id).catch(() => undefined)
+  }
+  if (mediaId && !clipIsBusy(mediaId)) {
+    await removeStoredClip(mediaId).catch(() => undefined)
+  }
+  res.json({ ok: true })
+}
+
+app.post('/api/uploads/cleanup', handleUploadsCleanup)
+app.post('/api/screensaver/uploads/cleanup', handleUploadsCleanup)
+
+app.delete('/api/screensaver/frames/:id', async (req, res) => {
+  if (!UUID.test(req.params.id)) {
+    res.status(400).json({ error: 'Unknown frame.' })
+    return
+  }
+  const removed = await removeFrame(req.params.id)
+  if (!removed) {
+    res.status(404).json({ error: 'That frame is no longer on the server.' })
+    return
+  }
+  res.json({ ok: true })
 })
 
 app.get('/api/screensaver/encoders', async (_req, res) => {
@@ -324,15 +421,25 @@ app.post(
             throw new ClientError(400, 'The composed image did not match the output resolution.')
           }
         }
-        if (frameFile) {
+        const libraryFrameId = project.kind === 'video' ? project.composition?.frameId : null
+        if (libraryFrameId && hasCustomFrame(libraryFrameId)) {
+          const storedFrame = getFrame(libraryFrameId)
+          if (!storedFrame) throw new ClientError(400, 'That frame is no longer on the server. Upload it again.')
           framePath = path.join(dir, 'frame.png')
-          await rename(frameFile.path, framePath)
-          frameFile.path = framePath
-        }
-        if (maskFile) {
-          maskPath = path.join(dir, 'mask.png')
-          await rename(maskFile.path, maskPath)
-          maskFile.path = maskPath
+          await copyFile(storedFrame.path, framePath)
+          if (frameFile) await rm(frameFile.path, { force: true })
+          if (maskFile) await rm(maskFile.path, { force: true })
+        } else {
+          if (frameFile) {
+            framePath = path.join(dir, 'frame.png')
+            await rename(frameFile.path, framePath)
+            frameFile.path = framePath
+          }
+          if (maskFile) {
+            maskPath = path.join(dir, 'mask.png')
+            await rename(maskFile.path, maskPath)
+            maskFile.path = maskPath
+          }
         }
         const details = await probeSourceDetails(stored.path)
         const job = createScreensaverJob(id, {
@@ -439,12 +546,15 @@ if (existsSync(path.join(clientDist, 'index.html'))) {
   })
 }
 
-app.use((error: unknown, _req: Request, res: Response, next: NextFunction) => {
+app.use((error: unknown, req: Request, res: Response, next: NextFunction) => {
   if (error instanceof multer.MulterError) {
     const tooLarge = error.code === 'LIMIT_FILE_SIZE'
+    const frameUpload = req.path.includes('/screensaver/frames')
     res.status(tooLarge ? 413 : 400).json({
       error: tooLarge
-        ? 'That file is too large. Videos must be 500 MB or smaller. Music and overlays must be 40 MB or smaller.'
+        ? frameUpload
+          ? `PNG frames must be ${FRAME_FILE_LIMIT / (1024 * 1024)} MB or smaller.`
+          : 'That file is too large. Videos must be 500 MB or smaller. Music and overlays must be 40 MB or smaller.'
         : 'The upload could not be accepted.',
     })
     return
@@ -699,6 +809,7 @@ const host = process.env.HOST || (process.env.PORT ? '0.0.0.0' : '127.0.0.1')
 
 async function main(): Promise<void> {
   await ensureStorage()
+  await ensureFrames()
   await sweepStorage()
   setInterval(() => {
     void sweepStorage()

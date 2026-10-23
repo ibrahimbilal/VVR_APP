@@ -87,7 +87,7 @@ Same workflow as before: upload clips, order and trim, style banner and ranks, p
 
 1. Upload a JPG, PNG, WebP, MP4, MOV, or WebM file.
 2. Place the image on the canvas: drag, scale from the corners, rotate, and crop. The original file is kept. Fit, fill, and center change the export. The zoom slider only changes the view.
-3. Pick a frame (classic, mat, rounded, or arch). The image is clipped to that opening.
+3. Upload PNG frames. They are saved on the server and shown in a grid. Click one to lay it over the picture; transparent areas stay open. Click it again to clear it.
 4. Adjust brightness, contrast, saturation, exposure, temperature, tint, highlights, shadows, sharpness, blur, grayscale, and sepia. Each slider resets on its own, or reset them all. Before/after compares with the adjustments off.
 5. Choose duration, resolution, a profile, and an encoding method. New static images use Static Art at 1 fps. Auto uses a hardware encoder only after a short timed test beats libx264. If a hardware encoder you picked cannot start, the job stops and offers CPU.
 6. Optionally add audio (source track or upload) with volume and fades.

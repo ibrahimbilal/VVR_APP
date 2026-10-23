@@ -1,9 +1,8 @@
 import { defaultAdjustments, type ImageAdjustments, adjustmentsAreNeutral } from './screensaverAdjust'
-import { framePreset, isFrameId, type FrameId } from './screensaverFrames'
+import { hasCustomFrame, normalizeFrameId } from './screensaverFrames'
 import type { ScreensaverFit } from './screensaver'
 
 export type { ImageAdjustments } from './screensaverAdjust'
-export type { FrameId } from './screensaverFrames'
 
 export type CropAspect = 'free' | '16:9' | '4:3' | '3:2' | '1:1' | 'original' | 'custom'
 export type BackgroundMode = 'color' | 'blur' | 'transparent' | 'black' | 'white'
@@ -36,7 +35,8 @@ export interface ScreensaverComposition {
   opacity: number
   adjustments: ImageAdjustments
   background: ScreensaverBackground
-  frameId: FrameId
+  /** `none`, or the id of a PNG stored on the server. */
+  frameId: string
 }
 
 export const CROP_ASPECTS: { id: CropAspect; label: string; ratio: number | null }[] = [
@@ -167,7 +167,7 @@ export function clampComposition(value: ScreensaverComposition): ScreensaverComp
       color: isHex(background?.color) ? background.color : '#000000',
       blur: clampNumber(background?.blur, 0, 100, 100),
     },
-    frameId: isFrameId(value.frameId) ? value.frameId : 'none',
+    frameId: normalizeFrameId(value.frameId),
   }
 }
 
@@ -201,8 +201,7 @@ export function backgroundBlurSigma(blur: number): number {
 
 /** True when a matching H.264 source can be copied without a filter graph. */
 export function isPlainFullFrame(composition: ScreensaverComposition): boolean {
-  const preset = framePreset(composition.frameId)
-  if (preset.id !== 'none') return false
+  if (hasCustomFrame(composition.frameId)) return false
   if (!cropIsFull(composition.crop)) return false
   if (Math.abs(composition.rotation) > 0.1) return false
   if (composition.flipH || composition.flipV) return false

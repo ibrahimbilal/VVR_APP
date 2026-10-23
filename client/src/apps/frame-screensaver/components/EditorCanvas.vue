@@ -148,6 +148,7 @@ function draw() {
   paintComposition(ctx, currentBake(), media.value, mediaWidth.value, mediaHeight.value, store.composition, {
     flatten: false,
     checker: true,
+    frame: store.frameImage,
   })
   ctx.setTransform(1, 0, 0, 1, 0, 0)
   if (selected.value && media.value) drawHandles(ctx, element)
@@ -524,7 +525,7 @@ watch(
   { immediate: true },
 )
 watch(
-  () => [store.composition, store.compareAdjustments, store.cropEditing, store.outputWidth, store.outputHeight],
+  () => [store.composition, store.compareAdjustments, store.cropEditing, store.outputWidth, store.outputHeight, store.frameImage],
   () => draw(),
   { deep: true },
 )

@@ -12,6 +12,8 @@ export const outputsDir = path.join(tmpDir, 'outputs')
 export const incomingDir = path.join(tmpDir, 'incoming')
 const registryPath = path.join(tmpDir, 'registry.json')
 
+export type ClipOrigin = 'ranking' | 'screensaver'
+
 export interface StoredClip {
   id: string
   path: string
@@ -22,6 +24,7 @@ export interface StoredClip {
   height: number
   hasAudio: boolean
   size: number
+  origin?: ClipOrigin
 }
 
 const clips = new Map<string, StoredClip>()
@@ -46,7 +49,12 @@ function mediaExt(originalName: string, probe: Probe): string {
   return safeVideoExt(originalName)
 }
 
-export async function addClip(filePath: string, originalName: string, probe: Probe): Promise<StoredClip> {
+export async function addClip(
+  filePath: string,
+  originalName: string,
+  probe: Probe,
+  origin: ClipOrigin = 'ranking',
+): Promise<StoredClip> {
   const id = randomUUID()
   const ext = mediaExt(originalName, probe)
   const finalPath = path.join(clipsDir, `${id}${ext}`)
@@ -61,6 +69,7 @@ export async function addClip(filePath: string, originalName: string, probe: Pro
     height: probe.height,
     hasAudio: probe.hasAudio,
     size: probe.size,
+    origin,
   }
   clips.set(id, stored)
   await saveRegistry()
@@ -93,6 +102,47 @@ export function clipIsBusy(id: string): boolean {
   return (retainCounts.get(id) ?? 0) > 0
 }
 
+/** Removes every uploaded clip that is not held by an active render. */
+export async function purgeScreensaverClips(): Promise<void> {
+  for (const stored of [...clips.values()]) {
+    if (clipIsBusy(stored.id)) continue
+    await removeStoredClip(stored.id)
+  }
+  await purgeOrphanClipFiles()
+}
+
+/** Deletes finished export files. Skips outputs for jobs that are still encoding. */
+export async function purgeOutputFiles(keepPaths: ReadonlySet<string> = new Set()): Promise<void> {
+  const { readdir } = await import('node:fs/promises')
+  let names: string[] = []
+  try {
+    names = await readdir(outputsDir)
+  } catch {
+    return
+  }
+  for (const name of names) {
+    const full = path.join(outputsDir, name)
+    if (keepPaths.has(full)) continue
+    await rm(full, { force: true }).catch(() => undefined)
+  }
+}
+
+/** Deletes files in clips/ that are not listed in registry.json. */
+export async function purgeOrphanClipFiles(): Promise<void> {
+  const { readdir } = await import('node:fs/promises')
+  const known = new Set([...clips.values()].map((stored) => path.basename(stored.path)))
+  let names: string[] = []
+  try {
+    names = await readdir(clipsDir)
+  } catch {
+    return
+  }
+  for (const name of names) {
+    if (known.has(name)) continue
+    await rm(path.join(clipsDir, name), { force: true }).catch(() => undefined)
+  }
+}
+
 export async function sweepStorage(): Promise<void> {
   const now = Date.now()
   await deleteOlder(outputsDir, now - 2 * 60 * 60 * 1000)
@@ -106,6 +156,7 @@ export async function sweepStorage(): Promise<void> {
     }
   }
   await saveRegistry()
+  await purgeOrphanClipFiles()
 }
 
 export function safeVideoExt(name: string): string {

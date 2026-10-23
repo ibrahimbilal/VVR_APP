@@ -1,7 +1,8 @@
 ---
 name: hostinger-vvr-deploy
 description: >-
-  Deploys the VVR monorepo to Hostinger Node.js hosting at vvr.ibrahimbilal.com
+  Deploys the VVR monorepo to Hostinger Node.js hosting (videos.ibrahimbilal.com
+  or vvr.ibrahimbilal.com; domain in REFERENCE.md)
   via archive upload and Start Node.js build. Use when the user asks to upload,
   publish, redeploy, or update VVR on Hostinger, or to fix the live site.
 ---
@@ -23,7 +24,7 @@ Read [REFERENCE.md](REFERENCE.md) for fixed Hostinger targets and build settings
 - [ ] hosting_files_generate-upload-url → TUS upload vvr-app.zip to public_html
 - [ ] hosting_nodejs_start-build (archive vvr-app.zip, settings from REFERENCE.md)
 - [ ] Poll hosting_nodejs_build-logs until "Deployment completed"
-- [ ] GET https://vvr.ibrahimbilal.com/api/health → {"ok":true,"ffmpeg":true}
+- [ ] GET https://<domain>/api/health (see REFERENCE.md) → {"ok":true,"ffmpeg":true}
 ```
 
 ## 1. Archive (Windows, repo root)
@@ -59,7 +60,7 @@ Call `hosting_nodejs_start-build` with every field in REFERENCE.md (same as stor
 ## 4. Monitor and verify
 
 - Poll `hosting_nodejs_build-logs` with `from_line` = previous `lines` count until state is `completed` (`hosting_nodejs_list-builds`).
-- Open `https://vvr.ibrahimbilal.com/api/health` and confirm `ffmpeg: true`.
+- Open the target domain’s `/api/health` and confirm `ffmpeg: true`.
 - Spot-check the editor UI in the browser.
 
 ## Environment variables

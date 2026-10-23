@@ -1,6 +1,5 @@
 import { applyBoxBlur, applyColorAdjustments, applyUnsharp, blurSigma } from '@shared/screensaverAdjust'
 import { backgroundBlurSigma, flattenBackground, type ScreensaverComposition } from '@shared/screensaverComposition'
-import { framePreset, type FrameClip, type FramePreset } from '@shared/screensaverFrames'
 
 export function bakePlacement(
   source: CanvasImageSource,
@@ -42,18 +41,14 @@ export function paintComposition(
   sourceWidth: number,
   sourceHeight: number,
   composition: ScreensaverComposition,
-  options: { flatten: boolean; checker: boolean },
+  options: { flatten: boolean; checker: boolean; frame?: CanvasImageSource | null },
 ): void {
   const width = ctx.canvas.width
   const height = ctx.canvas.height
   ctx.clearRect(0, 0, width, height)
   paintBackground(ctx, source, sourceWidth, sourceHeight, composition, options)
-  const preset = framePreset(composition.frameId)
   if (baked) {
     ctx.save()
-    ctx.beginPath()
-    addClip(ctx, preset.clip, width, height)
-    ctx.clip()
     const centerX = (composition.x + composition.width / 2) * width
     const centerY = (composition.y + composition.height / 2) * height
     ctx.translate(centerX, centerY)
@@ -63,33 +58,7 @@ export function paintComposition(
     ctx.drawImage(baked, -baked.width / 2, -baked.height / 2)
     ctx.restore()
   }
-  paintFrameArt(ctx, preset, width, height)
-}
-
-export function renderMaskCanvas(composition: ScreensaverComposition, width: number, height: number): HTMLCanvasElement {
-  const canvas = document.createElement('canvas')
-  canvas.width = width
-  canvas.height = height
-  const ctx = canvas.getContext('2d')
-  if (!ctx) return canvas
-  ctx.fillStyle = '#000000'
-  ctx.fillRect(0, 0, width, height)
-  ctx.fillStyle = '#ffffff'
-  ctx.beginPath()
-  addClip(ctx, framePreset(composition.frameId).clip, width, height)
-  ctx.fill()
-  return canvas
-}
-
-export function renderFrameCanvas(composition: ScreensaverComposition, width: number, height: number): HTMLCanvasElement {
-  const canvas = document.createElement('canvas')
-  canvas.width = width
-  canvas.height = height
-  const ctx = canvas.getContext('2d')
-  if (!ctx) return canvas
-  ctx.clearRect(0, 0, width, height)
-  paintFrameArt(ctx, framePreset(composition.frameId), width, height)
-  return canvas
+  if (options.frame) ctx.drawImage(options.frame, 0, 0, width, height)
 }
 
 export function canvasToPng(canvas: HTMLCanvasElement): Promise<Blob> {
@@ -149,49 +118,4 @@ function paintChecker(ctx: CanvasRenderingContext2D, width: number, height: numb
       ctx.fillRect(x, y, size, size)
     }
   }
-}
-
-function paintFrameArt(ctx: CanvasRenderingContext2D, preset: FramePreset, width: number, height: number): void {
-  if (preset.id === 'none') return
-  ctx.save()
-  ctx.beginPath()
-  if (preset.mat) ctx.rect(preset.mat.x * width, preset.mat.y * height, preset.mat.w * width, preset.mat.h * height)
-  else ctx.rect(0, 0, width, height)
-  addClip(ctx, preset.clip, width, height)
-  ctx.fillStyle = preset.mat ? preset.matColor : preset.borderColor
-  ctx.fill('evenodd')
-  ctx.beginPath()
-  addClip(ctx, preset.clip, width, height)
-  ctx.strokeStyle = preset.innerColor
-  ctx.lineWidth = Math.max(2, width * 0.008)
-  ctx.stroke()
-  ctx.strokeStyle = preset.borderColor
-  ctx.lineWidth = Math.max(4, width * 0.018)
-  if (preset.mat) ctx.strokeRect(preset.mat.x * width, preset.mat.y * height, preset.mat.w * width, preset.mat.h * height)
-  else ctx.strokeRect(width * 0.018, height * 0.025, width * 0.964, height * 0.95)
-  ctx.restore()
-}
-
-function addClip(ctx: CanvasRenderingContext2D, clip: FrameClip, width: number, height: number): void {
-  const rect = clip.rect
-  const x = rect.x * width
-  const y = rect.y * height
-  const rw = rect.w * width
-  const rh = rect.h * height
-  if (clip.kind === 'rect') {
-    ctx.rect(x, y, rw, rh)
-    return
-  }
-  if (clip.kind === 'round') {
-    const radius = clip.radius * Math.min(width, height)
-    ctx.roundRect(x, y, rw, rh, radius)
-    return
-  }
-  const arcRadius = rw / 2
-  const top = y + arcRadius
-  ctx.moveTo(x, y + rh)
-  ctx.lineTo(x, top)
-  ctx.arc(x + arcRadius, top, arcRadius, Math.PI, 0, false)
-  ctx.lineTo(x + rw, y + rh)
-  ctx.closePath()
 }

@@ -103,6 +103,75 @@ export function uploadScreensaverMedia(file: File, onProgress: (fraction: number
   return sendForm<ScreensaverMedia>('/api/screensaver/media', body, onProgress)
 }
 
+export interface ScreensaverFrame {
+  id: string
+  name: string
+  width: number
+  height: number
+}
+
+export function screensaverFrameUrl(id: string): string {
+  return `/api/screensaver/frames/${id}`
+}
+
+export async function listScreensaverFrames(): Promise<ScreensaverFrame[]> {
+  const response = await fetch('/api/screensaver/frames')
+  if (!response.ok) throw new Error(await readError(response))
+  const data = (await response.json()) as { frames?: ScreensaverFrame[] }
+  return data.frames ?? []
+}
+
+export function uploadScreensaverFrame(file: File): Promise<ScreensaverFrame> {
+  const body = new FormData()
+  body.append('file', file, file.name)
+  return sendForm<ScreensaverFrame>('/api/screensaver/frames', body)
+}
+
+export async function deleteScreensaverFrame(id: string): Promise<void> {
+  const response = await fetch(`/api/screensaver/frames/${id}`, { method: 'DELETE' })
+  if (!response.ok) throw new Error(await readError(response))
+}
+
+export interface ServerUploadCleanup {
+  /** When true (default), remove frames, clips, and export outputs on the server. */
+  purgeAll?: boolean
+  /** Finished export job to delete from server/tmp/outputs immediately. */
+  jobId?: string | null
+  mediaId?: string | null
+  frameIds?: string[]
+}
+
+/** @deprecated Use ServerUploadCleanup */
+export type ScreensaverUploadCleanup = ServerUploadCleanup
+
+const UPLOAD_CLEANUP_URL = '/api/uploads/cleanup'
+
+export async function cleanupServerUploads(payload: ServerUploadCleanup): Promise<void> {
+  const response = await fetch(UPLOAD_CLEANUP_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  })
+  if (!response.ok) throw new Error(await readError(response))
+}
+
+export function beaconCleanupServerUploads(payload: ServerUploadCleanup): void {
+  const body = JSON.stringify(payload)
+  if (typeof navigator !== 'undefined' && typeof navigator.sendBeacon === 'function') {
+    navigator.sendBeacon(UPLOAD_CLEANUP_URL, new Blob([body], { type: 'application/json' }))
+    return
+  }
+  void fetch(UPLOAD_CLEANUP_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body,
+    keepalive: true,
+  }).catch(() => undefined)
+}
+
+export const cleanupScreensaverUploads = cleanupServerUploads
+export const beaconCleanupScreensaverUploads = beaconCleanupServerUploads
+
 export async function screensaverEncoders(): Promise<EncoderCatalog> {
   const response = await fetch('/api/screensaver/encoders')
   if (!response.ok) throw new Error(await readError(response))

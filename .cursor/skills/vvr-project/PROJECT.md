@@ -7,7 +7,7 @@ Local **Video's Factory** platform with two apps:
 
 Ranking behavior is unchanged in substance: upload clips (or link titles only), order, style banner and ranks, preview, export MP4.
 
-There are no accounts and no cloud project storage. The editor is a Vue app. The renderer is Express with bundled FFmpeg. **Production** runs on Hostinger Node.js at `https://vvr.ibrahimbilal.com` (deploy steps: `.cursor/skills/hostinger-vvr-deploy/SKILL.md`). Local dev still uses separate Vite (5173) and API (3001) processes.
+There are no accounts and no cloud project storage. The editor is a Vue app. The renderer is Express with bundled FFmpeg. **Production** runs on Hostinger Node.js at `https://videos.ibrahimbilal.com` (same app also deployed at `https://vvr.ibrahimbilal.com`; deploy steps: `.cursor/skills/hostinger-vvr-deploy/SKILL.md`). Local dev still uses separate Vite (5173) and API (3001) processes.
 
 ## Run
 
@@ -169,6 +169,7 @@ Two orders:
 2. `uploading` — multipart `POST /api/export`. Field `project` is JSON. Fields `overlays` are `overlay-0.png` … in the same order. Field `music` is sent only when a file exists and `musicVolume > 0`. Progress ~9–16%.
 3. Poll `GET /api/jobs/:id` every 700ms. Abort calls `POST /api/jobs/:id/cancel`.
 4. On `done`, download `GET /api/jobs/:id/download` with the project name, else the banner text, else `ranking.mp4`.
+5. On download, `POST /api/uploads/cleanup` removes server clips, frames, and export outputs; clip `serverId`s are cleared and local files re-upload in the background. Closing the tab runs the same server purge (beacon). Editor state stays in IndexedDB.
 
 Project JSON clips are `{ id: serverId, trimStart, trimEnd }` in playback order. The server does not know titles or rank colors. Those exist only in the PNGs.
 
@@ -206,7 +207,12 @@ Progress on the client: overlays/upload are local; queued/preparing/rendering/ve
 | GET | `/api/jobs/:id/download` | verified mp4, 409 if not ready |
 | GET | `/api/screensaver/encoders` | verified H.264 encoders and cached Auto choice |
 | POST | `/api/screensaver/media` | image or video for screensaver |
-| POST | `/api/screensaver/export` | screensaver JSON, optional `audio`, optional `composition` / `frame` / `mask` PNGs |
+| GET | `/api/screensaver/frames` | saved screensaver frame PNGs |
+| POST | `/api/screensaver/frames` | one PNG, field `file`, max 40 MB |
+| GET | `/api/screensaver/frames/:id` | that PNG |
+| DELETE | `/api/screensaver/frames/:id` | remove a saved frame |
+| POST | `/api/uploads/cleanup` | JSON `{ purgeAll?: true, jobId? }` (default) — remove all frame PNGs, every clip not held by a render, and export MP4s in `outputs/` (optional `jobId` for the just-downloaded file; skips outputs for jobs still encoding). Same handler at `/api/screensaver/uploads/cleanup`. Legacy `{ mediaId, frameIds }` when `purgeAll: false` |
+| POST | `/api/screensaver/export` | screensaver JSON, optional `audio`, optional `composition` PNG. Video frames come from the saved PNG, not an upload |
 
 Jobs queue handles `kind: 'ranking' | 'screensaver'` (`server/src/jobs.ts`).
 
@@ -218,7 +224,8 @@ Unknown `/api` routes return 404 JSON. If `client/dist/index.html` exists, Expre
 
 `server/tmp/` (created on boot):
 
-- `clips/` and `registry.json` — uploaded sources. Registry rows whose files are missing are dropped on load.
+- `clips/` and `registry.json` — uploaded sources for **both** Ranking and Frame Screensaver (same folder). Registry rows whose files are missing are dropped on load. Screensaver cleanup removes non-`ranking` clips and then deletes orphan files in `clips/` that are not in the registry.
+- `frames/` and `frames.json` — screensaver frame PNGs. They stay until deleted. The sweep does not remove them.
 - `incoming/` — Multer landing pad.
 - `jobs/<id>/` — overlays and music for the active render. Removed when the job ends.
 - `outputs/<id>.mp4` — finished files.
@@ -227,7 +234,7 @@ Sweep every 10 minutes: outputs older than 2 hours, jobs and incoming older than
 
 ## Limits
 
-- 30 clips, 20 minutes each, 30 minutes per compilation, 500 MB per video, 40 MB per music or overlay file.
+- 30 clips, 20 minutes each, 30 minutes per compilation, 500 MB per video, 40 MB per music, overlay, or screensaver frame PNG.
 - Trim at least 0.3 seconds. Fade at most 1 second and 40% of the shortest clip.
 - Banner height 80px to 42% of the frame, even.
 - One FFmpeg process at a time. The queue still accepts jobs.
@@ -252,6 +259,7 @@ Sweep every 10 minutes: outputs older than 2 hours, jobs and incoming older than
 | Painted banner and numbers | `client/src/lib/drawOverlay.ts` |
 | PNG build and job polling | `client/src/lib/exportJob.ts` |
 | Fetch wrappers | `client/src/lib/api.ts` |
+| Server upload purge (both apps) | `client/src/lib/serverUploadCleanup.ts` |
 | Browser save | `client/src/lib/idb.ts` |
 | Preset numbers | `client/src/lib/presets.ts` |
 | Palette | `client/src/lib/colorSets.ts` |
@@ -265,7 +273,7 @@ Sweep every 10 minutes: outputs older than 2 hours, jobs and incoming older than
 | Disk and expiry | `server/src/storage.ts` |
 | Probe | `server/src/probe.ts` |
 | oEmbed | `server/src/oembed.ts` |
-| Screensaver editor, export, frames | `client/src/apps/frame-screensaver/`, `shared/screensaver.ts`, `shared/screensaverComposition.ts`, `shared/screensaverFrames.ts`, `shared/screensaverAdjust.ts` |
+| Screensaver editor, export, frames | `client/src/apps/frame-screensaver/`, `shared/screensaver.ts`, `shared/screensaverComposition.ts`, `shared/screensaverFrames.ts`, `shared/screensaverAdjust.ts`, `server/src/frames.ts` |
 | Screensaver encode and encoder probe | `server/src/renderScreensaver.ts`, `server/src/screensaverGraph.ts`, `server/src/encoders.ts` |
 
 ## Invariants
@@ -286,7 +294,7 @@ Saved projects are IndexedDB `screensaver/project` version 2. Version 1 loads wi
 
 The composition (`shared/screensaverComposition.ts`) is normalized to the output frame: crop in source space, placement, rotation, flips, opacity, adjustments, background, and frame id. Browser size and view zoom are not part of it. Preview and the static export PNG both use `composeCanvas.ts`.
 
-Frames are procedural (`shared/screensaverFrames.ts`): none, classic, mat board, rounded, arch. The arch opening is not a rectangle. Draw order is background, image clipped to the opening, mat, then frame. Video exports upload a frame PNG and a mask PNG generated from that same geometry.
+Frames are uploaded PNG files. `shared/screensaverFrames.ts` only accepts `none` or a stored frame id; older preset names (classic, mat, rounded, arch) load as no frame. The Frames section uploads PNGs (40 MB max), keeps them in `server/tmp/frames/`, and shows them in a grid. Clicking a thumbnail selects it. Clicking it again clears the frame. Draw order is background, the placed image, then the PNG stretched over the output. Transparent pixels show the picture. Static exports bake that PNG into the composition image. Video exports overlay the stored file in FFmpeg and do not clip with a mask. After the user downloads the finished MP4, the client purges frames, all server clips (except any clip locked by a running render), finished files in `server/tmp/outputs/`, and clears local media blobs. Closing the tab or window sends the same server purge via `POST /api/uploads/cleanup` (beacon); local IndexedDB is left intact so a later visit can re-upload from the saved blobs.
 
 Adjustments (brightness, contrast, saturation, exposure, temperature, tint, highlights, shadows, sharpness, blur, grayscale, sepia) are baked into the static PNG, so that export matches the editor. Video exports send the same slider values through FFmpeg (`eq`, `exposure`, `curves`, `colorbalance`, `hue`, `colorchannelmixer`, `gblur`, `unsharp`). Canvas blur/sharpen is a box blur; FFmpeg uses `gblur` and `unsharp`, so a moving video can differ slightly from the preview. Static art does not, because the PNG is the source.
 
@@ -337,6 +345,12 @@ A static 1 fps file with the precomposed PNG matched the PNG at SSIM 0.995 (`npm
 
 ## Changelog
 
+- 2026-10-24 — Ranking export download and tab close use the same `POST /api/uploads/cleanup` purge as Frame Screensaver (`client/src/lib/serverUploadCleanup.ts`, `client/src/stores/project.ts`).
+- 2026-10-24 — Screensaver upload cleanup also removes all non-busy clips, export MP4s in `outputs/`, and orphan clip files (`server/src/storage.ts`, `server/src/jobs.ts`, `server/src/index.ts`).
+- 2026-10-24 — Screensaver upload cleanup also deletes orphan files in `server/tmp/clips/` that are no longer in `registry.json` (`server/src/storage.ts`).
+- 2026-10-24 — Frame Screensaver server cleanup purges all frame PNGs and all non-ranking clips (including leftovers from earlier sessions); clips are tagged `origin` on upload (`server/src/storage.ts`, `server/src/frames.ts`, `server/src/index.ts`, `client/src/lib/api.ts`, `client/src/apps/frame-screensaver/stores/screensaver.ts`).
+- 2026-10-23 — Frame Screensaver Frames section uploads PNG files, stores them on the server, and previews them in a grid. The preset dropdown is gone.
+- 2026-10-23 — Production also deployed at `videos.ibrahimbilal.com`; Hostinger deploy reference lists both domains.
 - 2026-10-22 — Frame Screensaver adjustment controls use icons for reset, reset all, and before/after. Names stay on the tooltips.
 - 2026-10-22 — Frame Screensaver canvas toolbar uses icons for zoom, fit, center, crop, undo, and playback. Names stay on the button tooltips.
 - 2026-10-22 — Frame Screensaver: canvas editor (crop, transform, adjustments, procedural frames), 1 fps stills, precomposed PNG encode, hardware-encoder probe with CPU fallback, stream-copy loops, export diagnostics. Ranking encode is unchanged.

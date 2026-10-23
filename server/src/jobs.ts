@@ -132,6 +132,28 @@ export function jobOutput(id: string): { path: string; name: string } | null {
   return { path: job.outputPath, name: `${job.downloadName}.mp4` }
 }
 
+const ACTIVE_STATUSES = new Set<JobStatus>(['queued', 'preparing', 'rendering', 'verifying'])
+
+export function outputPathsInUse(): Set<string> {
+  const keep = new Set<string>()
+  for (const job of jobs.values()) {
+    if (!job.outputPath || !ACTIVE_STATUSES.has(job.status)) continue
+    keep.add(job.outputPath)
+  }
+  return keep
+}
+
+export async function dropJobOutput(jobId: string): Promise<void> {
+  const job = jobs.get(jobId)
+  const file = job?.outputPath ?? outputFile(jobId)
+  await rm(file, { force: true }).catch(() => undefined)
+  if (job) {
+    job.outputPath = null
+    job.outputBytes = null
+    job.outputDuration = null
+  }
+}
+
 export function cancelJob(id: string): JobView | null {
   const job = jobs.get(id)
   if (!job) return null

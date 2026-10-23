@@ -1,4 +1,5 @@
 import { aspectRatio, clampComposition, compositionForFit, cropForAspect, defaultComposition, placementForFit, type CropAspect, type ScreensaverComposition } from '@shared/screensaverComposition'
+import { FRAME_FILE_LIMIT } from '@shared/screensaverFrames'
 import {
   DEFAULT_DURATION_SECONDS,
   DURATION_PRESETS,
@@ -26,7 +27,8 @@ import * as idb from '../../../lib/idb'
 import { readImageFile, readVideoFile, validateAudioFile, validateImageFile, validateScreensaverVideoFile } from '../../../lib/media'
 import { usePlatformStore } from '../../../stores/platform'
 import type { ExportState } from '../../../types'
-import { bakePlacement, canvasToPng, paintComposition, renderFrameCanvas, renderMaskCanvas } from '../lib/composeCanvas'
+import { bakePlacement, canvasToPng, paintComposition } from '../lib/composeCanvas'
+import { cleanupServerUploads, ensureServerUploadCleanupOnClose } from '../../../lib/serverUploadCleanup'
 import { runScreensaverExport } from '../lib/screensaverExport'
 import type { SavedScreensaverProject } from '../types'
 
@@ -37,6 +39,11 @@ function loadHtmlImage(url: string): Promise<HTMLImageElement> {
     image.onerror = () => reject(new Error('Could not read the image.'))
     image.src = url
   })
+}
+
+async function fileIsPng(file: File): Promise<boolean> {
+  const head = new Uint8Array(await file.slice(0, 8).arrayBuffer())
+  return head.length >= 8 && head[0] === 0x89 && head[1] === 0x50 && head[2] === 0x4e && head[3] === 0x47 && head[4] === 0x0d && head[5] === 0x0a && head[6] === 0x1a && head[7] === 0x0a
 }
 
 let sourceFile: File | null = null
@@ -125,6 +132,11 @@ export const useScreensaverStore = defineStore('screensaver', () => {
   const profile = ref<ScreensaverProfile>('static-fast')
   const encoder = ref<EncoderChoice>('auto')
   const composition = ref<ScreensaverComposition>(defaultComposition())
+  const frames = ref<api.ScreensaverFrame[]>([])
+  const framesLoaded = ref(false)
+  const frameUploading = ref(false)
+  const frameImage = ref<HTMLImageElement | null>(null)
+  let frameImageToken = 0
   const compareAdjustments = ref(false)
   const cropEditing = ref(false)
   const encoderOptions = ref<Awaited<ReturnType<typeof api.screensaverEncoders>>['encoders']>([])
@@ -176,6 +188,13 @@ export const useScreensaverStore = defineStore('screensaver', () => {
     }
     if (audioMode.value === 'upload' && !audioFile) return 'Upload background audio or choose another audio option.'
     if (audioMode.value === 'source' && !hasAudio.value) return 'This video has no audio. Choose another audio option.'
+    if (
+      composition.value.frameId !== 'none' &&
+      framesLoaded.value &&
+      !frames.value.some((frame) => frame.id === composition.value.frameId)
+    ) {
+      return 'That frame is no longer on the server. Choose another frame.'
+    }
     return ''
   })
 
@@ -216,6 +235,19 @@ export const useScreensaverStore = defineStore('screensaver', () => {
     { deep: true },
   )
 
+  watch(
+    () => composition.value.frameId,
+    (id) => {
+      void syncFrameImage(id)
+    },
+    { immediate: true },
+  )
+
+  watch(serverOnline, (online) => {
+    if (!online || !hydrated.value || framesLoaded.value) return
+    void loadFrames()
+  })
+
   watch(mode, (value) => {
     if (!hydrated.value) return
     if (value === 'static' && mediaKind.value === 'video') {
@@ -228,6 +260,27 @@ export const useScreensaverStore = defineStore('screensaver', () => {
 
   function toast(text: string, tone: 'info' | 'error' = 'error') {
     platform.toast(text, tone)
+  }
+
+  function clearLocalUploads() {
+    removeSource()
+    clearAudio()
+    frames.value = []
+    framesLoaded.value = true
+    frameImage.value = null
+    if (composition.value.frameId !== 'none') {
+      replaceComposition({ ...composition.value, frameId: 'none' })
+      commitComposition()
+    }
+  }
+
+  async function purgeUserUploads(options: { local?: boolean } = {}) {
+    try {
+      await cleanupServerUploads(exportState.value.jobId)
+    } catch {
+      if (options.local) toast('Some uploaded files could not be removed from the server.', 'info')
+    }
+    if (options.local) clearLocalUploads()
   }
 
   function invalidateCompletedExport() {
@@ -262,6 +315,82 @@ export const useScreensaverStore = defineStore('screensaver', () => {
       toast('The saved screensaver project could not be restored.')
     } finally {
       hydrated.value = true
+      ensureServerUploadCleanupOnClose()
+      void loadFrames()
+    }
+  }
+
+  async function loadFrames() {
+    try {
+      const saved = await api.listScreensaverFrames()
+      frames.value = saved
+      framesLoaded.value = true
+      if (composition.value.frameId !== 'none' && !saved.some((frame) => frame.id === composition.value.frameId)) {
+        replaceComposition({ ...composition.value, frameId: 'none' })
+        commitComposition()
+      }
+      await syncFrameImage(composition.value.frameId)
+    } catch {
+      framesLoaded.value = false
+    }
+  }
+
+  async function syncFrameImage(id: string) {
+    const token = ++frameImageToken
+    if (id === 'none') {
+      frameImage.value = null
+      return
+    }
+    try {
+      const image = await loadHtmlImage(api.screensaverFrameUrl(id))
+      if (token !== frameImageToken) return
+      frameImage.value = image
+    } catch {
+      if (token !== frameImageToken) return
+      frameImage.value = null
+    }
+  }
+
+  async function uploadFrames(files: File[]) {
+    if (frameUploading.value || files.length === 0) return
+    frameUploading.value = true
+    try {
+      for (const file of files) {
+        if (!(await fileIsPng(file))) {
+          toast(`${file.name} is not a PNG file.`)
+          continue
+        }
+        if (file.size > FRAME_FILE_LIMIT) {
+          toast(`${file.name} is larger than ${FRAME_FILE_LIMIT / (1024 * 1024)} MB.`)
+          continue
+        }
+        const saved = await api.uploadScreensaverFrame(file)
+        frames.value = [saved, ...frames.value.filter((frame) => frame.id !== saved.id)]
+        framesLoaded.value = true
+      }
+    } catch (error) {
+      toast(error instanceof Error ? error.message : 'The frame could not be uploaded.')
+    } finally {
+      frameUploading.value = false
+    }
+  }
+
+  function selectFrame(id: string) {
+    const frameId = composition.value.frameId === id ? 'none' : id
+    replaceComposition({ ...composition.value, frameId })
+    commitComposition()
+  }
+
+  async function removeFrame(id: string) {
+    try {
+      await api.deleteScreensaverFrame(id)
+      frames.value = frames.value.filter((frame) => frame.id !== id)
+      if (composition.value.frameId === id) {
+        replaceComposition({ ...composition.value, frameId: 'none' })
+        commitComposition()
+      }
+    } catch (error) {
+      toast(error instanceof Error ? error.message : 'The frame could not be removed.')
     }
   }
 
@@ -490,7 +619,11 @@ export const useScreensaverStore = defineStore('screensaver', () => {
   }
 
   function placeForSource() {
-    composition.value = compositionForFit(fit.value, width.value, height.value, outputWidth.value, outputHeight.value, backgroundColor.value)
+    const frameId = composition.value.frameId
+    composition.value = {
+      ...compositionForFit(fit.value, width.value, height.value, outputWidth.value, outputHeight.value, backgroundColor.value),
+      frameId,
+    }
     history.value = [cloneComposition(composition.value)]
     historyIndex.value = 0
   }
@@ -618,7 +751,14 @@ export const useScreensaverStore = defineStore('screensaver', () => {
     }
   }
 
+  async function loadFrameOverlay(): Promise<HTMLImageElement | null> {
+    const id = composition.value.frameId
+    if (id === 'none') return null
+    return loadHtmlImage(api.screensaverFrameUrl(id))
+  }
+
   async function buildExportBlobs(): Promise<{ compositionBlob: Blob | null; frameBlob: Blob | null; maskBlob: Blob | null }> {
+    const frame = await loadFrameOverlay()
     let compositionBlob: Blob | null = null
     if (mediaKind.value === 'image' && objectUrl.value) {
       const image = await loadHtmlImage(objectUrl.value)
@@ -628,15 +768,8 @@ export const useScreensaverStore = defineStore('screensaver', () => {
       const ctx = canvas.getContext('2d')
       if (!ctx) throw new Error('Could not prepare the composition.')
       const baked = bakePlacement(image, image.naturalWidth, image.naturalHeight, composition.value, canvas.width, canvas.height, false)
-      paintComposition(ctx, baked, image, image.naturalWidth, image.naturalHeight, composition.value, { flatten: true, checker: false })
+      paintComposition(ctx, baked, image, image.naturalWidth, image.naturalHeight, composition.value, { flatten: true, checker: false, frame })
       compositionBlob = await canvasToPng(canvas)
-    }
-    if (mediaKind.value === 'video' && composition.value.frameId !== 'none') {
-      return {
-        compositionBlob,
-        frameBlob: await canvasToPng(renderFrameCanvas(composition.value, outputWidth.value, outputHeight.value)),
-        maskBlob: await canvasToPng(renderMaskCanvas(composition.value, outputWidth.value, outputHeight.value)),
-      }
     }
     return { compositionBlob, frameBlob: null, maskBlob: null }
   }
@@ -711,6 +844,9 @@ export const useScreensaverStore = defineStore('screensaver', () => {
     anchor.download = `${name.value.trim() || 'screensaver'}.mp4`
     anchor.click()
     toast('Download started.', 'info')
+    void purgeUserUploads({ local: true }).then(() => {
+      exportState.value = idleExport()
+    })
   }
 
   return {
@@ -735,6 +871,9 @@ export const useScreensaverStore = defineStore('screensaver', () => {
     profile,
     encoder,
     composition,
+    frames,
+    frameUploading,
+    frameImage,
     compareAdjustments,
     cropEditing,
     encoderOptions,
@@ -771,6 +910,9 @@ export const useScreensaverStore = defineStore('screensaver', () => {
     setFit,
     replaceComposition,
     commitComposition,
+    uploadFrames,
+    selectFrame,
+    removeFrame,
     undo,
     redo,
     fitContain,

@@ -1,8 +1,8 @@
 <script setup lang="ts">
-import { computed } from 'vue'
-import { Eye, RotateCcw, SquareSplitHorizontal } from '@lucide/vue'
+import { computed, ref } from 'vue'
+import { Eye, RotateCcw, SquareSplitHorizontal, Trash2, Upload } from '@lucide/vue'
 import { ADJUSTMENT_FIELDS } from '@shared/screensaverAdjust'
-import { FRAME_PRESETS } from '@shared/screensaverFrames'
+import { FRAME_FILE_LIMIT } from '@shared/screensaverFrames'
 import { DURATION_PRESETS, SCREENSAVER_FPS, SCREENSAVER_OUTPUTS } from '@shared/screensaver'
 import SettingsAccordion from '../../../components/SettingsAccordion.vue'
 import SliderField from '../../../components/SliderField.vue'
@@ -11,6 +11,41 @@ import { useScreensaverStore } from '../stores/screensaver'
 const store = useScreensaverStore()
 
 const customMinutes = defineModel<number>('customMinutes', { default: 60 })
+const frameInput = ref<HTMLInputElement | null>(null)
+const frameDrag = ref(false)
+const frameLimitMb = FRAME_FILE_LIMIT / (1024 * 1024)
+let frameDragDepth = 0
+
+function isFileDrag(event: DragEvent): boolean {
+  const types = event.dataTransfer?.types
+  if (!types) return false
+  return Array.from(types).includes('Files')
+}
+
+function onFrameDragEnter(event: DragEvent) {
+  if (!isFileDrag(event)) return
+  frameDragDepth += 1
+  frameDrag.value = true
+}
+
+function onFrameDragLeave() {
+  frameDragDepth = Math.max(0, frameDragDepth - 1)
+  if (frameDragDepth === 0) frameDrag.value = false
+}
+
+function onFrameDrop(event: DragEvent) {
+  frameDragDepth = 0
+  frameDrag.value = false
+  const files = event.dataTransfer?.files
+  if (files && files.length > 0) void store.uploadFrames(Array.from(files))
+}
+
+function onFrameChange(event: Event) {
+  const input = event.target as HTMLInputElement
+  const files = input.files
+  if (files && files.length > 0) void store.uploadFrames(Array.from(files))
+  input.value = ''
+}
 
 const hardwareEncoders = computed(() => store.encoderOptions.filter((item) => item.hardware && item.listed))
 const selectedEncoder = computed(() => store.encoderOptions.find((item) => item.id === store.encoder))
@@ -141,11 +176,49 @@ function onCustomMinutes() {
       </select>
     </SettingsAccordion>
 
-    <SettingsAccordion title="Frame">
-      <select v-model="store.composition.frameId" class="field" @change="store.commitComposition()">
-        <option v-for="preset in FRAME_PRESETS" :key="preset.id" :value="preset.id">{{ preset.label }}</option>
-      </select>
-      <p class="text-xs text-zinc-500">The image is clipped to the frame opening, including the arch.</p>
+    <SettingsAccordion title="Frames">
+      <button
+        class="flex w-full cursor-pointer flex-col items-center gap-1 rounded-lg border border-dashed px-3 py-4 text-sm font-semibold disabled:cursor-wait disabled:opacity-60"
+        :class="frameDrag ? 'border-amber-300 bg-amber-300/10 text-amber-100' : 'border-zinc-600 bg-[#101114] text-zinc-100'"
+        type="button"
+        :disabled="store.frameUploading"
+        @click="frameInput?.click()"
+        @dragenter.prevent="onFrameDragEnter"
+        @dragover.prevent
+        @dragleave.prevent="onFrameDragLeave"
+        @drop.prevent="onFrameDrop"
+      >
+        <Upload :size="16" />
+        <span>{{ store.frameUploading ? 'Uploading…' : frameDrag ? 'Drop PNG frames' : 'Upload PNG frames' }}</span>
+        <span class="text-[11px] font-normal text-zinc-500">PNG only, up to {{ frameLimitMb }} MB</span>
+      </button>
+      <input ref="frameInput" class="hidden" type="file" accept="image/png,.png" multiple @change="onFrameChange" />
+      <p v-if="store.frames.length === 0" class="text-xs text-zinc-500">
+        Uploaded frames show up here. Click one to place it over the picture. Click it again to clear it.
+      </p>
+      <div v-else class="grid grid-cols-2 gap-2">
+        <div v-for="frame in store.frames" :key="frame.id" class="relative">
+          <button
+            class="block w-full cursor-pointer overflow-hidden rounded-md border bg-[#101114]"
+            :class="store.composition.frameId === frame.id ? 'border-amber-300 ring-1 ring-amber-300' : 'border-zinc-700 hover:border-zinc-500'"
+            type="button"
+            :aria-pressed="store.composition.frameId === frame.id"
+            :title="frame.name"
+            @click="store.selectFrame(frame.id)"
+          >
+            <img :src="`/api/screensaver/frames/${frame.id}`" :alt="frame.name" class="aspect-video w-full object-contain" />
+          </button>
+          <button
+            class="absolute top-1 right-1 cursor-pointer rounded bg-black/70 p-1 text-zinc-200 hover:text-white"
+            type="button"
+            :aria-label="`Remove ${frame.name}`"
+            :title="`Remove ${frame.name}`"
+            @click="store.removeFrame(frame.id)"
+          >
+            <Trash2 :size="12" />
+          </button>
+        </div>
+      </div>
     </SettingsAccordion>
 
     <SettingsAccordion title="Background">

@@ -8,6 +8,7 @@ import { usePlatformStore } from './platform'
 import { OUTPUTS } from '@shared/frame'
 import * as api from '../lib/api'
 import { runExport } from '../lib/exportJob'
+import { cleanupServerUploads, ensureServerUploadCleanupOnClose } from '../lib/serverUploadCleanup'
 import { formatRank, sourceLabel, titleFromFileName } from '../lib/format'
 import * as idb from '../lib/idb'
 import { readVideoFile, validateAudioFile, validateVideoFile } from '../lib/media'
@@ -225,6 +226,7 @@ export const useProjectStore = defineStore('project', () => {
     } finally {
       applying = false
       hydrated.value = true
+      ensureServerUploadCleanupOnClose()
     }
   }
 
@@ -609,11 +611,25 @@ export const useProjectStore = defineStore('project', () => {
     exportAbort?.abort()
   }
 
-  function downloadExport() {
+  async function downloadExport() {
     const url = exportState.value.downloadUrl
     if (exportState.value.phase !== 'done' || !url) return
+    const jobId = exportState.value.jobId
     triggerDownload(url, downloadName())
     toast('Download started.', 'info')
+    try {
+      await cleanupServerUploads(jobId)
+    } catch {
+      toast('Some uploaded files could not be removed from the server.', 'info')
+    }
+    exportState.value = idleExport()
+    for (const clip of clips.value) {
+      clip.serverId = null
+      if (fileMap.has(clip.id)) {
+        clip.uploadState = 'uploading'
+        void upload(clip.id)
+      }
+    }
   }
 
   function downloadName(): string {
