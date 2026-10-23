@@ -168,8 +168,8 @@ Two orders:
 1. `overlays` — one full-frame PNG per clip in playback order. `overlayRanks` receives format, display, page style, showPreviousTitles, and sort. Progress ~2–8%.
 2. `uploading` — multipart `POST /api/export`. Field `project` is JSON. Fields `overlays` are `overlay-0.png` … in the same order. Field `music` is sent only when a file exists and `musicVolume > 0`. Progress ~9–16%.
 3. Poll `GET /api/jobs/:id` every 700ms. Abort calls `POST /api/jobs/:id/cancel`.
-4. On `done`, download `GET /api/jobs/:id/download` with the project name, else the banner text, else `ranking.mp4`.
-5. On download, `POST /api/uploads/cleanup` removes server clips, frames, and export outputs; clip `serverId`s are cleared and local files re-upload in the background. Closing the tab runs the same server purge (beacon). Editor state stays in IndexedDB.
+4. On `done`, download `GET /api/jobs/:id/download` with the project name, else the banner text, else `ranking.mp4`. Download does not remove server uploads.
+5. Closing the tab or window runs `POST /api/uploads/cleanup` (beacon) to purge server clips, frames, and export outputs. Editor state stays in IndexedDB.
 
 Project JSON clips are `{ id: serverId, trimStart, trimEnd }` in playback order. The server does not know titles or rank colors. Those exist only in the PNGs.
 
@@ -294,7 +294,7 @@ Saved projects are IndexedDB `screensaver/project` version 2. Version 1 loads wi
 
 The composition (`shared/screensaverComposition.ts`) is normalized to the output frame: crop in source space, placement, rotation, flips, opacity, adjustments, background, and frame id. Browser size and view zoom are not part of it. Preview and the static export PNG both use `composeCanvas.ts`.
 
-Frames are uploaded PNG files. `shared/screensaverFrames.ts` only accepts `none` or a stored frame id; older preset names (classic, mat, rounded, arch) load as no frame. The Frames section uploads PNGs (40 MB max), keeps them in `server/tmp/frames/`, and shows them in a grid. Clicking a thumbnail selects it. Clicking it again clears the frame. Draw order is background, the placed image, then the PNG stretched over the output. Transparent pixels show the picture. Static exports bake that PNG into the composition image. Video exports overlay the stored file in FFmpeg and do not clip with a mask. After the user downloads the finished MP4, the client purges frames, all server clips (except any clip locked by a running render), finished files in `server/tmp/outputs/`, and clears local media blobs. Closing the tab or window sends the same server purge via `POST /api/uploads/cleanup` (beacon); local IndexedDB is left intact so a later visit can re-upload from the saved blobs.
+Frames are uploaded PNG files. `shared/screensaverFrames.ts` only accepts `none` or a stored frame id; older preset names (classic, mat, rounded, arch) load as no frame. The Frames section uploads PNGs (40 MB max), keeps them in `server/tmp/frames/`, and shows them in a grid. Clicking a thumbnail selects it. Clicking it again clears the frame. Draw order is background, the placed image, then the PNG stretched over the output. Transparent pixels show the picture. Static exports bake that PNG into the composition image. Video exports overlay the stored file in FFmpeg and do not clip with a mask. Closing the tab or window purges frames, all server clips (except any clip locked by a running render), and finished files in `server/tmp/outputs/` via `POST /api/uploads/cleanup` (beacon). Downloading the MP4 does not remove uploads. Local IndexedDB is left intact on close so a later visit can re-upload from the saved blobs.
 
 Adjustments (brightness, contrast, saturation, exposure, temperature, tint, highlights, shadows, sharpness, blur, grayscale, sepia) are baked into the static PNG, so that export matches the editor. Video exports send the same slider values through FFmpeg (`eq`, `exposure`, `curves`, `colorbalance`, `hue`, `colorchannelmixer`, `gblur`, `unsharp`). Canvas blur/sharpen is a box blur; FFmpeg uses `gblur` and `unsharp`, so a moving video can differ slightly from the preview. Static art does not, because the PNG is the source.
 
@@ -345,6 +345,7 @@ A static 1 fps file with the precomposed PNG matched the PNG at SSIM 0.995 (`npm
 
 ## Changelog
 
+- 2026-10-24 — Server upload purge runs only on tab/window close, not when downloading an export (`client/src/stores/project.ts`, `client/src/apps/frame-screensaver/stores/screensaver.ts`).
 - 2026-10-24 — Root `overrides` pin `body-parser` 2.4.0 (Express transitive dep; Hostinger CVE advisory) (`package.json`, `package-lock.json`).
 - 2026-10-24 — Ranking export download and tab close use the same `POST /api/uploads/cleanup` purge as Frame Screensaver (`client/src/lib/serverUploadCleanup.ts`, `client/src/stores/project.ts`).
 - 2026-10-24 — Screensaver upload cleanup also removes all non-busy clips, export MP4s in `outputs/`, and orphan clip files (`server/src/storage.ts`, `server/src/jobs.ts`, `server/src/index.ts`).

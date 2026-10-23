@@ -28,7 +28,7 @@ import { readImageFile, readVideoFile, validateAudioFile, validateImageFile, val
 import { usePlatformStore } from '../../../stores/platform'
 import type { ExportState } from '../../../types'
 import { bakePlacement, canvasToPng, paintComposition } from '../lib/composeCanvas'
-import { cleanupServerUploads, ensureServerUploadCleanupOnClose } from '../../../lib/serverUploadCleanup'
+import { ensureServerUploadCleanupOnClose } from '../../../lib/serverUploadCleanup'
 import { runScreensaverExport } from '../lib/screensaverExport'
 import type { SavedScreensaverProject } from '../types'
 
@@ -260,27 +260,6 @@ export const useScreensaverStore = defineStore('screensaver', () => {
 
   function toast(text: string, tone: 'info' | 'error' = 'error') {
     platform.toast(text, tone)
-  }
-
-  function clearLocalUploads() {
-    removeSource()
-    clearAudio()
-    frames.value = []
-    framesLoaded.value = true
-    frameImage.value = null
-    if (composition.value.frameId !== 'none') {
-      replaceComposition({ ...composition.value, frameId: 'none' })
-      commitComposition()
-    }
-  }
-
-  async function purgeUserUploads(options: { local?: boolean } = {}) {
-    try {
-      await cleanupServerUploads(exportState.value.jobId)
-    } catch {
-      if (options.local) toast('Some uploaded files could not be removed from the server.', 'info')
-    }
-    if (options.local) clearLocalUploads()
   }
 
   function invalidateCompletedExport() {
@@ -844,9 +823,6 @@ export const useScreensaverStore = defineStore('screensaver', () => {
     anchor.download = `${name.value.trim() || 'screensaver'}.mp4`
     anchor.click()
     toast('Download started.', 'info')
-    void purgeUserUploads({ local: true }).then(() => {
-      exportState.value = idleExport()
-    })
   }
 
   return {
