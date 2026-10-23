@@ -345,6 +345,7 @@ A static 1 fps file with the precomposed PNG matched the PNG at SSIM 0.995 (`npm
 
 ## Changelog
 
+- 2026-10-24 — Root `overrides` pin `body-parser` 2.4.0 (Express transitive dep; Hostinger CVE advisory) (`package.json`, `package-lock.json`).
 - 2026-10-24 — Ranking export download and tab close use the same `POST /api/uploads/cleanup` purge as Frame Screensaver (`client/src/lib/serverUploadCleanup.ts`, `client/src/stores/project.ts`).
 - 2026-10-24 — Screensaver upload cleanup also removes all non-busy clips, export MP4s in `outputs/`, and orphan clip files (`server/src/storage.ts`, `server/src/jobs.ts`, `server/src/index.ts`).
 - 2026-10-24 — Screensaver upload cleanup also deletes orphan files in `server/tmp/clips/` that are no longer in `registry.json` (`server/src/storage.ts`).
