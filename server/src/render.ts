@@ -1,8 +1,16 @@
 import { mkdir, rm, writeFile } from 'node:fs/promises'
 import path from 'node:path'
+import type { EncoderChoice } from '../../shared/screensaver'
 import { frameMetrics } from '../../shared/frame'
 import { resolveFade, sequenceDuration } from '../../shared/timeline'
-import { RenderCancelled, ffColor, n, spawnFfmpeg, verifyVideoOutput } from './ffmpegUtil'
+import { selectEncoder, type EncoderId } from './encoders'
+import {
+  ffmpegFilterThreads,
+  ffmpegGlobalThreads,
+  x264Params,
+  x264Threads,
+} from './ffmpegThreading'
+import { RenderCancelled, ffColor, n, spawnFfmpeg, verifyVideoOutput, type FfmpegStats } from './ffmpegUtil'
 import { jobsDir, outputsDir } from './storage'
 
 export { RenderCancelled }
@@ -32,11 +40,15 @@ export interface RenderRequest {
   normalize: boolean
   originalVolume: number
   musicVolume: number
+  encoder?: EncoderChoice
 }
 
 export interface RenderHooks {
   cancelled: () => boolean
   onProgress: (progress: number, message?: string) => void
+  onStats?: (stats: FfmpegStats) => void
+  onSpawn?: (pid: number) => void
+  onEncode?: (info: { encoder: string; hardware: boolean; encoderId: EncoderId }) => void
   onStatus: (status: 'preparing' | 'rendering' | 'verifying' | 'cancelled', message: string) => void
   registerKill: (kill: () => void) => void
 }
@@ -45,6 +57,13 @@ interface Attempt {
   fade: number
   normalize: boolean
   note: string | null
+}
+
+interface ChosenEncoder {
+  id: EncoderId
+  label: string
+  hardware: boolean
+  args: string[]
 }
 
 export async function renderProject(
@@ -61,8 +80,51 @@ export async function renderProject(
   const attempts = buildAttempts(requestedFade, wantNormalize)
   const metrics = frameMetrics(job.width, job.height, job.bannerHeight)
   const expected = sequenceDuration(durations, requestedFade)
+  const encoderChoice = job.encoder ?? 'auto'
 
   let warning: string | null = null
+  let encoder = await selectEncoder({
+    choice: encoderChoice,
+    width: job.width,
+    height: job.height,
+    still: false,
+    workload: 'ranking_motion',
+    tier: 'standard',
+  })
+  hooks.onEncode?.({ encoder: encoder.label, hardware: encoder.hardware, encoderId: encoder.id })
+
+  try {
+    return await runAttempts(job, metrics, attempts, useClipAudio, encoder, hooks, warning)
+  } catch (error) {
+    if (encoderChoice !== 'auto' || encoder.id === 'libx264' || hooks.cancelled() || error instanceof RenderCancelled) {
+      throw error
+    }
+    const detail = error instanceof Error ? error.message : 'The hardware encoder failed.'
+    const failedLabel = encoder.label
+    encoder = await selectEncoder({
+      choice: 'cpu',
+      width: job.width,
+      height: job.height,
+      still: false,
+      workload: 'ranking_motion',
+      tier: 'standard',
+    })
+    hooks.onEncode?.({ encoder: encoder.label, hardware: false, encoderId: encoder.id })
+    warning = `${failedLabel} failed (${detail}). Used CPU encoding instead.`
+    return runAttempts(job, metrics, attempts, useClipAudio, encoder, hooks, warning)
+  }
+}
+
+async function runAttempts(
+  job: RenderRequest & { id: string },
+  metrics: ReturnType<typeof frameMetrics>,
+  attempts: Attempt[],
+  useClipAudio: boolean,
+  encoder: ChosenEncoder,
+  hooks: RenderHooks,
+  warning: string | null,
+): Promise<{ outputPath: string; bytes: number; duration: number; warning: string | null }> {
+  const durations = job.clips.map((clip) => clip.trimEnd - clip.trimStart)
   let lastError = 'Rendering failed.'
   for (let index = 0; index < attempts.length; index++) {
     if (hooks.cancelled()) throw new RenderCancelled()
@@ -71,7 +133,7 @@ export async function renderProject(
     const attemptExpected = sequenceDuration(durations, attempt.fade)
     try {
       if (index > 0) hooks.onProgress(0, attempt.note ?? 'Retrying the render.')
-      await runFfmpeg(job, metrics, attempt, useClipAudio, attemptExpected, hooks)
+      await runFfmpeg(job, metrics, attempt, useClipAudio, attemptExpected, encoder, hooks)
       if (hooks.cancelled()) throw new RenderCancelled()
       hooks.onStatus('verifying', 'Checking the finished file.')
       const verified = await verifyVideoOutput(
@@ -125,6 +187,7 @@ async function runFfmpeg(
   attempt: Attempt,
   useClipAudio: boolean,
   expected: number,
+  encoder: ChosenEncoder,
   hooks: RenderHooks,
 ): Promise<void> {
   const workDir = path.join(jobsDir, job.id)
@@ -134,47 +197,52 @@ async function runFfmpeg(
   await writeFile(scriptPath, graph.filter)
   const outputPath = path.join(outputsDir, `${job.id}.mp4`)
 
+  const globalThreads = ffmpegGlobalThreads()
+  const filterThreads = ffmpegFilterThreads()
   const args: string[] = [
     '-y',
     '-hide_banner',
     '-threads',
-    '1',
+    String(globalThreads),
     '-filter_threads',
-    '1',
+    String(filterThreads),
     '-filter_complex_threads',
-    '1',
+    String(filterThreads),
     '-progress',
     'pipe:1',
     '-nostats',
   ]
-  for (const clip of job.clips) args.push('-threads', '1', '-fflags', '+genpts', '-i', clip.path)
-  for (const overlay of job.overlays) args.push('-threads', '1', '-i', overlay)
-  if (job.musicPath) args.push('-threads', '1', '-stream_loop', '-1', '-i', job.musicPath)
+  for (const clip of job.clips) args.push('-fflags', '+genpts', '-i', clip.path)
+  for (const overlay of job.overlays) args.push('-i', overlay)
+  if (job.musicPath) args.push('-stream_loop', '-1', '-i', job.musicPath)
   args.push('-filter_complex_script', scriptPath, '-map', `[${graph.videoLabel}]`)
   if (graph.audioLabel) args.push('-map', `[${graph.audioLabel}]`)
-  args.push(
-    '-c:v',
-    'libx264',
-    '-preset',
-    'veryfast',
-    '-threads',
-    '1',
-    '-x264-params',
-    'threads=1:lookahead_threads=1:sliced_threads=0',
-    '-crf',
-    '20',
-    '-pix_fmt',
-    'yuv420p',
-    '-r',
-    String(job.fps),
-    '-max_muxing_queue_size',
-    '1024',
-  )
+  args.push(...encoderVideoArgs(encoder))
+  args.push('-pix_fmt', 'yuv420p', '-r', String(job.fps), '-max_muxing_queue_size', '1024')
   if (graph.audioLabel) args.push('-c:a', 'aac', '-b:a', '192k', '-ar', '48000')
   args.push('-t', n(expected + 0.12), '-movflags', '+faststart', outputPath)
 
   hooks.onStatus('rendering', 'Rendering the MP4.')
   await spawnFfmpeg(args, expected, hooks)
+}
+
+function encoderVideoArgs(encoder: ChosenEncoder): string[] {
+  if (encoder.id === 'libx264') {
+    const threads = x264Threads()
+    return [
+      '-c:v',
+      'libx264',
+      '-preset',
+      'veryfast',
+      '-crf',
+      '20',
+      '-threads',
+      String(threads),
+      '-x264-params',
+      x264Params(threads),
+    ]
+  }
+  return encoder.args.filter((arg) => arg !== '-pix_fmt' && arg !== 'yuv420p')
 }
 
 function buildFilter(
@@ -219,7 +287,7 @@ function buildFilter(
       `[fitted${index}]pad=${width}:${height}:0:${bannerHeight}:${ffColor(job.bannerColor)},format=yuv420p[framed${index}]`,
     )
     lines.push(
-      `[framed${index}][${overlayIndex}:v]overlay=0:0:format=auto,format=yuv420p,fps=${job.fps},settb=AVTB,setsar=1[v${index}]`,
+      `[framed${index}][${overlayIndex}:v]overlay=0:0:format=auto,setsar=1,settb=AVTB[v${index}]`,
     )
 
     if (useClipAudio) {
@@ -291,4 +359,3 @@ function isRetryable(message: string): boolean {
     message,
   )
 }
-

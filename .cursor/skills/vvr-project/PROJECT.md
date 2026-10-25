@@ -18,7 +18,9 @@ Node `^20.19.0 || >=22.12.0`. From the repo root:
 - `npm run typecheck` — client `vue-tsc` via `client/scripts/typecheck.mjs`, then server `tsc --noEmit`.
 - `npm run test:screensaver` — short static screensaver render + ffprobe (`server/scripts/verify-screensaver.ts`).
 - `npm run test:screensaver-visual` — CPU vs FFmpeg adjustment SSIM (`server/scripts/visual-screensaver-adjust.ts`).
+- `npm run test:ranking` — two-clip ranking render (cut + fade) + ffprobe (`server/scripts/verify-ranking.ts`).
 - `npm run bench:screensaver-compose` — Node timing for CPU placement bake (`server/scripts/bench-screensaver-compose.ts`).
+- `npm run bench:ranking` / `npm run bench:screensaver` — end-to-end export timings (`baseline` / `after` argv); `npm run bench:render-report` writes `docs/render-benchmark-report.md`.
 - `npm run build:dev` / `npm run start:dev` — Vite development build, then the renderer serves `client/dist` and the API on port 3001.
 - `npm run build:prod` / `npm run start:prod` — production client build plus esbuild server bundle (`server/dist/index.js`). Listens on `PORT` or 3001. Host is `0.0.0.0` when `PORT` is set, otherwise `127.0.0.1`.
 
@@ -105,7 +107,7 @@ Defined in `client/src/types.ts`.
 - Banner: visible (off = no banner, video fills the frame), background, height, font, size, weight, align, lineHeight, outline, shadow.
 - Ranking: font, size, weight, color, itemSpacing (0–100, treated as a percent of font size), positionX/Y, outline, shadow, opacity, format (`dot | plain | hash | pad` → `1.` / `1` / `#1` / `01`), display (`stack` = all numbers, `page` = current only), pageStyle (`fraction` = `1 / N`, `number` = the format), showPreviousTitles, sort (`list | reverse | title | titleDesc`).
 - Caption styles the clip title drawn beside the rank number. `caption.bottom` is stored and scaled on resolution change. The canvas does not read it.
-- Video: width, height, fps, scaleMode (`crop | fit | blur`), backgroundColor, transition (`cut | fade`), fadeDuration, keepAudio, normalize, originalVolume, musicVolume (0–1).
+- Video: width, height, fps, scaleMode (`crop | fit | blur`), backgroundColor, transition (`cut | fade`), fadeDuration, keepAudio, normalize, originalVolume, musicVolume (0–1), encoder (`auto` default, same choices as Frame Screensaver).
 - Presets: `classic | tier | minimal | custom`. Definitions and default video (1080×1920, 30 fps, crop, cut, fade 0.35, keep audio, normalize, music 0.35) are in `client/src/lib/presets.ts`. Fonts: Oswald, Anton, Bebas Neue, Montserrat, Inter.
 - Rank number colors default to the active color set. `null` on a clip means "use the ranking color". Title color `null` means "use the caption color".
 
@@ -188,11 +190,12 @@ Server `parseProject` requires 2–30 clips, UUID ids, 1080×1920 or 720×1280, 
 - Hard cut: `concat`. Crossfade: chained `xfade` / `acrossfade`. Fade offsets follow `shared/timeline.ts`.
 - Clip audio (when `keepAudio` and volume > 0): 48 kHz stereo, optional `loudnorm=I=-16:TP=-1.5:LRA=11`. Silent clips get `anullsrc` so concat stays aligned.
 - Music is trimmed to the sequence, faded in/out, then `amix` with clip audio.
-- Output is H.264 + AAC when any audio is present, `+faststart`, yuv420p.
+- Output is H.264 + AAC when any audio is present, `+faststart`, yuv420p. Encoder choice matches Frame Screensaver: Auto (default), CPU, or a verified hardware encoder via shared `server/src/encoders.ts` (`ranking_motion` benchmark workload). Auto retries on CPU with a job `warning` when hardware fails; an explicit unavailable encoder stops the job.
+- FFmpeg threading is adaptive (`server/src/ffmpegThreading.ts`): global/filter threads scale with CPU count (conservative under 8 GB RAM). Overrides: `VVR_FFMPEG_THREADS`, `VVR_FFMPEG_FILTER_THREADS`, `VVR_X264_THREADS`.
 - If normalize fails, retry without it. If a crossfade fails, retry as hard cuts. The job `warning` explains the fallback.
 - Verify with ffprobe: dimensions, duration near the expected length, and an audio stream when audio was requested. Download is refused until status is `done`.
 
-Progress on the client: overlays/upload are local; queued/preparing/rendering/verifying come from the job. Rendering maps ffmpeg time onto 20–95%.
+Progress on the client: overlays/upload are local; queued/preparing/rendering/verifying come from the job. Rendering maps ffmpeg time onto 20–95%. Ranking export shows the same encoder/speed/ETA fields as Frame Screensaver (`RankingExportDetails.vue`, job poll).
 
 ## HTTP
 
@@ -207,7 +210,7 @@ Progress on the client: overlays/upload are local; queued/preparing/rendering/ve
 | GET | `/api/jobs/:id` | status |
 | POST | `/api/jobs/:id/cancel` | kill ffmpeg |
 | GET | `/api/jobs/:id/download` | verified mp4, 409 if not ready |
-| GET | `/api/screensaver/encoders` | verified H.264 encoders and cached Auto choice |
+| GET | `/api/encoders` | verified H.264 encoders and cached Auto choice (alias: `/api/screensaver/encoders`) |
 | POST | `/api/screensaver/media` | image or video for screensaver |
 | GET | `/api/screensaver/frames` | saved screensaver frame PNGs |
 | POST | `/api/screensaver/frames` | one PNG, field `file`, max 40 MB |
@@ -304,7 +307,7 @@ Adjustments (brightness, contrast, saturation, exposure, temperature, tint, high
 
 Profiles: Static Art (default 1 fps for a new image), Balanced (24 fps), High quality (CRF 16 or the matching hardware CQ), Animated (30 fps). The user can still pick 1, 24, 30, or 60 fps afterwards. CPU quality for Balanced and Static Art stays CRF 20, preset veryfast, the same band as the original screensaver encode. High uses CRF 16 and preset medium. Hardware maps are in `encoderArgs` (`server/src/encoders.ts`): NVENC VBR CQ, Quick Sync `global_quality`, AMF CQP, VideoToolbox `-q:v`, Media Foundation quality mode. `-hw_encoding true` is not set for Media Foundation; that flag failed format negotiation on the test machine.
 
-Encoder choice is Auto, CPU, or one listed hardware encoder. Auto runs a 3-second timed encode of each encoder that actually starts at that resolution and profile, caches it in `server/tmp/encoder-cache.json`, and picks a hardware encoder only when it is more than 8% faster than libx264. An explicit encoder that fails init or the real encode stops the job. The export panel then offers “Export with CPU instead”. Auto retries on CPU and sets a warning. Ranking export is still libx264 with one thread.
+Encoder choice is Auto, CPU, or one listed hardware encoder (Ranking and Frame Screensaver). Auto runs timed encodes per workload (`still_*`, `motion_30fps`, `compose_motion`, `ranking_motion`), caches in `server/tmp/encoder-cache.json`, and picks hardware only when more than 8% faster than libx264. Set `VVR_ENCODER_BENCH=0` to skip cold benchmarks (Auto uses CPU). An explicit encoder that fails init or the real encode stops the job; Auto retries on CPU with a warning.
 
 Static images: the browser draws one full-resolution PNG and FFmpeg loops it at the chosen frame rate with no scale or color filters. Audio is a second input in that same process (loop, volume, fades). New image projects use Static Art at 1 fps. Saved version-1 projects keep 24 or 30.
 
@@ -349,6 +352,8 @@ A static 1 fps file with the precomposed PNG matched the PNG at SSIM 0.995 (`npm
 
 ## Changelog
 
+- 2026-10-25 — Ranking layout: New project beside app title in `AppHeader`; export status column right of the style sidebar (`RankingVideosView.vue`, `AppHeader.vue`).
+- 2026-10-25 — Shared render optimization: adaptive FFmpeg threading (`ffmpegThreading.ts`), ranking encoder Auto/CPU/HW via `encoders.ts`, `GET /api/encoders`, ranking Style panel + export diagnostics, bench/test scripts, `docs/render-benchmark-report.md` (`server/src/render.ts`, `client` ranking UI, `server/scripts/`).
 - 2026-10-25 — Upgrade `multer` to 2.5.0 (CVE-2026-113872); root `overrides` pin (`package.json`, `server/package.json`).
 - 2026-10-25 — Frame Screensaver export progress stats in a collapsible right sidebar (toggle rail, not accordion) (`ScreensaverExportDetails.vue`, `FrameScreensaverView.vue`).
 - 2026-10-25 — Frame Screensaver auto-applies the latest frame PNG after upload (`stores/screensaver.ts`).

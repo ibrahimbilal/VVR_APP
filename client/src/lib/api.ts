@@ -172,10 +172,14 @@ export function beaconCleanupServerUploads(payload: ServerUploadCleanup): void {
 export const cleanupScreensaverUploads = cleanupServerUploads
 export const beaconCleanupScreensaverUploads = beaconCleanupServerUploads
 
-export async function screensaverEncoders(): Promise<EncoderCatalog> {
-  const response = await fetch('/api/screensaver/encoders')
+export async function fetchEncoders(): Promise<EncoderCatalog> {
+  const response = await fetch('/api/encoders')
   if (!response.ok) throw new Error(await readError(response))
   return (await response.json()) as EncoderCatalog
+}
+
+export async function screensaverEncoders(): Promise<EncoderCatalog> {
+  return fetchEncoders()
 }
 
 export function startScreensaverExport(

@@ -23,7 +23,11 @@
     "typecheck": "npm run typecheck -w client && npm run typecheck -w server",
     "test:screensaver": "npm run test:screensaver -w server",
     "test:screensaver-visual": "npm run test:screensaver-visual -w server",
-    "bench:screensaver-compose": "npm run bench:screensaver-compose -w server"
+    "bench:screensaver-compose": "npm run bench:screensaver-compose -w server",
+    "bench:screensaver": "npm run bench:screensaver -w server",
+    "bench:ranking": "npm run bench:ranking -w server",
+    "bench:render-report": "npm run bench:render-report -w server",
+    "test:ranking": "npm run test:ranking -w server"
   },
   "devDependencies": {
     "concurrently": "^10.0.6"

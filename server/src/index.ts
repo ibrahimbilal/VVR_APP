@@ -204,6 +204,7 @@ app.post('/api/export', exportUpload.fields([{ name: 'overlays', maxCount: 30 },
         normalize: project.video.normalize,
         originalVolume: project.video.originalVolume,
         musicVolume: project.video.musicVolume,
+        encoder: project.video.encoder ?? 'auto',
         downloadName: safeDownloadName(project.filename),
       })
       res.json({ jobId: job.id })
@@ -360,7 +361,7 @@ app.delete('/api/screensaver/frames/:id', async (req, res) => {
   res.json({ ok: true })
 })
 
-app.get('/api/screensaver/encoders', async (_req, res) => {
+async function serveEncoderCatalog(_req: Request, res: Response): Promise<void> {
   try {
     if (!(await checkFfmpeg())) {
       res.status(500).json({ error: 'FFmpeg is missing. Reinstall dependencies with npm install, then restart the server.' })
@@ -370,7 +371,10 @@ app.get('/api/screensaver/encoders', async (_req, res) => {
   } catch (error) {
     res.status(500).json({ error: messageOf(error, 'Encoder detection failed.') })
   }
-})
+}
+
+app.get('/api/encoders', serveEncoderCatalog)
+app.get('/api/screensaver/encoders', serveEncoderCatalog)
 
 app.post(
   '/api/screensaver/export',
@@ -593,6 +597,7 @@ interface ProjectInput {
     normalize: boolean
     originalVolume: number
     musicVolume: number
+    encoder?: EncoderChoice
   }
 }
 
@@ -650,6 +655,7 @@ function parseProject(raw: unknown): ProjectInput {
       normalize: Boolean(video.normalize),
       originalVolume: clampUnit(video.originalVolume),
       musicVolume: clampUnit(video.musicVolume),
+      encoder: isEncoderChoice(video.encoder) ? video.encoder : 'auto',
     },
   }
 }

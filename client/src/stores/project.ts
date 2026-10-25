@@ -1,3 +1,4 @@
+import { isEncoderChoice } from '@shared/screensaver'
 import { frameMetrics } from '@shared/frame'
 import { clipDuration, resolveFade, sequenceDuration } from '@shared/timeline'
 import { parseVideoUrl } from '@shared/urls'
@@ -84,6 +85,9 @@ export const useProjectStore = defineStore('project', () => {
   const hydrated = ref(false)
   const exportState = ref<ExportState>(idleExport())
   const urlNotice = ref('')
+  const encoderOptions = ref<Awaited<ReturnType<typeof api.fetchEncoders>>['encoders']>([])
+  const encoderAutoStill = ref<string | null>(null)
+  const encoderAutoMotion = ref<string | null>(null)
 
   const selectedClip = computed(() => clips.value.find((clip) => clip.id === selectedClipId.value) ?? null)
   const activeColorSet = computed(() => colorSets.value.find((set) => set.id === activeColorSetId.value) ?? colorSets.value[0] ?? null)
@@ -165,12 +169,25 @@ export const useProjectStore = defineStore('project', () => {
     if (exportState.value.phase === 'done') exportState.value = idleExport()
   }
 
+  async function loadEncoders() {
+    if (!serverOnline.value) return
+    try {
+      const catalog = await api.fetchEncoders()
+      encoderOptions.value = catalog.encoders
+      encoderAutoStill.value = catalog.autoStill
+      encoderAutoMotion.value = catalog.autoMotion
+    } catch {
+      encoderOptions.value = []
+    }
+  }
+
   async function init() {
     if (hydrated.value) return
     applying = true
     try {
       const saved = await idb.loadRankingProject()
       await platform.refreshServer()
+      void loadEncoders()
       if (saved?.version === 1 && saved.style && saved.spans) {
         name.value = saved.name || 'Untitled ranking'
         titleText.value = saved.titleText || ''
@@ -729,6 +746,10 @@ export const useProjectStore = defineStore('project', () => {
     exportState,
     exporting,
     exportBlocker,
+    encoderOptions,
+    encoderAutoStill,
+    encoderAutoMotion,
+    loadEncoders,
     timeline,
     urlNotice,
     init,
@@ -813,6 +834,7 @@ function persistableClip(clip: Clip): PersistedClip {
 
 function normalizeStyle(value: ProjectStyle) {
   value.banner.visible = value.banner.visible !== false
+  if (!isEncoderChoice(value.video.encoder)) value.video.encoder = 'auto'
   value.ranking.showPreviousTitles = value.ranking.showPreviousTitles === true
   if (value.ranking.sort !== 'reverse' && value.ranking.sort !== 'title' && value.ranking.sort !== 'titleDesc') {
     value.ranking.sort = 'list'

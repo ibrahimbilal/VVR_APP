@@ -1,6 +1,7 @@
 import { spawn } from 'node:child_process'
 import { stat } from 'node:fs/promises'
 import { ffmpegBinary } from './binaries'
+import { ompThreadLimit } from './ffmpegThreading'
 import { probeMedia } from './probe'
 
 export class RenderCancelled extends Error {
@@ -29,7 +30,7 @@ export function spawnFfmpeg(args: string[], expected: number, hooks: FfmpegHooks
     const child = spawn(ffmpegBinary(), args, {
       windowsHide: true,
       stdio: ['ignore', 'pipe', 'pipe'],
-      env: { ...process.env, OMP_NUM_THREADS: '1' },
+      env: { ...process.env, OMP_NUM_THREADS: String(ompThreadLimit()) },
     })
     let stderr = ''
     let settled = false

@@ -153,6 +153,7 @@ export function createDefaultVideo(): VideoStyle {
     normalize: true,
     originalVolume: 1,
     musicVolume: 0.35,
+    encoder: 'auto',
   }
 }
 

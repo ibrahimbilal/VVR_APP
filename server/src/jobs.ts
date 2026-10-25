@@ -188,7 +188,7 @@ async function pump(): Promise<void> {
             noteTiming(job)
           },
           onStats: (stats: { fps: number | null; speed: number | null }) => {
-            if (job.cancelRequested || job.kind !== 'screensaver') return
+            if (job.cancelRequested) return
             job.encodeFps = stats.fps
             job.encodeSpeed = stats.speed
             noteTiming(job)
