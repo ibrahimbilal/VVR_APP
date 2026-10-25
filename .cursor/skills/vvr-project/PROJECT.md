@@ -349,6 +349,7 @@ A static 1 fps file with the precomposed PNG matched the PNG at SSIM 0.995 (`npm
 
 ## Changelog
 
+- 2026-10-25 — Upgrade `multer` to 2.5.0 (CVE-2026-113872); root `overrides` pin (`package.json`, `server/package.json`).
 - 2026-10-25 — Frame Screensaver export progress stats in a collapsible right sidebar (toggle rail, not accordion) (`ScreensaverExportDetails.vue`, `FrameScreensaverView.vue`).
 - 2026-10-25 — Frame Screensaver auto-applies the latest frame PNG after upload (`stores/screensaver.ts`).
 - 2026-10-25 — Frame Screensaver: full page reload clears IndexedDB main-media preview cache and selected frame; reverted active-frame IDB persistence (`client/src/lib/idb.ts`, `stores/screensaver.ts`).
