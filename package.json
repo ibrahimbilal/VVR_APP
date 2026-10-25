@@ -29,6 +29,7 @@
     "concurrently": "^10.0.6"
   },
   "overrides": {
-    "body-parser": "2.4.0"
+    "body-parser": "2.4.0",
+    "multer": "2.5.0"
   }
 }
