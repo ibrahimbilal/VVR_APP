@@ -66,6 +66,7 @@ export function blurSigma(blur: number, bitmapHeight: number): number {
 /**
  * Color pipeline used by the editor bake. Static exports rasterize this result.
  * Video exports use ffmpegAdjustmentFilter with the same slider mapping.
+ * Canonical order and cross-backend notes: shared/screensaverAdjustPipeline.md
  */
 export function applyColorAdjustments(data: Uint8ClampedArray, adjustments: ImageAdjustments): void {
   if (adjustmentsAreNeutral(adjustments)) return

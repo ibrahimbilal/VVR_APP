@@ -27,7 +27,13 @@ import * as idb from '../../../lib/idb'
 import { readImageFile, readVideoFile, validateAudioFile, validateImageFile, validateScreensaverVideoFile } from '../../../lib/media'
 import { usePlatformStore } from '../../../stores/platform'
 import type { ExportState } from '../../../types'
-import { bakePlacement, canvasToPng, paintComposition } from '../lib/composeCanvas'
+import { composeExportPng } from '../lib/exportComposeWorker'
+import {
+  readPreviewRendererMode,
+  writePreviewRendererMode,
+  type PreviewRendererMode,
+} from '../lib/previewRendererPreference'
+import type { ScreensaverRendererBackend } from '../lib/render/types'
 import { ensureServerUploadCleanupOnClose } from '../../../lib/serverUploadCleanup'
 import { runScreensaverExport } from '../lib/screensaverExport'
 import type { SavedScreensaverProject } from '../types'
@@ -139,6 +145,10 @@ export const useScreensaverStore = defineStore('screensaver', () => {
   let frameImageToken = 0
   const compareAdjustments = ref(false)
   const cropEditing = ref(false)
+  const previewInteracting = ref(false)
+  let previewInteractTimer = 0
+  const previewRenderer = ref<PreviewRendererMode>(readPreviewRendererMode())
+  const previewRendererActive = ref<ScreensaverRendererBackend | 'none'>('none')
   const encoderOptions = ref<Awaited<ReturnType<typeof api.screensaverEncoders>>['encoders']>([])
   const autoStill = ref<string | null>(null)
   const autoMotion = ref<string | null>(null)
@@ -267,21 +277,60 @@ export const useScreensaverStore = defineStore('screensaver', () => {
     if (exportState.value.phase === 'done') exportState.value = idleExport()
   }
 
+  function pageWasReloaded(): boolean {
+    try {
+      const entry = performance.getEntriesByType('navigation')[0] as PerformanceNavigationTiming | undefined
+      return entry?.type === 'reload'
+    } catch {
+      return false
+    }
+  }
+
+  function resetPreviewAfterReload() {
+    clearSourceUrls()
+    sourceFile = null
+    serverId.value = null
+    fileName.value = ''
+    mediaKind.value = null
+    width.value = 0
+    height.value = 0
+    thumbnail.value = null
+    sourceDuration.value = null
+    hasAudio.value = false
+    uploadState.value = 'empty'
+    uploadProgress.value = 0
+    uploadError.value = null
+    frameImage.value = null
+    if (composition.value.frameId !== 'none') {
+      replaceComposition({ ...composition.value, frameId: 'none' })
+      commitComposition()
+    }
+  }
+
   async function init() {
     if (hydrated.value) return
     await platform.refreshServer()
     void loadEncoders()
+    const reload = pageWasReloaded()
+    if (reload) {
+      await idb.clearScreensaverPreviewCache().catch(() => undefined)
+    }
     try {
       const saved = await idb.loadScreensaverProject<SavedScreensaverProject>()
       if (saved && (saved.version === 1 || saved.version === 2)) {
         applySaved(saved)
-        const stored = await idb.loadScreensaverSource()
-        if (stored) {
-          sourceFile = new File([stored.blob], stored.name, { type: stored.type })
-          objectUrl.value = URL.createObjectURL(sourceFile)
-          fileName.value = stored.name
-          uploadState.value = 'uploading'
-          void resumeUpload()
+        if (reload) {
+          resetPreviewAfterReload()
+          void persistMeta()
+        } else {
+          const stored = await idb.loadScreensaverSource()
+          if (stored) {
+            sourceFile = new File([stored.blob], stored.name, { type: stored.type })
+            objectUrl.value = URL.createObjectURL(sourceFile)
+            fileName.value = stored.name
+            uploadState.value = 'uploading'
+            void resumeUpload()
+          }
         }
         const audio = await idb.loadScreensaverAudio()
         if (audio) {
@@ -333,6 +382,7 @@ export const useScreensaverStore = defineStore('screensaver', () => {
   async function uploadFrames(files: File[]) {
     if (frameUploading.value || files.length === 0) return
     frameUploading.value = true
+    let lastUploadedId: string | null = null
     try {
       for (const file of files) {
         if (!(await fileIsPng(file))) {
@@ -346,6 +396,11 @@ export const useScreensaverStore = defineStore('screensaver', () => {
         const saved = await api.uploadScreensaverFrame(file)
         frames.value = [saved, ...frames.value.filter((frame) => frame.id !== saved.id)]
         framesLoaded.value = true
+        lastUploadedId = saved.id
+      }
+      if (lastUploadedId) {
+        replaceComposition({ ...composition.value, frameId: lastUploadedId })
+        commitComposition()
       }
     } catch (error) {
       toast(error instanceof Error ? error.message : 'The frame could not be uploaded.')
@@ -733,7 +788,36 @@ export const useScreensaverStore = defineStore('screensaver', () => {
   async function loadFrameOverlay(): Promise<HTMLImageElement | null> {
     const id = composition.value.frameId
     if (id === 'none') return null
+    if (frameImage.value) return frameImage.value
     return loadHtmlImage(api.screensaverFrameUrl(id))
+  }
+
+  function setPreviewRenderer(mode: PreviewRendererMode): void {
+    previewRenderer.value = mode
+    writePreviewRendererMode(mode)
+    if (mode === 'webgl2') {
+      try {
+        sessionStorage.removeItem('vvr-screensaver-webgl-failed')
+      } catch {
+        // ignore
+      }
+    }
+  }
+
+  function setPreviewRendererActive(backend: ScreensaverRendererBackend | 'none'): void {
+    previewRendererActive.value = backend
+  }
+
+  function setPreviewInteracting(active: boolean): void {
+    previewInteracting.value = active
+    if (active) {
+      window.clearTimeout(previewInteractTimer)
+      return
+    }
+    window.clearTimeout(previewInteractTimer)
+    previewInteractTimer = window.setTimeout(() => {
+      previewInteracting.value = false
+    }, 150)
   }
 
   async function buildExportBlobs(): Promise<{ compositionBlob: Blob | null; frameBlob: Blob | null; maskBlob: Blob | null }> {
@@ -741,14 +825,14 @@ export const useScreensaverStore = defineStore('screensaver', () => {
     let compositionBlob: Blob | null = null
     if (mediaKind.value === 'image' && objectUrl.value) {
       const image = await loadHtmlImage(objectUrl.value)
-      const canvas = document.createElement('canvas')
-      canvas.width = outputWidth.value
-      canvas.height = outputHeight.value
-      const ctx = canvas.getContext('2d')
-      if (!ctx) throw new Error('Could not prepare the composition.')
-      const baked = bakePlacement(image, image.naturalWidth, image.naturalHeight, composition.value, canvas.width, canvas.height, false)
-      paintComposition(ctx, baked, image, image.naturalWidth, image.naturalHeight, composition.value, { flatten: true, checker: false, frame })
-      compositionBlob = await canvasToPng(canvas)
+      const bitmap = await createImageBitmap(image)
+      compositionBlob = await composeExportPng({
+        bitmap,
+        width: outputWidth.value,
+        height: outputHeight.value,
+        composition: composition.value,
+        frame,
+      })
     }
     return { compositionBlob, frameBlob: null, maskBlob: null }
   }
@@ -852,6 +936,12 @@ export const useScreensaverStore = defineStore('screensaver', () => {
     frameImage,
     compareAdjustments,
     cropEditing,
+    previewInteracting,
+    setPreviewInteracting,
+    previewRenderer,
+    previewRendererActive,
+    setPreviewRenderer,
+    setPreviewRendererActive,
     encoderOptions,
     autoStill,
     autoMotion,

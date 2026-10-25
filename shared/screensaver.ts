@@ -4,7 +4,7 @@ export const SCREENSAVER_OUTPUTS = [
   { width: 3840, height: 2160, label: '3840 × 2160 (4K UHD)' },
 ] as const
 
-export const SCREENSAVER_FPS = [1, 24, 30] as const
+export const SCREENSAVER_FPS = [1, 24, 30, 60] as const
 
 export const SCREENSAVER_PROFILES = [
   { id: 'static-fast', label: 'Static Art', detail: 'One precomposed image, 1 fps, same H.264 quality band as Balanced.' },
@@ -46,7 +46,7 @@ export function isAllowedScreensaverOutput(width: number, height: number): boole
 }
 
 export function isAllowedScreensaverFps(fps: number): boolean {
-  return fps === 1 || fps === 24 || fps === 30
+  return (SCREENSAVER_FPS as readonly number[]).includes(fps)
 }
 
 export function isScreensaverProfile(value: unknown): value is ScreensaverProfile {

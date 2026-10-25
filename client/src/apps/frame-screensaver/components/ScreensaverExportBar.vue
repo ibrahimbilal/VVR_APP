@@ -24,14 +24,6 @@ const busyLabel = computed(() => {
   return 'Exporting'
 })
 
-function formatSeconds(value: number | null | undefined): string {
-  if (value == null || !Number.isFinite(value)) return '—'
-  const total = Math.max(0, Math.round(value))
-  const minutes = Math.floor(total / 60)
-  const seconds = total % 60
-  return `${minutes}:${seconds.toString().padStart(2, '0')}`
-}
-
 function onClick() {
   if (mode.value === 'busy') {
     store.cancelExport()
@@ -81,24 +73,6 @@ function onClick() {
   >
     Export with CPU instead
   </button>
-  <dl v-if="store.exporting || store.exportState.encoder" class="mt-3 grid grid-cols-2 gap-x-3 gap-y-1 text-xs text-zinc-400">
-    <div>Stage</div>
-    <div class="text-zinc-200">{{ store.exportState.stage || store.exportState.message || '—' }}</div>
-    <div>Encoding</div>
-    <div class="text-zinc-200">{{ store.exportState.encoder || '—' }}</div>
-    <div>Acceleration</div>
-    <div class="text-zinc-200">{{ store.exportState.hardware == null ? '—' : store.exportState.hardware ? 'Active' : 'Off' }}</div>
-    <div>Speed</div>
-    <div class="text-zinc-200">{{ store.exportState.encodeSpeed != null ? `${store.exportState.encodeSpeed.toFixed(2)}x realtime` : '—' }}</div>
-    <div>Encode fps</div>
-    <div class="text-zinc-200">{{ store.exportState.encodeFps != null ? store.exportState.encodeFps.toFixed(1) : '—' }}</div>
-    <div>Elapsed</div>
-    <div class="text-zinc-200">{{ formatSeconds(store.exportState.elapsedSec) }}</div>
-    <div>Remaining</div>
-    <div class="text-zinc-200">{{ store.exportState.etaSec == null ? 'Estimating…' : formatSeconds(store.exportState.etaSec) }}</div>
-    <div>Output</div>
-    <div class="text-zinc-200">{{ store.outputWidth }}×{{ store.outputHeight }} · {{ store.fps }} fps · {{ store.durationLabel }}</div>
-  </dl>
 </template>
 
 <style scoped>

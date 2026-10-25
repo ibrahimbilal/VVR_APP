@@ -1,9 +1,13 @@
 <script setup lang="ts">
 import { onBeforeUnmount, onMounted, ref } from 'vue'
 import ScreensaverExportBar from './components/ScreensaverExportBar.vue'
+import ScreensaverExportDetails from './components/ScreensaverExportDetails.vue'
 import EditorCanvas from './components/EditorCanvas.vue'
 import ScreensaverMediaPanel from './components/ScreensaverMediaPanel.vue'
+import ScreensaverDiagnostics from './components/ScreensaverDiagnostics.vue'
 import ScreensaverSettingsPanel from './components/ScreensaverSettingsPanel.vue'
+import { installPreviewBenchHook } from './lib/benchPreview'
+import { screensaverDiagnosticsEnabled } from './lib/previewMetrics'
 import { useScreensaverStore } from './stores/screensaver'
 
 const store = useScreensaverStore()
@@ -22,8 +26,11 @@ function onKey(event: KeyboardEvent) {
   else store.undo()
 }
 
+const showDiagnostics = screensaverDiagnosticsEnabled()
+
 onMounted(() => {
   void store.init()
+  installPreviewBenchHook()
   window.addEventListener('keydown', onKey)
 })
 onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
@@ -38,14 +45,16 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
         <ScreensaverSettingsPanel v-model:custom-minutes="customMinutes" />
       </div>
     </aside>
-    <div class="flex min-h-0 flex-1 flex-col p-4">
-      <EditorCanvas class="min-h-0 flex-1" />
-      <div class="mt-4 shrink-0">
+    <div class="flex min-h-0 min-w-0 flex-1 flex-col overflow-y-auto p-4">
+      <EditorCanvas class="w-full shrink-0 mb-4" />
+      <div class="mt-auto shrink-0">
         <ScreensaverExportBar />
       </div>
     </div>
+    <ScreensaverExportDetails />
     <div v-if="!store.hydrated" class="absolute inset-0 z-30 grid place-items-center bg-[#101114]/90 text-sm text-zinc-300">
       Restoring saved project…
     </div>
+    <ScreensaverDiagnostics v-if="showDiagnostics" />
   </div>
 </template>

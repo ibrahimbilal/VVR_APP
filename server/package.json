@@ -9,7 +9,9 @@
     "start:prod": "node dist/index.js",
     "typecheck": "tsc --noEmit",
     "test:screensaver": "tsx scripts/verify-screensaver.ts",
-    "bench:screensaver": "tsx scripts/bench-screensaver.ts"
+    "test:screensaver-visual": "tsx scripts/visual-screensaver-adjust.ts",
+    "bench:screensaver": "tsx scripts/bench-screensaver.ts",
+    "bench:screensaver-compose": "tsx scripts/bench-screensaver-compose.ts"
   },
   "dependencies": {
     "cors": "^2.8.6",

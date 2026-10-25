@@ -16,13 +16,23 @@ import {
   ZoomIn,
   ZoomOut,
 } from '@lucide/vue'
-import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
-import { bakePlacement, imageContains, paintComposition } from '../lib/composeCanvas'
+import { storeToRefs } from 'pinia'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { useScreensaverDrawScheduler } from '../composables/useScreensaverDrawScheduler'
+import { imageContains } from '../lib/composeCanvas'
+import { createCanvas2DScreensaverRenderer, createScreensaverRenderer } from '../lib/render/createScreensaverRenderer'
+import { createWebGL2ScreensaverRenderer } from '../lib/render/createWebGL2ScreensaverRenderer'
+import type { ScreensaverImageRenderer, ScreensaverRenderInput } from '../lib/render/types'
 import { useScreensaverStore } from '../stores/screensaver'
 
 const store = useScreensaverStore()
+const { previewRenderer } = storeToRefs(store)
 const shell = ref<HTMLElement | null>(null)
-const canvas = ref<HTMLCanvasElement | null>(null)
+const shellHeight = ref(180)
+const previewCanvas = ref<HTMLCanvasElement | null>(null)
+/** New DOM canvas per backend switch (WebGL and 2D cannot share one canvas). */
+const previewCanvasKey = ref(0)
+const overlayCanvas = ref<HTMLCanvasElement | null>(null)
 const media = ref<CanvasImageSource | null>(null)
 const mediaWidth = ref(0)
 const mediaHeight = ref(0)
@@ -30,8 +40,69 @@ const selected = ref(false)
 const zoom = ref(1)
 const panX = ref(0)
 const panY = ref(0)
-let bakeKey = ''
-let baked: HTMLCanvasElement | null = null
+let renderer: ScreensaverImageRenderer | null = null
+const scheduler = useScreensaverDrawScheduler(() => renderer)
+function webGlBlockedBySession(): boolean {
+  try {
+    return sessionStorage.getItem('vvr-screensaver-webgl-failed') === '1'
+  } catch {
+    return false
+  }
+}
+
+function rendererLifecycleOptions() {
+  return {
+    onRestoreFailed: () => {
+      if (store.previewRenderer === 'auto') {
+        try {
+          sessionStorage.setItem('vvr-screensaver-webgl-failed', '1')
+        } catch {
+          // ignore
+        }
+      }
+      void remountPreviewRenderer()
+    },
+  }
+}
+
+async function remountPreviewRenderer(): Promise<void> {
+  scheduler.cancel()
+  renderer?.dispose()
+  renderer = null
+  previewCanvasKey.value += 1
+  await nextTick()
+  await mountRenderer()
+  resize()
+}
+
+async function mountRenderer(): Promise<void> {
+  const preview = previewCanvas.value
+  if (!preview) return
+  const mode = store.previewRenderer
+  const lifecycle = rendererLifecycleOptions()
+  if (mode === 'canvas2d') {
+    renderer = await createCanvas2DScreensaverRenderer(preview)
+  } else if (mode === 'webgl2') {
+    try {
+      renderer = await createWebGL2ScreensaverRenderer(preview, lifecycle)
+    } catch {
+      renderer = await createCanvas2DScreensaverRenderer(preview)
+    }
+  } else if (webGlBlockedBySession()) {
+    renderer = await createCanvas2DScreensaverRenderer(preview)
+  } else {
+    renderer = await createScreensaverRenderer(preview, lifecycle)
+  }
+  if (shell.value) {
+    const width = Math.max(320, shell.value.clientWidth)
+    const height = Math.round((width * 9) / 16)
+    shellHeight.value = height
+    const ratio = Math.min(2, window.devicePixelRatio || 1)
+    renderer.resize(width, height, Math.round(width * ratio), Math.round(height * ratio))
+  }
+  store.setPreviewRendererActive(renderer.backend)
+  draw()
+}
 let gesture: null | { kind: 'move' | 'scale' | 'rotate'; startX: number; startY: number; originX: number; originY: number; originW: number; originH: number; originRot: number; startAngle: number } = null
 let cropGesture: null | { kind: 'move' | 'resize'; handle: string; start: { x: number; y: number; w: number; h: number }; pointer: { x: number; y: number } } = null
 let pointers = new Map<number, { x: number; y: number }>()
@@ -65,9 +136,8 @@ function loadMedia(url: string | null, kind: 'image' | 'video' | null) {
   media.value = null
   mediaWidth.value = 0
   mediaHeight.value = 0
-  baked = null
-  bakeKey = ''
   if (!url || !kind) {
+    media.value = null
     draw()
     return
   }
@@ -96,7 +166,6 @@ function loadMedia(url: string | null, kind: 'image' | 'video' | null) {
   video.onplay = () => {
     const tick = () => {
       if (video.paused) return
-      baked = null
       draw()
       requestAnimationFrame(tick)
     }
@@ -106,78 +175,59 @@ function loadMedia(url: string | null, kind: 'image' | 'video' | null) {
 }
 
 function resize() {
-  const element = canvas.value
+  const preview = previewCanvas.value
+  const overlay = overlayCanvas.value
   const host = shell.value
-  if (!element || !host) return
+  if (!preview || !overlay || !host) return
   const width = Math.max(320, host.clientWidth)
   const height = Math.round((width * 9) / 16)
+  shellHeight.value = height
   const ratio = Math.min(2, window.devicePixelRatio || 1)
-  element.style.width = `${width}px`
-  element.style.height = `${height}px`
-  element.width = Math.round(width * ratio)
-  element.height = Math.round(height * ratio)
-  baked = null
+  const pixelWidth = Math.round(width * ratio)
+  const pixelHeight = Math.round(height * ratio)
+  for (const element of [preview, overlay]) {
+    element.style.width = `${width}px`
+    element.style.height = `${height}px`
+    element.width = pixelWidth
+    element.height = pixelHeight
+  }
+  renderer?.resize(width, height, pixelWidth, pixelHeight)
   draw()
 }
 
-function currentBake(): HTMLCanvasElement | null {
-  const element = canvas.value
-  const source = media.value
-  if (!element || !source || mediaWidth.value < 1) return null
-  const key = `${element.width}x${element.height}:${store.compareAdjustments}:${JSON.stringify(store.composition.adjustments)}:${JSON.stringify(store.composition.crop)}:${store.composition.width}:${store.composition.height}`
-  if (!baked || bakeKey !== key) {
-    baked = bakePlacement(source, mediaWidth.value, mediaHeight.value, store.composition, element.width, element.height, store.compareAdjustments)
-    bakeKey = key
+function buildRenderInput(): ScreensaverRenderInput {
+  return {
+    composition: store.composition,
+    compareAdjustments: store.compareAdjustments,
+    frame: store.frameImage,
+    source: media.value,
+    sourceWidth: mediaWidth.value,
+    sourceHeight: mediaHeight.value,
+    view: { panX: panX.value, panY: panY.value, zoom: zoom.value },
+    previewReducedQuality: store.previewInteracting,
   }
-  return baked
 }
 
 function draw() {
-  const element = canvas.value
-  const ctx = element?.getContext('2d')
-  if (!element || !ctx) return
-  ctx.setTransform(1, 0, 0, 1, 0, 0)
-  ctx.clearRect(0, 0, element.width, element.height)
+  const preview = previewCanvas.value
+  const overlay = overlayCanvas.value
+  if (!preview || !overlay) return
+  const octx = overlay.getContext('2d')
+  if (!octx) return
+  octx.setTransform(1, 0, 0, 1, 0, 0)
+  octx.clearRect(0, 0, overlay.width, overlay.height)
   if (store.cropEditing && media.value) {
-    drawCrop(ctx, element)
+    const pctx = preview.getContext('2d')
+    pctx?.clearRect(0, 0, preview.width, preview.height)
+    drawCrop(octx, overlay)
     return
   }
-  ctx.translate(element.width / 2 + panX.value * element.width, element.height / 2 + panY.value * element.height)
-  ctx.scale(zoom.value, zoom.value)
-  ctx.translate(-element.width / 2, -element.height / 2)
-  paintComposition(ctx, currentBake(), media.value, mediaWidth.value, mediaHeight.value, store.composition, {
-    flatten: false,
-    checker: true,
-    frame: store.frameImage,
+  scheduler.scheduleDraw(() => buildRenderInput(), () => {
+    if (selected.value && media.value) {
+      const ctx = overlay.getContext('2d')
+      if (ctx) drawHandles(ctx, overlay)
+    }
   })
-  ctx.setTransform(1, 0, 0, 1, 0, 0)
-  if (selected.value && media.value) drawHandles(ctx, element)
-}
-
-function drawHandles(ctx: CanvasRenderingContext2D, element: HTMLCanvasElement) {
-  const corners = imageCorners().map((point) => forward(point.x, point.y, element))
-  ctx.strokeStyle = '#ffcc33'
-  ctx.lineWidth = 2
-  ctx.beginPath()
-  corners.forEach((point, index) => (index === 0 ? ctx.moveTo(point.x, point.y) : ctx.lineTo(point.x, point.y)))
-  ctx.closePath()
-  ctx.stroke()
-  for (const point of corners) {
-    ctx.fillStyle = '#101114'
-    ctx.strokeStyle = '#ffcc33'
-    ctx.fillRect(point.x - 6, point.y - 6, 12, 12)
-    ctx.strokeRect(point.x - 6, point.y - 6, 12, 12)
-  }
-  const top = forward(store.composition.x + store.composition.width / 2, store.composition.y, element)
-  const knob = { x: top.x, y: top.y - 28 }
-  ctx.beginPath()
-  ctx.moveTo(top.x, top.y)
-  ctx.lineTo(knob.x, knob.y)
-  ctx.stroke()
-  ctx.beginPath()
-  ctx.arc(knob.x, knob.y, 7, 0, Math.PI * 2)
-  ctx.fillStyle = '#ffcc33'
-  ctx.fill()
 }
 
 function drawCrop(ctx: CanvasRenderingContext2D, element: HTMLCanvasElement) {
@@ -204,6 +254,32 @@ function drawCrop(ctx: CanvasRenderingContext2D, element: HTMLCanvasElement) {
   ctx.strokeStyle = '#ffcc33'
   ctx.lineWidth = 2
   ctx.strokeRect(rect.x, rect.y, rect.w, rect.h)
+}
+
+function drawHandles(ctx: CanvasRenderingContext2D, element: HTMLCanvasElement) {
+  const corners = imageCorners().map((point) => forward(point.x, point.y, element))
+  ctx.strokeStyle = '#ffcc33'
+  ctx.lineWidth = 2
+  ctx.beginPath()
+  corners.forEach((point, index) => (index === 0 ? ctx.moveTo(point.x, point.y) : ctx.lineTo(point.x, point.y)))
+  ctx.closePath()
+  ctx.stroke()
+  for (const point of corners) {
+    ctx.fillStyle = '#101114'
+    ctx.strokeStyle = '#ffcc33'
+    ctx.fillRect(point.x - 6, point.y - 6, 12, 12)
+    ctx.strokeRect(point.x - 6, point.y - 6, 12, 12)
+  }
+  const top = forward(store.composition.x + store.composition.width / 2, store.composition.y, element)
+  const knob = { x: top.x, y: top.y - 28 }
+  ctx.beginPath()
+  ctx.moveTo(top.x, top.y)
+  ctx.lineTo(knob.x, knob.y)
+  ctx.stroke()
+  ctx.beginPath()
+  ctx.arc(knob.x, knob.y, 7, 0, Math.PI * 2)
+  ctx.fillStyle = '#ffcc33'
+  ctx.fill()
 }
 
 function sourceBox(element: HTMLCanvasElement) {
@@ -241,7 +317,7 @@ function forward(nx: number, ny: number, element: HTMLCanvasElement) {
 }
 
 function normFromEvent(event: PointerEvent): { x: number; y: number } | null {
-  const element = canvas.value
+  const element = overlayCanvas.value
   if (!element) return null
   const rect = element.getBoundingClientRect()
   const x = ((event.clientX - rect.left) / rect.width) * element.width
@@ -255,6 +331,7 @@ function normFromEvent(event: PointerEvent): { x: number; y: number } | null {
 
 function onPointerDown(event: PointerEvent) {
   if (event.button !== 0 && event.pointerType === 'mouse') return
+  store.setPreviewInteracting(true)
   shell.value?.focus()
   pointers.set(event.pointerId, { x: event.clientX, y: event.clientY })
   if (pointers.size === 2) {
@@ -262,7 +339,7 @@ function onPointerDown(event: PointerEvent) {
     gesture = null
     return
   }
-  const element = canvas.value
+  const element = overlayCanvas.value
   if (!element || !shell.value) return
   try {
     shell.value.setPointerCapture(event.pointerId)
@@ -372,10 +449,11 @@ function onPointerUp(event: PointerEvent) {
   if (gesture || cropGesture) store.commitComposition()
   gesture = null
   cropGesture = null
+  if (pointers.size === 0) store.setPreviewInteracting(false)
 }
 
 function hitHandle(event: PointerEvent): 'scale' | 'rotate' | null {
-  const element = canvas.value
+  const element = overlayCanvas.value
   if (!element || !selected.value) return null
   const rect = element.getBoundingClientRect()
   const x = ((event.clientX - rect.left) / rect.width) * element.width
@@ -388,7 +466,7 @@ function hitHandle(event: PointerEvent): 'scale' | 'rotate' | null {
 }
 
 function startCrop(event: PointerEvent) {
-  const element = canvas.value
+  const element = overlayCanvas.value
   if (!element) return
   const rect = element.getBoundingClientRect()
   const x = ((event.clientX - rect.left) / rect.width) * element.width
@@ -414,7 +492,7 @@ function startCrop(event: PointerEvent) {
 }
 
 function moveCrop(event: PointerEvent) {
-  const element = canvas.value
+  const element = overlayCanvas.value
   if (!element || !cropGesture) return
   const rect = element.getBoundingClientRect()
   const x = ((event.clientX - rect.left) / rect.width) * element.width
@@ -529,16 +607,22 @@ watch(
   () => draw(),
   { deep: true },
 )
+watch(previewRenderer, () => {
+  void remountPreviewRenderer()
+})
 
 let observer: ResizeObserver | null = null
 onMounted(() => {
-  resize()
+  void remountPreviewRenderer()
   observer = new ResizeObserver(() => resize())
   if (shell.value) observer.observe(shell.value)
   shell.value?.addEventListener('wheel', onWheel, { passive: false })
   window.addEventListener('keydown', nudge)
 })
 onBeforeUnmount(() => {
+  scheduler.cancel()
+  renderer?.dispose()
+  renderer = null
   observer?.disconnect()
   shell.value?.removeEventListener('wheel', onWheel)
   window.removeEventListener('keydown', nudge)
@@ -546,7 +630,7 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <div class="flex h-full min-h-0 flex-col">
+  <div class="flex w-full flex-col">
     <div class="mb-3 flex flex-wrap items-center gap-2">
       <span class="text-xs text-zinc-500">{{ viewLabel }}</span>
       <button class="btn btn-ghost cursor-pointer px-2 py-1" type="button" aria-label="Zoom out" title="Zoom out" @click="zoom = clamp(zoom - 0.1, 0.25, 4); draw()">
@@ -614,15 +698,20 @@ onBeforeUnmount(() => {
     </div>
     <div
       ref="shell"
-      class="relative flex min-h-0 flex-1 items-center justify-center overflow-hidden rounded-lg border border-zinc-800"
+      class="relative flex w-full shrink-0 items-center justify-center overflow-hidden rounded-lg border border-zinc-800"
+      :style="{ height: `${shellHeight}px`, touchAction: 'none' }"
       tabindex="0"
-      style="touch-action: none"
       @pointerdown="onPointerDown"
       @pointermove="onPointerMove"
       @pointerup="onPointerUp"
       @pointercancel="onPointerUp"
     >
-      <canvas ref="canvas" class="mx-auto block max-w-full" />
+      <canvas
+        :key="previewCanvasKey"
+        ref="previewCanvas"
+        class="absolute inset-0 mx-auto block max-h-full max-w-full"
+      />
+      <canvas ref="overlayCanvas" class="absolute inset-0 mx-auto block max-h-full max-w-full touch-none" />
       <p v-if="!store.objectUrl" class="pointer-events-none absolute inset-0 grid place-items-center text-sm text-zinc-500">Upload media to preview</p>
     </div>
     <audio ref="audioRef" class="hidden" />

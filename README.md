@@ -75,7 +75,7 @@ One FFmpeg job runs at a time globally. Both apps share `GET/POST /api/jobs/:id`
 
 Screensaver limits (also enforced on the server):
 
-- Output: 1920×1080, 2560×1440, or 3840×2160; 1, 24, or 30 fps
+- Output: 1920×1080, 2560×1440, or 3840×2160; 1, 24, 30, or 60 fps
 - Duration: 30 minutes to 10 hours (presets or custom minutes in the UI)
 - Source: one image (static) or one video (loop); optional background audio
 

@@ -759,7 +759,7 @@ function parseScreensaverProject(raw: unknown): ScreensaverProjectInput {
   if (!isAllowedScreensaverOutput(Number(data.width), Number(data.height))) {
     throw new ClientError(400, 'Choose a supported 16:9 output resolution.')
   }
-  if (!isAllowedScreensaverFps(Number(data.fps))) throw new ClientError(400, 'Choose 1, 24, or 30 fps.')
+  if (!isAllowedScreensaverFps(Number(data.fps))) throw new ClientError(400, 'Choose 1, 24, 30, or 60 fps.')
   const minDuration = process.env.VVR_SCREENSAVER_TEST === '1' ? TEST_MIN_DURATION_SECONDS : MIN_DURATION_SECONDS
   const duration = Number(data.duration)
   if (!Number.isFinite(duration) || duration < minDuration || duration > MAX_DURATION_SECONDS) {

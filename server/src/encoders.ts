@@ -18,11 +18,18 @@ export interface EncoderInfo {
   detail: string | null
 }
 
+type BenchWorkload = 'still_1fps' | 'still_30fps' | 'motion_30fps'
+
 interface CacheFile {
   version: string
   checks: Record<string, { ok: boolean; detail: string | null }>
-  benches: Record<string, { winner: EncoderId; speeds: Partial<Record<EncoderId, number>> }>
+  benches: Record<
+    string,
+    { winner: EncoderId; speeds: Partial<Record<EncoderId, number>>; wallMs?: Partial<Record<EncoderId, number>> }
+  >
 }
+
+let benchRunning = false
 
 const CANDIDATES: { id: EncoderId; label: string; hardware: boolean }[] = [
   { id: 'libx264', label: 'CPU (libx264)', hardware: false },
@@ -106,8 +113,8 @@ export async function encoderCatalog(): Promise<{ version: string; encoders: Enc
     encoders.push({ ...candidate, listed: true, verified: check.ok, detail: check.ok ? null : check.detail })
   }
   await saveCache(cache)
-  const still = cache.benches[benchKey(1920, 1080, true, 'standard')]?.winner
-  const motion = cache.benches[benchKey(1920, 1080, false, 'standard')]?.winner
+  const still = cache.benches[benchKey(1920, 1080, 'still_30fps', 'standard')]?.winner
+  const motion = cache.benches[benchKey(1920, 1080, 'motion_30fps', 'standard')]?.winner
   return {
     version: cache.version,
     encoders,
@@ -138,41 +145,100 @@ export async function selectEncoder(input: {
     }
     return { id, label: encoderLabel(id), hardware: encoderIsHardware(id), args: encoderArgs(id, tier, still) }
   }
-  const winner = await benchWinner(input.width, input.height, still, tier)
+  const workload = benchWorkload(input.profile, still)
+  const winner = await benchWinner(input.width, input.height, workload, tier, still)
   return { id: winner, label: encoderLabel(winner), hardware: encoderIsHardware(winner), args: encoderArgs(winner, tier, still) }
 }
 
-async function benchWinner(width: number, height: number, still: boolean, tier: 'standard' | 'high'): Promise<EncoderId> {
-  const cache = await loadCache()
-  const key = benchKey(width, height, still, tier)
-  const cached = cache.benches[key]
-  if (cached?.winner) return cached.winner
-  const listed = await listedEncoders()
-  const speeds: Partial<Record<EncoderId, number>> = {}
-  for (const candidate of CANDIDATES) {
-    if (!listed.has(candidate.id)) continue
-    const check = await verifyEncoder(candidate.id, width, height, cache)
-    if (!check.ok) continue
-    const result = await runProgressEncode(benchArgs(candidate.id, width, height, still, tier), 120_000)
-    if (result.ok && result.speed != null && result.speed > 0) speeds[candidate.id] = result.speed
-    else if (result.ok) speeds[candidate.id] = 0.01
-  }
-  if (speeds.libx264 == null) speeds.libx264 = 0.01
-  let winner: EncoderId = 'libx264'
-  const cpu = speeds.libx264 ?? 0
-  for (const candidate of CANDIDATES) {
-    if (!candidate.hardware) continue
-    const speed = speeds[candidate.id]
-    if (speed != null && speed > cpu * 1.08 && speed > (speeds[winner] ?? 0)) winner = candidate.id
-  }
-  cache.benches[key] = { winner, speeds }
-  await saveCache(cache)
-  return winner
+export function benchWorkloadForProfile(profile: ScreensaverProfile, still: boolean): BenchWorkload {
+  return benchWorkload(profile, still)
 }
 
-function benchArgs(id: EncoderId, width: number, height: number, still: boolean, tier: 'standard' | 'high'): string[] {
-  const source = still ? `color=c=black:s=${width}x${height}:r=30:d=3` : `testsrc=size=${width}x${height}:rate=30:duration=3`
-  return ['-hide_banner', '-loglevel', 'error', '-progress', 'pipe:1', '-nostats', '-f', 'lavfi', '-i', source, ...encoderArgs(id, tier, still), '-t', '3', '-f', 'null', '-']
+function benchWorkload(profile: ScreensaverProfile, still: boolean): BenchWorkload {
+  if (!still) return 'motion_30fps'
+  if (profile === 'static-fast') return 'still_1fps'
+  return 'still_30fps'
+}
+
+async function benchWinner(
+  width: number,
+  height: number,
+  workload: BenchWorkload,
+  tier: 'standard' | 'high',
+  still: boolean,
+): Promise<EncoderId> {
+  const cache = await loadCache()
+  const key = benchKey(width, height, workload, tier)
+  const cached = cache.benches[key]
+  if (cached?.winner) return cached.winner
+  while (benchRunning) {
+    await new Promise((resolve) => setTimeout(resolve, 250))
+  }
+  benchRunning = true
+  try {
+    const listed = await listedEncoders()
+    const speeds: Partial<Record<EncoderId, number>> = {}
+    const wallMs: Partial<Record<EncoderId, number>> = {}
+    for (const candidate of CANDIDATES) {
+      if (!listed.has(candidate.id)) continue
+      const check = await verifyEncoder(candidate.id, width, height, cache)
+      if (!check.ok) continue
+      const result = await runProgressEncode(benchArgs(candidate.id, width, height, workload, tier, still), 120_000)
+      if (result.wallMs != null) wallMs[candidate.id] = result.wallMs
+      if (result.ok && result.speed != null && result.speed > 0) speeds[candidate.id] = result.speed
+      else if (result.ok) speeds[candidate.id] = 0.01
+    }
+    if (speeds.libx264 == null) speeds.libx264 = 0.01
+    let winner: EncoderId = 'libx264'
+    const cpu = speeds.libx264 ?? 0
+    for (const candidate of CANDIDATES) {
+      if (!candidate.hardware) continue
+      const speed = speeds[candidate.id]
+      if (speed != null && speed > cpu * 1.08 && speed > (speeds[winner] ?? 0)) winner = candidate.id
+    }
+    cache.benches[key] = { winner, speeds, wallMs }
+    await saveCache(cache)
+    return winner
+  } finally {
+    benchRunning = false
+  }
+}
+
+function benchLavfiSource(width: number, height: number, workload: BenchWorkload): string {
+  if (workload === 'motion_30fps') {
+    return `testsrc2=size=${width}x${height}:rate=30:duration=5`
+  }
+  const fps = workload === 'still_1fps' ? 1 : 30
+  return `mandelbrot=size=${width}x${height}:rate=${fps}:duration=5`
+}
+
+function benchArgs(
+  id: EncoderId,
+  width: number,
+  height: number,
+  workload: BenchWorkload,
+  tier: 'standard' | 'high',
+  still: boolean,
+): string[] {
+  const source = benchLavfiSource(width, height, workload)
+  return [
+    '-hide_banner',
+    '-loglevel',
+    'error',
+    '-progress',
+    'pipe:1',
+    '-nostats',
+    '-f',
+    'lavfi',
+    '-i',
+    source,
+    ...encoderArgs(id, tier, still),
+    '-t',
+    '5',
+    '-f',
+    'null',
+    '-',
+  ]
 }
 
 async function verifyEncoder(id: EncoderId, width: number, height: number, cache: CacheFile): Promise<{ ok: boolean; detail: string | null }> {
@@ -207,13 +273,17 @@ async function verifyEncoder(id: EncoderId, width: number, height: number, cache
   return entry
 }
 
-function runProgressEncode(args: string[], timeoutMs: number): Promise<{ ok: boolean; speed: number | null; error: string }> {
+function runProgressEncode(
+  args: string[],
+  timeoutMs: number,
+): Promise<{ ok: boolean; speed: number | null; wallMs: number | null; error: string }> {
   return new Promise((resolve) => {
+    const started = Date.now()
     const child = spawn(ffmpegBinary(), args, { windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'] })
     let stderr = ''
     let speed: number | null = null
     let settled = false
-    const finish = (value: { ok: boolean; speed: number | null; error: string }) => {
+    const finish = (value: { ok: boolean; speed: number | null; wallMs: number | null; error: string }) => {
       if (settled) return
       settled = true
       clearTimeout(timer)
@@ -221,7 +291,7 @@ function runProgressEncode(args: string[], timeoutMs: number): Promise<{ ok: boo
     }
     const timer = setTimeout(() => {
       child.kill()
-      finish({ ok: false, speed, error: 'Encoder test timed out.' })
+      finish({ ok: false, speed, wallMs: Date.now() - started, error: 'Encoder test timed out.' })
     }, timeoutMs)
     child.stdout.on('data', (chunk: Buffer) => {
       for (const line of chunk.toString().split(/\r?\n/)) {
@@ -232,10 +302,11 @@ function runProgressEncode(args: string[], timeoutMs: number): Promise<{ ok: boo
     child.stderr.on('data', (chunk: Buffer) => {
       stderr = (stderr + chunk.toString()).slice(-2500)
     })
-    child.on('error', (error) => finish({ ok: false, speed: null, error: error.message }))
+    child.on('error', (error) => finish({ ok: false, speed: null, wallMs: Date.now() - started, error: error.message }))
     child.on('close', (code) => {
-      if (code === 0) finish({ ok: true, speed, error: '' })
-      else finish({ ok: false, speed: null, error: usefulError(stderr) })
+      const wallMs = Date.now() - started
+      if (code === 0) finish({ ok: true, speed, wallMs, error: '' })
+      else finish({ ok: false, speed: null, wallMs, error: usefulError(stderr) })
     })
   })
 }
@@ -264,8 +335,8 @@ async function listedEncoders(): Promise<Set<EncoderId>> {
   return found
 }
 
-function benchKey(width: number, height: number, still: boolean, tier: 'standard' | 'high'): string {
-  return `${width}x${height}:${still ? 'still' : 'motion'}:${tier}`
+export function benchKey(width: number, height: number, workload: BenchWorkload, tier: 'standard' | 'high'): string {
+  return `${width}x${height}:${workload}:${tier}`
 }
 
 let cachePromise: Promise<CacheFile> | null = null

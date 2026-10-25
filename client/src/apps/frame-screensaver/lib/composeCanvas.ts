@@ -1,6 +1,19 @@
 import { applyBoxBlur, applyColorAdjustments, applyUnsharp, blurSigma } from '@shared/screensaverAdjust'
 import { backgroundBlurSigma, flattenBackground, type ScreensaverComposition } from '@shared/screensaverComposition'
 
+export type RasterSurface = HTMLCanvasElement | OffscreenCanvas
+export type ComposeContext = CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D
+
+function createRasterSurface(width: number, height: number): RasterSurface {
+  if (typeof OffscreenCanvas !== 'undefined' && typeof document === 'undefined') {
+    return new OffscreenCanvas(width, height)
+  }
+  const canvas = document.createElement('canvas')
+  canvas.width = width
+  canvas.height = height
+  return canvas
+}
+
 export function bakePlacement(
   source: CanvasImageSource,
   sourceWidth: number,
@@ -9,12 +22,10 @@ export function bakePlacement(
   destWidth: number,
   destHeight: number,
   compare: boolean,
-): HTMLCanvasElement {
+): RasterSurface {
   const width = Math.max(2, Math.round(composition.width * destWidth))
   const height = Math.max(2, Math.round(composition.height * destHeight))
-  const canvas = document.createElement('canvas')
-  canvas.width = width
-  canvas.height = height
+  const canvas = createRasterSurface(width, height)
   const ctx = canvas.getContext('2d')
   if (!ctx) return canvas
   const crop = composition.crop
@@ -35,8 +46,8 @@ export function bakePlacement(
 }
 
 export function paintComposition(
-  ctx: CanvasRenderingContext2D,
-  baked: HTMLCanvasElement | null,
+  ctx: ComposeContext,
+  baked: RasterSurface | null,
   source: CanvasImageSource | null,
   sourceWidth: number,
   sourceHeight: number,
@@ -61,7 +72,10 @@ export function paintComposition(
   if (options.frame) ctx.drawImage(options.frame, 0, 0, width, height)
 }
 
-export function canvasToPng(canvas: HTMLCanvasElement): Promise<Blob> {
+export function canvasToPng(canvas: RasterSurface): Promise<Blob> {
+  if (canvas instanceof OffscreenCanvas) {
+    return canvas.convertToBlob({ type: 'image/png' })
+  }
   return new Promise((resolve, reject) => {
     canvas.toBlob((blob) => {
       if (blob) resolve(blob)
@@ -82,7 +96,7 @@ export function imageContains(composition: ScreensaverComposition, nx: number, n
 }
 
 function paintBackground(
-  ctx: CanvasRenderingContext2D,
+  ctx: ComposeContext,
   source: CanvasImageSource | null,
   sourceWidth: number,
   sourceHeight: number,
@@ -110,7 +124,7 @@ function paintBackground(
   ctx.fillRect(0, 0, width, height)
 }
 
-function paintChecker(ctx: CanvasRenderingContext2D, width: number, height: number): void {
+function paintChecker(ctx: ComposeContext, width: number, height: number): void {
   const size = Math.max(8, Math.round(width / 40))
   for (let y = 0; y < height; y += size) {
     for (let x = 0; x < width; x += size) {
