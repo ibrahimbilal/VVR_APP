@@ -27,10 +27,13 @@
     "bench:screensaver": "npm run bench:screensaver -w server",
     "bench:ranking": "npm run bench:ranking -w server",
     "bench:render-report": "npm run bench:render-report -w server",
-    "test:ranking": "npm run test:ranking -w server"
+    "test:ranking": "npm run test:ranking -w server",
+    "launch": "node scripts/launch-dev.cjs",
+    "build:launcher": "node scripts/build-launcher.mjs"
   },
   "devDependencies": {
-    "concurrently": "^10.0.6"
+    "concurrently": "^10.0.6",
+    "postject": "^1.0.0-alpha.6"
   },
   "overrides": {
     "body-parser": "2.4.0",

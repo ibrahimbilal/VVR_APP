@@ -15,6 +15,7 @@ Node `^20.19.0 || >=22.12.0`. From the repo root:
 
 - `npm install` — installs both workspaces. FFmpeg and ffprobe come from `ffmpeg-static` and `ffprobe-static`. No system FFmpeg.
 - `npm run dev` — renderer on `127.0.0.1:3001` (`tsx watch`) and editor on `127.0.0.1:5173` (Vite). Vite proxies `/api` to 3001 with no timeout.
+- **Windows shortcut:** `npm run launch` runs the same dev stack (`scripts/launch-dev.cjs`). After `npm install`, `npm run build:launcher` builds `dist/VVR-Dev.exe` (Node single-executable + `postject`; keep the exe under this repo so it can find `package.json`). Double-click opens the editor in your browser. Node/npm must still be on `PATH` for the dev servers; the exe replaces typing `npm run dev`.
 - `npm run typecheck` — client `vue-tsc` via `client/scripts/typecheck.mjs`, then server `tsc --noEmit`.
 - `npm run test:screensaver` — short static screensaver render + ffprobe (`server/scripts/verify-screensaver.ts`).
 - `npm run test:screensaver-visual` — CPU vs FFmpeg adjustment SSIM (`server/scripts/visual-screensaver-adjust.ts`).
@@ -363,6 +364,8 @@ A static 1 fps file with the precomposed PNG matched the PNG at SSIM 0.995 (`npm
 - 2026-10-27 — Frame Screensaver duration floor temporarily 5 minutes for local export testing (`shared/screensaver.ts`, settings min, server parse).
 - 2026-10-25 — Ranking layout: New project beside app title in `AppHeader`; export status column right of the style sidebar (`RankingVideosView.vue`, `AppHeader.vue`).
 - 2026-10-25 — Shared render optimization: adaptive FFmpeg threading (`ffmpegThreading.ts`), ranking encoder Auto/CPU/HW via `encoders.ts`, `GET /api/encoders`, ranking Style panel + export diagnostics, bench/test scripts, `docs/render-benchmark-report.md` (`server/src/render.ts`, `client` ranking UI, `server/scripts/`).
+- 2026-10-27 — Windows launcher spawns dev via `cmd.exe /c npm run dev` (fixes Node 24 `spawn EINVAL` on `npm.cmd`) (`scripts/launch-dev.cjs`).
+- 2026-10-27 — Windows dev launcher script and optional `dist/VVR-Dev.exe` build (`scripts/launch-dev.cjs`, `npm run launch`, `npm run build:launcher`, root `package.json`).
 - 2026-10-25 — Upgrade `multer` to 2.5.0 (CVE-2026-113872); root `overrides` pin (`package.json`, `server/package.json`).
 - 2026-10-25 — Frame Screensaver export progress stats in a collapsible right sidebar (toggle rail, not accordion) (`ScreensaverExportDetails.vue`, `FrameScreensaverView.vue`).
 - 2026-10-25 — Frame Screensaver auto-applies the latest frame PNG after upload (`stores/screensaver.ts`).
