@@ -7,6 +7,7 @@ import SelectedClipPanel from '../../components/SelectedClipPanel.vue'
 import StylePanel from '../../components/StylePanel.vue'
 import RankingExportDetails from '../../components/RankingExportDetails.vue'
 import TimelineBar from '../../components/TimelineBar.vue'
+import CreateThumbnailButton from './CreateThumbnailButton.vue'
 import { usePlayback } from '../../composables/usePlayback'
 import { useProjectStore } from '../../stores/project'
 
@@ -77,6 +78,7 @@ onBeforeUnmount(() => {
       <RankingExportDetails />
     </div>
 
+    <CreateThumbnailButton class="relative shrink-0" />
     <TimelineBar class="shrink-0" />
 
     <div v-if="!store.hydrated" class="absolute inset-0 z-30 grid place-items-center bg-[#101114]/90 text-sm text-zinc-300">

@@ -1,9 +1,10 @@
 # Video's Factory — project map
 
-Local **Video's Factory** platform with two apps:
+Local **Video's Factory** platform with three apps:
 
 1. **Ranking Videos** (legacy VVR) — 9:16 ranking compilation editor.
 2. **Frame Screensaver** — long-form 16:9 ambient video from one image or looping video.
+3. **Thumbnail Studio** — browser-only thumbnail editor. It can start from an uploaded image or from a Frame Screensaver / Ranking Videos transfer. It does not call FFmpeg.
 
 Ranking behavior is unchanged in substance: upload clips (or link titles only), order, style banner and ranks, preview, export MP4.
 
@@ -30,11 +31,12 @@ Workspaces: root `vvr-app`, `client` (`vvr-client`), `server` (`vvr-server`). Sh
 
 ```
 client/src/App.vue                      platform shell (sidebar, header, toasts)
-client/src/app/router.ts                /, /ranking-videos, /frame-screensaver
+client/src/app/router.ts                /, /ranking-videos, /frame-screensaver, /thumbnail-studio
 client/src/stores/platform.ts           renderer health, global toasts, nav UI
 client/src/stores/project.ts            ranking editor state
 client/src/apps/ranking-videos/         RankingVideosView (editor layout)
 client/src/apps/frame-screensaver/      screensaver view, store, components
+client/src/apps/thumbnail-studio/       thumbnail view, store, canvas renderer, transfer
 client/src/components/layout/           AppSidebar, AppHeader, MobileNavDrawer
 client/src/composables/usePlayback.ts     ranking preview clock
 client/src/components/                  ranking panels (ClipSidebar, PreviewStage, …)
@@ -54,7 +56,7 @@ Stack: Vue 3, **vue-router**, Pinia, Tailwind 4, Lucide. Client aliases `@shared
 
 `App.vue`: left sidebar (desktop), header with renderer status (`GET /api/health`), `router-view`, global toasts (`usePlatformStore`).
 
-- Routes: `/` dashboard, `/ranking-videos`, `/frame-screensaver`. SPA fallback in production.
+- Routes: `/` dashboard, `/ranking-videos`, `/frame-screensaver`, `/thumbnail-studio`. SPA fallback in production.
 - Mobile: hamburger opens left drawer; ranking mobile tabs unchanged inside `RankingVideosView`.
 
 ## Ranking screen
@@ -115,7 +117,7 @@ Color sets live outside the project: `localStorage` key `vvr-color-sets` (`clien
 
 ## Persistence
 
-IndexedDB database `vvr`, **version 2** (`client/src/lib/idb.ts`): `meta`, `files`, `music`, `screensaver`.
+IndexedDB database `vvr`, **version 3** (`client/src/lib/idb.ts`): `meta`, `files`, `music`, `screensaver`, `assets`, `thumbnail`.
 
 - Ranking: `meta/ranking-videos` (`SavedProject` v1). Legacy `meta/current` migrates on load. Saved 400ms after changes, once hydrated.
 - Screensaver: `screensaver/project`, blobs `screensaver/source` and `screensaver/audio`.
@@ -123,6 +125,7 @@ IndexedDB database `vvr`, **version 2** (`client/src/lib/idb.ts`): `meta`, `file
 - Each clip file is stored by clip id. Music is one blob.
 - Refresh rebuilds object URLs from those blobs and re-uploads if the server no longer has `serverId`. A local clip whose file is gone becomes `error`. A link clip whose file is gone stays `empty`.
 - Color sets are localStorage, not IndexedDB. New project clears the IndexedDB project and music, not the color sets.
+- `assets` stores image blobs by id (sha256 index, ref list). `thumbnail` stores `catalog`, `active`, `project:<id>`, `presets`, `preset-default`, and `pending-transfer`. Ranking and screensaver cleanup do not delete these. An asset is removed only when no project or pending transfer still references it.
 - Clearing site data wipes the project. Server files expire on their own (below).
 
 ## Order, ranks, and time
@@ -154,7 +157,7 @@ Two orders:
 
 `PreviewStage.vue` scales a 1080×1920 (or 720×1280) stage to fit. The video box starts at `bannerHeight` and is `videoHeight` tall. Crop uses `object-fit: cover`. Fit and blur use `contain`. Blur shows the background video with a CSS blur. The canvas is full frame and calls `drawOverlay` with the active clip's list index.
 
-`frameMetrics` (`shared/frame.ts`) is the shared layout: even banner height, min 80, max 42% of frame height, video height even. A height of 0 means no banner. Preview, `startExport`, and `runExport` all pass 0 when `banner.visible === false`, so the video fills the frame in both places. The Title section has a Show title checkbox. `drawOverlay` also skips the banner rectangle when `visible` is false.
+`frameMetrics` (`shared/frame.ts`) is the shared layout: even banner height, min 80, max 42% of frame height, video height even. A height of 0 means no banner. Preview, `startExport`, and `runExport` all pass 0 when `banner.visible === false`, so the video fills the frame in both places. The Title section has a Show title toggle. `drawOverlay` also skips the banner rectangle when `visible` is false.
 
 ## Canvas overlay
 
@@ -281,6 +284,7 @@ Sweep every 10 minutes: outputs older than 2 hours, jobs and incoming older than
 | Probe | `server/src/probe.ts` |
 | oEmbed | `server/src/oembed.ts` |
 | Screensaver editor, export, frames | `client/src/apps/frame-screensaver/`, `shared/screensaver.ts`, `shared/screensaverComposition.ts`, `shared/screensaverFrames.ts`, `shared/screensaverAdjust.ts`, `server/src/frames.ts` |
+| Thumbnail editor, transfer, export | `client/src/apps/thumbnail-studio/`, `shared/thumbnailProject.ts`, `shared/thumbnailTransfer.ts`, `shared/thumbnailLayout.ts`, `client/src/lib/idb.ts` |
 | Screensaver encode and encoder probe | `server/src/renderScreensaver.ts`, `server/src/screensaverGraph.ts`, `server/src/encoders.ts` |
 
 ## Invariants
@@ -352,8 +356,22 @@ Timed tests (3 seconds, 1080p, still, standard quality), not the 8-second export
 
 A static 1 fps file with the precomposed PNG matched the PNG at SSIM 0.995 (`npm run test:screensaver`).
 
+## Thumbnail Studio
+
+Own Pinia store `useThumbnailStore`. Ranking and screensaver stores stay independent. Preview and export both call `renderThumbnail` in `client/src/apps/thumbnail-studio/lib/renderThumbnail.ts` (no Vue mount required). Framed screensaver artwork is drawn with `bakePlacement` / `paintComposition`. Preview long edge is 960px. Export uses the selected pixel size.
+
+Default output is 1280×720. Other presets: 1920×1080, 2560×1440, 3840×2160, plus custom, 16:9, 1:1, and 9:16. Built-in templates are frozen constants. User presets are version 1 JSON in IndexedDB.
+
+Transfer payload is version 1 in `shared/thumbnailTransfer.ts` (`frame-screensaver`, `ranking-videos`, or `standalone`). It stores asset ids, not image bytes. **Create Thumbnail** on Frame Screensaver copies the current image (or the existing still thumbnail for a video) plus composition, frame PNG, output size, and duration. Ranking opens a clip-image picker and can capture the current preview frame without scanning every file. Snapshot is the default. Linked keeps a source id and can refresh from Frame Screensaver only while that image is still in memory. A transfer never replaces an open thumbnail project without Keep / Save and start new / Replace.
+
+Quality badges use the video's short side when a transfer provided one, otherwise the thumbnail size, and will not label a higher tier than that size. Duration badges use `30 MIN`, `1 HOUR`, `2 HOURS 30 MIN`. Content badges stay off until enabled. Optional background blur never blurs the artwork layer.
+
+`npm run test:thumbnail` runs the shared contract tests.
+
 ## Changelog
 
+- 2026-10-27 — Add Thumbnail Studio: route, editor, IndexedDB v3 assets, screensaver and ranking transfer, PNG/JPEG/WebP and ZIP export (`client/src/apps/thumbnail-studio/`, `shared/thumbnail*.ts`, `client/src/lib/idb.ts`).
+- 2026-10-27 — Boolean settings use shared toggle switches instead of checkboxes (`ToggleSwitch.vue`, `style.css`, ranking/style/audio/thumbnail/screensaver UI).
 - 2026-10-27 — Fix Frame Screensaver frame upload (`FileDropZone` import in `ScreensaverSettingsPanel.vue`).
 - 2026-10-27 — Shared advanced audio UI (`components/audio/`); ranking background music fade in/out on export (`VideoStyle`, `render.ts`).
 - 2026-10-27 — Frame Screensaver full page reload clears cached background audio and resets audio to No audio (`idb.ts`, `stores/screensaver.ts`).

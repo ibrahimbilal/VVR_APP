@@ -106,8 +106,8 @@ function paintBackground(
   const width = ctx.canvas.width
   const height = ctx.canvas.height
   const flat = flattenBackground(composition.background)
-  if (composition.background.mode === 'transparent' && !options.flatten && options.checker) {
-    paintChecker(ctx, width, height)
+  if (composition.background.mode === 'transparent' && !options.flatten) {
+    if (options.checker) paintChecker(ctx, width, height)
     return
   }
   if (flat.blur && source && sourceWidth > 0 && sourceHeight > 0) {

@@ -5,6 +5,7 @@ import { useProjectStore } from '../stores/project'
 import ColorSwatches from './ColorSwatches.vue'
 import FileDropZone from './FileDropZone.vue'
 import SliderField from './SliderField.vue'
+import ToggleSwitch from './ToggleSwitch.vue'
 
 const store = useProjectStore()
 
@@ -63,10 +64,10 @@ function onTitleColor(event: Event) {
           <span class="block font-semibold">Play at the end</span>
           <span class="mt-1 block text-[11px] leading-relaxed text-zinc-500">This clip stays in the list, but the video and the ranking play it last. Only one clip can be last.</span>
         </span>
-        <input
-          type="checkbox"
-          :checked="store.selectedClip.playAtEnd"
-          @change="store.setPlayAtEnd(store.selectedClip.id, ($event.target as HTMLInputElement).checked)"
+        <ToggleSwitch
+          :model-value="store.selectedClip.playAtEnd"
+          aria-label="Play at the end"
+          @update:model-value="store.setPlayAtEnd(store.selectedClip.id, $event)"
         />
       </label>
       <div v-if="store.selectedClip.duration > 0" class="space-y-2">
