@@ -22,7 +22,7 @@ import {
 } from '../../shared/screensaver'
 import { resolveFade, sequenceDuration } from '../../shared/timeline'
 import { checkFfmpeg, logEncodeCheck } from './binaries'
-import { cancelJob, createJob, createScreensaverJob, dropJobOutput, getJob, jobOutput, outputPathsInUse } from './jobs'
+import { cancelJob, createJob, createScreensaverJob, dropJobOutput, getJob, jobIdsInUse, jobOutput, outputPathsInUse } from './jobs'
 import { lookupUrl } from './oembed'
 import { encoderCatalog } from './encoders'
 import { addFrame, ensureFrames, getFrame, listFrames, removeAllFrames, removeFrame } from './frames'
@@ -34,6 +34,7 @@ import {
   getClip,
   incomingDir,
   jobsDir,
+  purgeJobDirs,
   purgeOutputFiles,
   purgeScreensaverClips,
   removeStoredClip,
@@ -204,6 +205,9 @@ app.post('/api/export', exportUpload.fields([{ name: 'overlays', maxCount: 30 },
         normalize: project.video.normalize,
         originalVolume: project.video.originalVolume,
         musicVolume: project.video.musicVolume,
+        musicFadeIn: project.video.musicFadeIn,
+        musicFadeOut: project.video.musicFadeOut,
+        encoder: project.video.encoder ?? 'auto',
         downloadName: safeDownloadName(project.filename),
       })
       res.json({ jobId: job.id })
@@ -328,6 +332,7 @@ async function handleUploadsCleanup(req: Request, res: Response): Promise<void> 
     if (jobId) await dropJobOutput(jobId)
     await purgeScreensaverClips()
     await purgeOutputFiles(outputPathsInUse())
+    await purgeJobDirs(jobIdsInUse())
     res.json({ ok: true })
     return
   }
@@ -360,7 +365,7 @@ app.delete('/api/screensaver/frames/:id', async (req, res) => {
   res.json({ ok: true })
 })
 
-app.get('/api/screensaver/encoders', async (_req, res) => {
+async function serveEncoderCatalog(_req: Request, res: Response): Promise<void> {
   try {
     if (!(await checkFfmpeg())) {
       res.status(500).json({ error: 'FFmpeg is missing. Reinstall dependencies with npm install, then restart the server.' })
@@ -370,7 +375,10 @@ app.get('/api/screensaver/encoders', async (_req, res) => {
   } catch (error) {
     res.status(500).json({ error: messageOf(error, 'Encoder detection failed.') })
   }
-})
+}
+
+app.get('/api/encoders', serveEncoderCatalog)
+app.get('/api/screensaver/encoders', serveEncoderCatalog)
 
 app.post(
   '/api/screensaver/export',
@@ -593,6 +601,9 @@ interface ProjectInput {
     normalize: boolean
     originalVolume: number
     musicVolume: number
+    musicFadeIn: number
+    musicFadeOut: number
+    encoder?: EncoderChoice
   }
 }
 
@@ -650,6 +661,9 @@ function parseProject(raw: unknown): ProjectInput {
       normalize: Boolean(video.normalize),
       originalVolume: clampUnit(video.originalVolume),
       musicVolume: clampUnit(video.musicVolume),
+      musicFadeIn: Math.max(0, Math.min(30, Number(video.musicFadeIn) || 0.25)),
+      musicFadeOut: Math.max(0, Math.min(30, Number(video.musicFadeOut) || 0.3)),
+      encoder: isEncoderChoice(video.encoder) ? video.encoder : 'auto',
     },
   }
 }
@@ -763,7 +777,7 @@ function parseScreensaverProject(raw: unknown): ScreensaverProjectInput {
   const minDuration = process.env.VVR_SCREENSAVER_TEST === '1' ? TEST_MIN_DURATION_SECONDS : MIN_DURATION_SECONDS
   const duration = Number(data.duration)
   if (!Number.isFinite(duration) || duration < minDuration || duration > MAX_DURATION_SECONDS) {
-    throw new ClientError(400, 'Choose a duration between 30 minutes and 10 hours.')
+    throw new ClientError(400, 'Choose a duration between 5 minutes and 10 hours.')
   }
   if (!HEX.test(String(data.backgroundColor))) throw new ClientError(400, 'Use a hex background color.')
   const fit = data.fit
@@ -811,8 +825,10 @@ async function main(): Promise<void> {
   await ensureStorage()
   await ensureFrames()
   await sweepStorage()
+  await purgeJobDirs(jobIdsInUse())
   setInterval(() => {
     void sweepStorage()
+    void purgeJobDirs(jobIdsInUse())
   }, 10 * 60 * 1000)
   const ffmpegReady = await checkFfmpeg()
   await logEncodeCheck()

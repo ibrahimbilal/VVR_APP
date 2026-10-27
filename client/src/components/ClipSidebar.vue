@@ -1,16 +1,16 @@
 <script setup lang="ts">
-import { ChevronDown, ChevronUp, FilePlus, GripVertical, Plus, RotateCcw, Trash2, Upload } from '@lucide/vue'
+import { ChevronDown, ChevronUp, FilePlus, GripVertical, Plus, RotateCcw, Trash2 } from '@lucide/vue'
 import { ref } from 'vue'
 import { usePlayback } from '../composables/usePlayback'
 import { formatClock, sourceLabel } from '../lib/format'
 import { useProjectStore } from '../stores/project'
+import FileDropZone from './FileDropZone.vue'
 
 const store = useProjectStore()
 const playback = usePlayback()
 const urlInput = ref('')
 const dragIndex = ref<number | null>(null)
 const fileDrag = ref(false)
-const fileInput = ref<HTMLInputElement | null>(null)
 const replaceInput = ref<HTMLInputElement | null>(null)
 const replaceId = ref<string | null>(null)
 let dragDepth = 0
@@ -21,11 +21,10 @@ function submitUrl() {
   void store.addUrl(value)
 }
 
-function onFiles(event: Event) {
-  const target = event.target
-  if (!(target instanceof HTMLInputElement) || !target.files) return
-  void store.addFiles(target.files)
-  target.value = ''
+function onZoneFiles(files: File[]) {
+  dragDepth = 0
+  fileDrag.value = false
+  if (files.length > 0) void store.addFiles(files)
 }
 
 function pickReplace(id: string) {
@@ -116,17 +115,16 @@ function kept(duration: number, start: number, end: number): string {
         </button>
       </form>
       <p v-if="store.urlNotice" class="text-xs leading-relaxed text-amber-200/90">{{ store.urlNotice }}</p>
-      <button
-        class="flex w-full cursor-pointer flex-col items-center gap-1 rounded-lg border border-dashed px-3 py-4 text-sm font-semibold mb-0"
-        :class="fileDrag ? 'border-amber-300 bg-amber-300/10 text-amber-100' : 'border-zinc-600 bg-[#101114] text-zinc-100'"
-        type="button"
-        @click="fileInput?.click()"
-      >
-        <Upload :size="18" />
-        <span>{{ fileDrag ? 'Drop to upload' : 'Drop videos here' }}</span>
-        <span class="text-[11px] font-normal text-zinc-500">or click to browse</span>
-      </button>
-      <input ref="fileInput" class="hidden" type="file" accept="video/mp4,video/quicktime,video/webm,.mp4,.mov,.webm,.m4v" multiple @change="onFiles" />
+      <FileDropZone
+        compact
+        accept="video/mp4,video/quicktime,video/webm,.mp4,.mov,.webm,.m4v"
+        multiple
+        label="Drop videos here"
+        formats="MP4, MOV, WebM"
+        :ignore-types="['application/x-vvr-clip']"
+        :highlighted="fileDrag"
+        @files="onZoneFiles"
+      />
     </div>
 
     <div class="min-h-0 flex-1 space-y-2 overflow-y-auto p-3" @dragover.prevent>

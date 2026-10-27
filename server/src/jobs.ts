@@ -143,6 +143,14 @@ export function outputPathsInUse(): Set<string> {
   return keep
 }
 
+export function jobIdsInUse(): Set<string> {
+  const keep = new Set<string>()
+  for (const job of jobs.values()) {
+    if (ACTIVE_STATUSES.has(job.status)) keep.add(job.id)
+  }
+  return keep
+}
+
 export async function dropJobOutput(jobId: string): Promise<void> {
   const job = jobs.get(jobId)
   const file = job?.outputPath ?? outputFile(jobId)
@@ -188,7 +196,7 @@ async function pump(): Promise<void> {
             noteTiming(job)
           },
           onStats: (stats: { fps: number | null; speed: number | null }) => {
-            if (job.cancelRequested || job.kind !== 'screensaver') return
+            if (job.cancelRequested) return
             job.encodeFps = stats.fps
             job.encodeSpeed = stats.speed
             noteTiming(job)

@@ -1,11 +1,13 @@
 import { spawn } from 'node:child_process'
 import { mkdir, readFile, writeFile } from 'node:fs/promises'
-import os from 'node:os'
 import path from 'node:path'
 import type { EncoderChoice, ScreensaverProfile } from '../../shared/screensaver'
 import { profileQualityTier } from '../../shared/screensaver'
 import { execFileAsync, ffmpegBinary } from './binaries'
+import { x264Params, x264Threads } from './ffmpegThreading'
 import { tmpDir } from './storage'
+
+export { x264Threads }
 
 export type EncoderId = 'libx264' | 'h264_nvenc' | 'h264_qsv' | 'h264_amf' | 'h264_videotoolbox' | 'h264_mf'
 
@@ -18,7 +20,7 @@ export interface EncoderInfo {
   detail: string | null
 }
 
-type BenchWorkload = 'still_1fps' | 'still_30fps' | 'motion_30fps'
+export type BenchWorkload = 'still_1fps' | 'still_30fps' | 'motion_30fps' | 'ranking_motion' | 'compose_motion'
 
 interface CacheFile {
   version: string
@@ -55,12 +57,6 @@ export function encoderIsHardware(id: EncoderId): boolean {
   return CANDIDATES.find((item) => item.id === id)?.hardware ?? false
 }
 
-export function x264Threads(): number {
-  const env = Number(process.env.VVR_X264_THREADS)
-  if (Number.isFinite(env) && env >= 1) return Math.min(16, Math.floor(env))
-  return Math.max(1, Math.min(4, os.cpus().length))
-}
-
 /**
  * Quality stays in the CRF 20 band except for the High profile (CRF 16).
  * Hardware flags are the closest quality mode each encoder accepts:
@@ -81,6 +77,7 @@ export function encoderArgs(id: EncoderId, tier: 'standard' | 'high', still: boo
       String(x264Threads()),
     ]
     if (still) args.push('-tune', 'stillimage')
+    args.push('-x264-params', x264Params(x264Threads()))
     return args
   }
   if (id === 'h264_nvenc') {
@@ -125,13 +122,16 @@ export async function encoderCatalog(): Promise<{ version: string; encoders: Enc
 
 export async function selectEncoder(input: {
   choice: EncoderChoice
-  profile: ScreensaverProfile
+  profile?: ScreensaverProfile
   width: number
   height: number
-  still: boolean
+  still?: boolean
+  workload?: BenchWorkload
+  tier?: 'standard' | 'high'
 }): Promise<{ id: EncoderId; label: string; hardware: boolean; args: string[] }> {
-  const tier = profileQualityTier(input.profile)
-  const still = input.still
+  const profile = input.profile ?? 'balanced'
+  const tier = input.tier ?? profileQualityTier(profile)
+  const still = input.still ?? false
   if (input.choice === 'cpu') {
     return { id: 'libx264', label: encoderLabel('libx264'), hardware: false, args: encoderArgs('libx264', tier, still) }
   }
@@ -145,7 +145,7 @@ export async function selectEncoder(input: {
     }
     return { id, label: encoderLabel(id), hardware: encoderIsHardware(id), args: encoderArgs(id, tier, still) }
   }
-  const workload = benchWorkload(input.profile, still)
+  const workload = input.workload ?? benchWorkload(profile, still)
   const winner = await benchWinner(input.width, input.height, workload, tier, still)
   return { id: winner, label: encoderLabel(winner), hardware: encoderIsHardware(winner), args: encoderArgs(winner, tier, still) }
 }
@@ -155,7 +155,7 @@ export function benchWorkloadForProfile(profile: ScreensaverProfile, still: bool
 }
 
 function benchWorkload(profile: ScreensaverProfile, still: boolean): BenchWorkload {
-  if (!still) return 'motion_30fps'
+  if (!still) return profile === 'animated' ? 'compose_motion' : 'motion_30fps'
   if (profile === 'static-fast') return 'still_1fps'
   return 'still_30fps'
 }
@@ -171,6 +171,7 @@ async function benchWinner(
   const key = benchKey(width, height, workload, tier)
   const cached = cache.benches[key]
   if (cached?.winner) return cached.winner
+  if (process.env.VVR_ENCODER_BENCH === '0') return 'libx264'
   while (benchRunning) {
     await new Promise((resolve) => setTimeout(resolve, 250))
   }
@@ -205,7 +206,7 @@ async function benchWinner(
 }
 
 function benchLavfiSource(width: number, height: number, workload: BenchWorkload): string {
-  if (workload === 'motion_30fps') {
+  if (workload === 'motion_30fps' || workload === 'compose_motion') {
     return `testsrc2=size=${width}x${height}:rate=30:duration=5`
   }
   const fps = workload === 'still_1fps' ? 1 : 30
@@ -220,6 +221,12 @@ function benchArgs(
   tier: 'standard' | 'high',
   still: boolean,
 ): string[] {
+  if (workload === 'ranking_motion') {
+    return rankingMotionBenchArgs(id, width, height, tier, still)
+  }
+  if (workload === 'compose_motion') {
+    return composeMotionBenchArgs(id, width, height, tier, still)
+  }
   const source = benchLavfiSource(width, height, workload)
   return [
     '-hide_banner',
@@ -232,6 +239,71 @@ function benchArgs(
     'lavfi',
     '-i',
     source,
+    ...encoderArgs(id, tier, still),
+    '-t',
+    '5',
+    '-f',
+    'null',
+    '-',
+  ]
+}
+
+function rankingMotionBenchArgs(id: EncoderId, width: number, height: number, tier: 'standard' | 'high', still: boolean): string[] {
+  const videoHeight = height - Math.min(240, Math.floor(height * 0.125))
+  const filter = [
+    `[0:v]scale=${width}:${videoHeight}:force_original_aspect_ratio=increase,crop=${width}:${videoHeight},fps=30[base]`,
+    `[base]pad=${width}:${height}:0:${height - videoHeight}:black[framed]`,
+    `[framed][1:v]overlay=0:0,fps=30,format=yuv420p[vout]`,
+  ].join(';')
+  return [
+    '-hide_banner',
+    '-loglevel',
+    'error',
+    '-progress',
+    'pipe:1',
+    '-nostats',
+    '-f',
+    'lavfi',
+    '-i',
+    `testsrc2=size=720x1280:rate=30:duration=5`,
+    '-f',
+    'lavfi',
+    '-i',
+    `color=c=0x80808080:s=${width}x${height}:rate=30:duration=5`,
+    '-filter_complex',
+    filter,
+    '-map',
+    '[vout]',
+    ...encoderArgs(id, tier, still),
+    '-t',
+    '5',
+    '-f',
+    'null',
+    '-',
+  ]
+}
+
+function composeMotionBenchArgs(id: EncoderId, width: number, height: number, tier: 'standard' | 'high', still: boolean): string[] {
+  const filter = [
+    `color=c=#101010:s=${width}x${height}:r=30,format=yuv420p[bg]`,
+    `[0:v]scale=960:540:force_original_aspect_ratio=decrease,pad=960:540:(ow-iw)/2:(oh-ih)/2,format=rgba[fg]`,
+    `[bg][fg]overlay=(W-w)/2:(H-h)/2,format=yuv420p,fps=30[vout]`,
+  ].join(';')
+  return [
+    '-hide_banner',
+    '-loglevel',
+    'error',
+    '-progress',
+    'pipe:1',
+    '-nostats',
+    '-f',
+    'lavfi',
+    '-i',
+    `testsrc2=size=960x540:rate=30:duration=5`,
+    '-filter_complex',
+    filter,
+    '-map',
+    '[vout]',
     ...encoderArgs(id, tier, still),
     '-t',
     '5',

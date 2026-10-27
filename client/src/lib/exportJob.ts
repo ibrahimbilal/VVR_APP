@@ -89,6 +89,7 @@ export async function runExport(input: ExportInput): Promise<void> {
         normalize: input.style.video.normalize,
         originalVolume: input.style.video.originalVolume,
         musicVolume: input.style.video.musicVolume,
+        encoder: input.style.video.encoder,
       },
     }),
   )

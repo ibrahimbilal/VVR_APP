@@ -1,3 +1,5 @@
+import type { EncoderChoice } from '@shared/screensaver'
+
 export type Source = 'local' | 'youtube' | 'tiktok' | 'instagram'
 export type UploadState = 'empty' | 'uploading' | 'ready' | 'error'
 export type ScaleMode = 'crop' | 'fit' | 'blur'
@@ -73,6 +75,9 @@ export interface VideoStyle {
   normalize: boolean
   originalVolume: number
   musicVolume: number
+  musicFadeIn: number
+  musicFadeOut: number
+  encoder: EncoderChoice
 }
 
 export interface ProjectStyle {

@@ -11,7 +11,10 @@
     "test:screensaver": "tsx scripts/verify-screensaver.ts",
     "test:screensaver-visual": "tsx scripts/visual-screensaver-adjust.ts",
     "bench:screensaver": "tsx scripts/bench-screensaver.ts",
-    "bench:screensaver-compose": "tsx scripts/bench-screensaver-compose.ts"
+    "bench:screensaver-compose": "tsx scripts/bench-screensaver-compose.ts",
+    "bench:ranking": "tsx scripts/bench-ranking.ts",
+    "bench:render-report": "tsx scripts/bench-report.ts",
+    "test:ranking": "tsx scripts/verify-ranking.ts"
   },
   "dependencies": {
     "cors": "^2.8.6",

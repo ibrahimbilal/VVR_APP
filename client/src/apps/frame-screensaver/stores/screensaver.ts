@@ -196,7 +196,9 @@ export const useScreensaverStore = defineStore('screensaver', () => {
     if (durationSeconds.value < MIN_DURATION_SECONDS || durationSeconds.value > MAX_DURATION_SECONDS) {
       return `Duration must be between ${formatDurationLabel(MIN_DURATION_SECONDS)} and ${formatDurationLabel(MAX_DURATION_SECONDS)}.`
     }
-    if (audioMode.value === 'upload' && !audioFile) return 'Upload background audio or choose another audio option.'
+    if (audioMode.value === 'upload' && (!audioUrl.value || !audioFile)) {
+      return 'Upload background audio or choose another audio option.'
+    }
     if (audioMode.value === 'source' && !hasAudio.value) return 'This video has no audio. Choose another audio option.'
     if (
       composition.value.frameId !== 'none' &&
@@ -305,6 +307,11 @@ export const useScreensaverStore = defineStore('screensaver', () => {
       replaceComposition({ ...composition.value, frameId: 'none' })
       commitComposition()
     }
+    if (audioUrl.value) URL.revokeObjectURL(audioUrl.value)
+    audioFile = null
+    audioUrl.value = null
+    audioFileName.value = null
+    audioMode.value = 'none'
   }
 
   async function init() {
@@ -331,12 +338,7 @@ export const useScreensaverStore = defineStore('screensaver', () => {
             uploadState.value = 'uploading'
             void resumeUpload()
           }
-        }
-        const audio = await idb.loadScreensaverAudio()
-        if (audio) {
-          audioFile = new File([audio.blob], audio.name, { type: audio.type || 'audio/mpeg' })
-          audioUrl.value = URL.createObjectURL(audioFile)
-          audioFileName.value = audio.name
+          await restoreBackgroundAudio()
         }
       }
     } catch {
@@ -628,27 +630,52 @@ export const useScreensaverStore = defineStore('screensaver', () => {
     outputHeight.value = heightValue
   }
 
+  function clearBackgroundAudioInMemory() {
+    if (audioUrl.value) URL.revokeObjectURL(audioUrl.value)
+    audioFile = null
+    audioUrl.value = null
+    audioFileName.value = null
+  }
+
+  async function restoreBackgroundAudio(): Promise<void> {
+    const wantsUpload = audioMode.value === 'upload' || Boolean(audioFileName.value)
+    const audio = await idb.loadScreensaverAudio()
+    if (audio && wantsUpload) {
+      clearBackgroundAudioInMemory()
+      audioFile = new File([audio.blob], audio.name, { type: audio.type || 'audio/mpeg' })
+      audioUrl.value = URL.createObjectURL(audioFile)
+      audioFileName.value = audio.name
+      audioMode.value = 'upload'
+      return
+    }
+    if (audio && !wantsUpload) {
+      void idb.clearScreensaverAudio().catch(() => undefined)
+    }
+    clearBackgroundAudioInMemory()
+    if (audioMode.value === 'upload') audioMode.value = 'none'
+  }
+
   async function setAudioFile(file: File) {
     const problem = validateAudioFile(file)
     if (problem) {
       toast(problem)
       return
     }
-    if (audioUrl.value) URL.revokeObjectURL(audioUrl.value)
+    try {
+      await idb.saveScreensaverAudio(file)
+    } catch {
+      toast('Could not save audio locally. It will work until you refresh.', 'info')
+    }
+    clearBackgroundAudioInMemory()
     audioFile = file
     audioUrl.value = URL.createObjectURL(file)
     audioFileName.value = file.name
     audioMode.value = 'upload'
-    void idb.saveScreensaverAudio(file).catch(() => {
-      toast('Audio will work until refresh but could not be saved locally.', 'info')
-    })
   }
 
   function clearAudio() {
-    if (audioUrl.value) URL.revokeObjectURL(audioUrl.value)
-    audioFile = null
-    audioUrl.value = null
-    audioFileName.value = null
+    clearBackgroundAudioInMemory()
+    if (audioMode.value === 'upload') audioMode.value = 'none'
     void idb.clearScreensaverAudio().catch(() => undefined)
   }
 

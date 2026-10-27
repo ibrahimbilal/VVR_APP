@@ -18,7 +18,9 @@ Node `^20.19.0 || >=22.12.0`. From the repo root:
 - `npm run typecheck` — client `vue-tsc` via `client/scripts/typecheck.mjs`, then server `tsc --noEmit`.
 - `npm run test:screensaver` — short static screensaver render + ffprobe (`server/scripts/verify-screensaver.ts`).
 - `npm run test:screensaver-visual` — CPU vs FFmpeg adjustment SSIM (`server/scripts/visual-screensaver-adjust.ts`).
+- `npm run test:ranking` — two-clip ranking render (cut + fade) + ffprobe (`server/scripts/verify-ranking.ts`).
 - `npm run bench:screensaver-compose` — Node timing for CPU placement bake (`server/scripts/bench-screensaver-compose.ts`).
+- `npm run bench:ranking` / `npm run bench:screensaver` — end-to-end export timings (`baseline` / `after` argv); `npm run bench:render-report` writes `docs/render-benchmark-report.md`.
 - `npm run build:dev` / `npm run start:dev` — Vite development build, then the renderer serves `client/dist` and the API on port 3001.
 - `npm run build:prod` / `npm run start:prod` — production client build plus esbuild server bundle (`server/dist/index.js`). Listens on `PORT` or 3001. Host is `0.0.0.0` when `PORT` is set, otherwise `127.0.0.1`.
 
@@ -105,7 +107,7 @@ Defined in `client/src/types.ts`.
 - Banner: visible (off = no banner, video fills the frame), background, height, font, size, weight, align, lineHeight, outline, shadow.
 - Ranking: font, size, weight, color, itemSpacing (0–100, treated as a percent of font size), positionX/Y, outline, shadow, opacity, format (`dot | plain | hash | pad` → `1.` / `1` / `#1` / `01`), display (`stack` = all numbers, `page` = current only), pageStyle (`fraction` = `1 / N`, `number` = the format), showPreviousTitles, sort (`list | reverse | title | titleDesc`).
 - Caption styles the clip title drawn beside the rank number. `caption.bottom` is stored and scaled on resolution change. The canvas does not read it.
-- Video: width, height, fps, scaleMode (`crop | fit | blur`), backgroundColor, transition (`cut | fade`), fadeDuration, keepAudio, normalize, originalVolume, musicVolume (0–1).
+- Video: width, height, fps, scaleMode (`crop | fit | blur`), backgroundColor, transition (`cut | fade`), fadeDuration, keepAudio, normalize, originalVolume, musicVolume (0–1), encoder (`auto` default, same choices as Frame Screensaver).
 - Presets: `classic | tier | minimal | custom`. Definitions and default video (1080×1920, 30 fps, crop, cut, fade 0.35, keep audio, normalize, music 0.35) are in `client/src/lib/presets.ts`. Fonts: Oswald, Anton, Bebas Neue, Montserrat, Inter.
 - Rank number colors default to the active color set. `null` on a clip means "use the ranking color". Title color `null` means "use the caption color".
 
@@ -171,7 +173,7 @@ Two orders:
 2. `uploading` — multipart `POST /api/export`. Field `project` is JSON. Fields `overlays` are `overlay-0.png` … in the same order. Field `music` is sent only when a file exists and `musicVolume > 0`. Progress ~9–16%.
 3. Poll `GET /api/jobs/:id` every 700ms. Abort calls `POST /api/jobs/:id/cancel`.
 4. On `done`, download `GET /api/jobs/:id/download` with the project name, else the banner text, else `ranking.mp4`. Download does not remove server uploads.
-5. Closing the tab or window runs `POST /api/uploads/cleanup` (beacon) to purge server clips, frames, and export outputs. Editor state stays in IndexedDB.
+5. Closing the tab or window runs `POST /api/uploads/cleanup` (beacon) to purge server clips, frames, leftover `jobs/` work dirs, and export outputs. Editor state stays in IndexedDB. Job dirs for a render that is still queued or encoding are kept.
 
 Project JSON clips are `{ id: serverId, trimStart, trimEnd }` in playback order. The server does not know titles or rank colors. Those exist only in the PNGs.
 
@@ -188,11 +190,12 @@ Server `parseProject` requires 2–30 clips, UUID ids, 1080×1920 or 720×1280, 
 - Hard cut: `concat`. Crossfade: chained `xfade` / `acrossfade`. Fade offsets follow `shared/timeline.ts`.
 - Clip audio (when `keepAudio` and volume > 0): 48 kHz stereo, optional `loudnorm=I=-16:TP=-1.5:LRA=11`. Silent clips get `anullsrc` so concat stays aligned.
 - Music is trimmed to the sequence, faded in/out, then `amix` with clip audio.
-- Output is H.264 + AAC when any audio is present, `+faststart`, yuv420p.
+- Output is H.264 + AAC when any audio is present, `+faststart`, yuv420p. Encoder choice matches Frame Screensaver: Auto (default), CPU, or a verified hardware encoder via shared `server/src/encoders.ts` (`ranking_motion` benchmark workload). Auto retries on CPU with a job `warning` when hardware fails; an explicit unavailable encoder stops the job.
+- FFmpeg threading is adaptive (`server/src/ffmpegThreading.ts`): global/filter threads scale with CPU count (conservative under 8 GB RAM). Overrides: `VVR_FFMPEG_THREADS`, `VVR_FFMPEG_FILTER_THREADS`, `VVR_X264_THREADS`.
 - If normalize fails, retry without it. If a crossfade fails, retry as hard cuts. The job `warning` explains the fallback.
 - Verify with ffprobe: dimensions, duration near the expected length, and an audio stream when audio was requested. Download is refused until status is `done`.
 
-Progress on the client: overlays/upload are local; queued/preparing/rendering/verifying come from the job. Rendering maps ffmpeg time onto 20–95%.
+Progress on the client: overlays/upload are local; queued/preparing/rendering/verifying come from the job. Rendering maps ffmpeg time onto 20–95%. Ranking export shows the same encoder/speed/ETA fields as Frame Screensaver (`RankingExportDetails.vue`, job poll).
 
 ## HTTP
 
@@ -207,13 +210,13 @@ Progress on the client: overlays/upload are local; queued/preparing/rendering/ve
 | GET | `/api/jobs/:id` | status |
 | POST | `/api/jobs/:id/cancel` | kill ffmpeg |
 | GET | `/api/jobs/:id/download` | verified mp4, 409 if not ready |
-| GET | `/api/screensaver/encoders` | verified H.264 encoders and cached Auto choice |
+| GET | `/api/encoders` | verified H.264 encoders and cached Auto choice (alias: `/api/screensaver/encoders`) |
 | POST | `/api/screensaver/media` | image or video for screensaver |
 | GET | `/api/screensaver/frames` | saved screensaver frame PNGs |
 | POST | `/api/screensaver/frames` | one PNG, field `file`, max 40 MB |
 | GET | `/api/screensaver/frames/:id` | that PNG |
 | DELETE | `/api/screensaver/frames/:id` | remove a saved frame |
-| POST | `/api/uploads/cleanup` | JSON `{ purgeAll?: true, jobId? }` (default) — remove all frame PNGs, every clip not held by a render, and export MP4s in `outputs/` (optional `jobId` for the just-downloaded file; skips outputs for jobs still encoding). Same handler at `/api/screensaver/uploads/cleanup`. Legacy `{ mediaId, frameIds }` when `purgeAll: false` |
+| POST | `/api/uploads/cleanup` | JSON `{ purgeAll?: true, jobId? }` (default) — remove all frame PNGs, leftover `jobs/` work dirs, every clip not held by a render, and export MP4s in `outputs/` (optional `jobId` for the just-downloaded file; skips outputs and job dirs for jobs still encoding). Same handler at `/api/screensaver/uploads/cleanup`. Legacy `{ mediaId, frameIds }` when `purgeAll: false` |
 | POST | `/api/screensaver/export` | screensaver JSON, optional `audio`, optional `composition` PNG. Video frames come from the saved PNG, not an upload |
 
 Jobs queue handles `kind: 'ranking' | 'screensaver'` (`server/src/jobs.ts`).
@@ -229,7 +232,7 @@ Unknown `/api` routes return 404 JSON. If `client/dist/index.html` exists, Expre
 - `clips/` and `registry.json` — uploaded sources for **both** Ranking and Frame Screensaver (same folder). Registry rows whose files are missing are dropped on load. Screensaver cleanup removes non-`ranking` clips and then deletes orphan files in `clips/` that are not in the registry.
 - `frames/` and `frames.json` — screensaver frame PNGs. They stay until deleted. The sweep does not remove them.
 - `incoming/` — Multer landing pad.
-- `jobs/<id>/` — overlays and music for the active render. Removed when the job ends.
+- `jobs/<id>/` — overlays, composition PNG, and music for the active render. Removed when the job ends, on tab/window close, and on server boot. Leftovers from a crashed or restarted render do not wait for the 6-hour sweep.
 - `outputs/<id>.mp4` — finished files.
 
 Sweep every 10 minutes: outputs older than 2 hours, jobs and incoming older than 6 hours, clips older than 7 days (unless a render holds them).
@@ -248,6 +251,8 @@ Sweep every 10 minutes: outputs older than 2 hours, jobs and incoming older than
 | Task | Open |
 | --- | --- |
 | Layout, tabs, header, toasts | `client/src/App.vue`, `client/src/style.css` |
+| Shared file drop / browse upload | `client/src/components/FileDropZone.vue` |
+| Shared audio upload + advanced sliders | `client/src/components/audio/` (`AudioFileField.vue`, `AdvancedAudioControls.vue`, `SourceClipAudioControls.vue`) |
 | Clip list, URL add, drag reorder | `client/src/components/ClipSidebar.vue` |
 | Trim, colors, play-last, replace | `client/src/components/SelectedClipPanel.vue` |
 | Presets, banner, ranks, video, audio controls | `client/src/components/StylePanel.vue` |
@@ -296,7 +301,7 @@ Saved projects are IndexedDB `screensaver/project` version 2. Version 1 loads wi
 
 The composition (`shared/screensaverComposition.ts`) is normalized to the output frame: crop in source space, placement, rotation, flips, opacity, adjustments, background, and frame id. Browser size and view zoom are not part of it. Preview and the static export PNG both use `composeCanvas.ts`.
 
-Frames are uploaded PNG files. `shared/screensaverFrames.ts` only accepts `none` or a stored frame id; older preset names (classic, mat, rounded, arch) load as no frame. The Frames section uploads PNGs (40 MB max), keeps them in `server/tmp/frames/`, and shows them in a grid. The most recently uploaded frame in a batch is applied to the preview automatically. Clicking a thumbnail selects it. Clicking it again clears the frame. Draw order is background, the placed image, then the PNG stretched over the output. Transparent pixels show the picture. Static exports bake that PNG into the composition image. Video exports overlay the stored file in FFmpeg and do not clip with a mask. Closing the tab or window purges frames, all server clips (except any clip locked by a running render), and finished files in `server/tmp/outputs/` via `POST /api/uploads/cleanup` (beacon). Downloading the MP4 does not remove uploads. IndexedDB keeps project settings and optional audio across visits, but a **full page reload** clears the cached main media blob (`screensaver/source`), resets upload preview state, and clears the selected frame so the canvas is not half-restored after server purge. SPA navigation within the app does not count as reload.
+Frames are uploaded PNG files. `shared/screensaverFrames.ts` only accepts `none` or a stored frame id; older preset names (classic, mat, rounded, arch) load as no frame. The Frames section uploads PNGs (40 MB max), keeps them in `server/tmp/frames/`, and shows them in a grid. The most recently uploaded frame in a batch is applied to the preview automatically. Clicking a thumbnail selects it. Clicking it again clears the frame. Draw order is background, the placed image, then the PNG stretched over the output. Transparent pixels show the picture. Static exports bake that PNG into the composition image. Video exports overlay the stored file in FFmpeg and do not clip with a mask. Closing the tab or window purges frames, leftover `jobs/` work dirs, all server clips (except any clip locked by a running render), and finished files in `server/tmp/outputs/` via `POST /api/uploads/cleanup` (beacon). Downloading the MP4 does not remove uploads. IndexedDB keeps project settings across visits. Background audio is cached in `screensaver/audio` for SPA navigation only. A **full page reload** clears the cached main media blob (`screensaver/source`), background audio (`screensaver/audio`), resets upload preview state, sets audio to **No audio**, and clears the selected frame so the canvas is not half-restored after server purge. SPA navigation within the app does not count as reload.
 
 Adjustments (brightness, contrast, saturation, exposure, temperature, tint, highlights, shadows, sharpness, blur, grayscale, sepia) are baked into the static PNG, so that export matches the editor. Video exports send the same slider values through FFmpeg (`eq`, `exposure`, `curves`, `colorbalance`, `hue`, `colorchannelmixer`, `gblur`, `unsharp`). Canvas blur/sharpen is a box blur; FFmpeg uses `gblur` and `unsharp`, so a moving video can differ slightly from the preview. Static art does not, because the PNG is the source.
 
@@ -304,7 +309,7 @@ Adjustments (brightness, contrast, saturation, exposure, temperature, tint, high
 
 Profiles: Static Art (default 1 fps for a new image), Balanced (24 fps), High quality (CRF 16 or the matching hardware CQ), Animated (30 fps). The user can still pick 1, 24, 30, or 60 fps afterwards. CPU quality for Balanced and Static Art stays CRF 20, preset veryfast, the same band as the original screensaver encode. High uses CRF 16 and preset medium. Hardware maps are in `encoderArgs` (`server/src/encoders.ts`): NVENC VBR CQ, Quick Sync `global_quality`, AMF CQP, VideoToolbox `-q:v`, Media Foundation quality mode. `-hw_encoding true` is not set for Media Foundation; that flag failed format negotiation on the test machine.
 
-Encoder choice is Auto, CPU, or one listed hardware encoder. Auto runs a 3-second timed encode of each encoder that actually starts at that resolution and profile, caches it in `server/tmp/encoder-cache.json`, and picks a hardware encoder only when it is more than 8% faster than libx264. An explicit encoder that fails init or the real encode stops the job. The export panel then offers “Export with CPU instead”. Auto retries on CPU and sets a warning. Ranking export is still libx264 with one thread.
+Encoder choice is Auto, CPU, or one listed hardware encoder (Ranking and Frame Screensaver). Auto runs timed encodes per workload (`still_*`, `motion_30fps`, `compose_motion`, `ranking_motion`), caches in `server/tmp/encoder-cache.json`, and picks hardware only when more than 8% faster than libx264. Set `VVR_ENCODER_BENCH=0` to skip cold benchmarks (Auto uses CPU). An explicit encoder that fails init or the real encode stops the job; Auto retries on CPU with a warning.
 
 Static images: the browser draws one full-resolution PNG and FFmpeg loops it at the chosen frame rate with no scale or color filters. Audio is a second input in that same process (loop, volume, fades). New image projects use Static Art at 1 fps. Saved version-1 projects keep 24 or 30.
 
@@ -349,6 +354,15 @@ A static 1 fps file with the precomposed PNG matched the PNG at SSIM 0.995 (`npm
 
 ## Changelog
 
+- 2026-10-27 — Fix Frame Screensaver frame upload (`FileDropZone` import in `ScreensaverSettingsPanel.vue`).
+- 2026-10-27 — Shared advanced audio UI (`components/audio/`); ranking background music fade in/out on export (`VideoStyle`, `render.ts`).
+- 2026-10-27 — Frame Screensaver full page reload clears cached background audio and resets audio to No audio (`idb.ts`, `stores/screensaver.ts`).
+- 2026-10-27 — Tab close and server boot purge leftover `jobs/` work dirs; only queued/encoding jobs are kept (`storage.ts`, `jobs.ts`, `index.ts`).
+- 2026-10-27 — Frame Screensaver export no longer stays blocked after a background audio file is chosen (`stores/screensaver.ts`).
+- 2026-10-27 — Shared `FileDropZone` for all file uploads (screensaver audio/media/frames, ranking clips/music/replace).
+- 2026-10-27 — Frame Screensaver duration floor temporarily 5 minutes for local export testing (`shared/screensaver.ts`, settings min, server parse).
+- 2026-10-25 — Ranking layout: New project beside app title in `AppHeader`; export status column right of the style sidebar (`RankingVideosView.vue`, `AppHeader.vue`).
+- 2026-10-25 — Shared render optimization: adaptive FFmpeg threading (`ffmpegThreading.ts`), ranking encoder Auto/CPU/HW via `encoders.ts`, `GET /api/encoders`, ranking Style panel + export diagnostics, bench/test scripts, `docs/render-benchmark-report.md` (`server/src/render.ts`, `client` ranking UI, `server/scripts/`).
 - 2026-10-25 — Upgrade `multer` to 2.5.0 (CVE-2026-113872); root `overrides` pin (`package.json`, `server/package.json`).
 - 2026-10-25 — Frame Screensaver export progress stats in a collapsible right sidebar (toggle rail, not accordion) (`ScreensaverExportDetails.vue`, `FrameScreensaverView.vue`).
 - 2026-10-25 — Frame Screensaver auto-applies the latest frame PNG after upload (`stores/screensaver.ts`).

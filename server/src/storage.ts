@@ -111,6 +111,21 @@ export async function purgeScreensaverClips(): Promise<void> {
   await purgeOrphanClipFiles()
 }
 
+/** Deletes leftover job work dirs. Skips dirs for jobs that are still queued or encoding. */
+export async function purgeJobDirs(keepIds: ReadonlySet<string> = new Set()): Promise<void> {
+  const { readdir } = await import('node:fs/promises')
+  let names: string[] = []
+  try {
+    names = await readdir(jobsDir)
+  } catch {
+    return
+  }
+  for (const name of names) {
+    if (keepIds.has(name)) continue
+    await rm(path.join(jobsDir, name), { recursive: true, force: true }).catch(() => undefined)
+  }
+}
+
 /** Deletes finished export files. Skips outputs for jobs that are still encoding. */
 export async function purgeOutputFiles(keepPaths: ReadonlySet<string> = new Set()): Promise<void> {
   const { readdir } = await import('node:fs/promises')

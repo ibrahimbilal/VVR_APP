@@ -1,12 +1,12 @@
 <script setup lang="ts">
-import { Replace, Undo2, X } from '@lucide/vue'
-import { computed, ref } from 'vue'
+import { Undo2, X } from '@lucide/vue'
+import { computed } from 'vue'
 import { useProjectStore } from '../stores/project'
 import ColorSwatches from './ColorSwatches.vue'
+import FileDropZone from './FileDropZone.vue'
 import SliderField from './SliderField.vue'
 
 const store = useProjectStore()
-const replaceInput = ref<HTMLInputElement | null>(null)
 
 const keptLabel = computed(() => {
   const clip = store.selectedClip
@@ -26,12 +26,11 @@ function secondsLabel(value: number): string {
   return value.toFixed(1)
 }
 
-function onReplace(event: Event) {
-  const target = event.target
+function onReplaceFiles(files: File[]) {
   const id = store.selectedClipId
-  if (!(target instanceof HTMLInputElement) || !target.files?.[0] || !id) return
-  void store.attachFile(id, target.files[0])
-  target.value = ''
+  const file = files[0]
+  if (!id || !file) return
+  void store.attachFile(id, file)
 }
 
 function onCustomColor(event: Event) {
@@ -127,11 +126,14 @@ function onTitleColor(event: Event) {
           </button>
         </div>
       </div>
-      <button class="btn cursor-pointer btn-ghost w-full" type="button" @click="replaceInput?.click()">
-        <Replace :size="16" />
-        Replace video file
-      </button>
-      <input ref="replaceInput" class="hidden" type="file" accept="video/mp4,video/quicktime,video/webm,.mp4,.mov,.webm,.m4v" @change="onReplace" />
+      <FileDropZone
+        compact
+        accept="video/mp4,video/quicktime,video/webm,.mp4,.mov,.webm,.m4v"
+        label="Drop a video to replace"
+        drop-label="Drop to replace"
+        formats="MP4, MOV, WebM"
+        @files="onReplaceFiles"
+      />
     </div>
   </aside>
 </template>

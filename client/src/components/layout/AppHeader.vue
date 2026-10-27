@@ -1,13 +1,16 @@
 <script setup lang="ts">
-import { CircleAlert, CircleCheck, Menu } from '@lucide/vue'
+import { CircleAlert, CircleCheck, FilePlus, Menu } from '@lucide/vue'
 import { computed } from 'vue'
 import { useRoute } from 'vue-router'
 import { usePlatformStore } from '../../stores/platform'
+import { useProjectStore } from '../../stores/project'
 
 const route = useRoute()
 const platform = usePlatformStore()
+const project = useProjectStore()
 
 const title = computed(() => (route.meta.title as string) || "Video's Factory")
+const isRanking = computed(() => route.name === 'ranking-videos')
 
 const emit = defineEmits<{ openNav: [trigger: HTMLElement] }>()
 </script>
@@ -23,6 +26,15 @@ const emit = defineEmits<{ openNav: [trigger: HTMLElement] }>()
       <Menu :size="20" />
     </button>
     <h1 class="min-w-0 truncate text-sm font-semibold text-zinc-200">{{ title }}</h1>
+    <button
+      v-if="isRanking"
+      class="btn btn-ghost shrink-0 cursor-pointer"
+      type="button"
+      @click="project.newProject()"
+    >
+      <FilePlus :size="16" />
+      <span class="hidden sm:inline">New project</span>
+    </button>
     <button
       class="ml-auto inline-flex cursor-pointer items-center gap-2 text-xs font-semibold"
       type="button"

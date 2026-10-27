@@ -145,6 +145,20 @@ async function afterCases(work: string, imagePath: string, videoPath: string) {
     still('static-4k-1fps', 'static image, precomposed, 1 fps', uhd, 3840, 2160, 1),
     still('static-1080p-1fps-auto', 'static image, precomposed, auto encoder', fullHd, 1920, 1080, 1, 'auto'),
     {
+      name: 'static-long-1fps',
+      inputType: 'static image, precomposed, 60s at 1 fps',
+      request: {
+        ...base('image', fullHd, 1920, 1080, 'contain'),
+        fps: 1,
+        duration: 60,
+        compositionPath: fullHd,
+        profile: 'static-fast' as const,
+        encoder: 'cpu' as const,
+        sourceWidth: 1920,
+        sourceHeight: 1080,
+      },
+    },
+    {
       name: 'loop-1080p',
       inputType: 'looping video',
       request: { ...base('video', videoPath, 1920, 1080, 'contain'), encoder: 'cpu' as const, profile: 'animated' as const, sourceWidth: 1280, sourceHeight: 720, sourceCodec: 'h264', sourcePixFmt: 'yuv420p' },
@@ -236,7 +250,13 @@ async function runCase(name: string, inputType: string, request: ScreensaverRend
     const wall = (performance.now() - started) / 1000
     const info = await stat(outputPath)
     const probe = await probeOutput(outputPath)
-    const valid = probe.width === request.width && probe.height === request.height && probe.codec === 'h264' && probe.duration >= DURATION - 1.5 && probe.duration <= DURATION + 1.5
+    const expectDuration = request.duration
+    const valid =
+      probe.width === request.width &&
+      probe.height === request.height &&
+      probe.codec === 'h264' &&
+      probe.duration >= expectDuration - 1.5 &&
+      probe.duration <= expectDuration + 1.5
     return {
       name,
       inputType,
