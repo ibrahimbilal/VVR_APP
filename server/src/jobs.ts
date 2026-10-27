@@ -143,6 +143,14 @@ export function outputPathsInUse(): Set<string> {
   return keep
 }
 
+export function jobIdsInUse(): Set<string> {
+  const keep = new Set<string>()
+  for (const job of jobs.values()) {
+    if (ACTIVE_STATUSES.has(job.status)) keep.add(job.id)
+  }
+  return keep
+}
+
 export async function dropJobOutput(jobId: string): Promise<void> {
   const job = jobs.get(jobId)
   const file = job?.outputPath ?? outputFile(jobId)

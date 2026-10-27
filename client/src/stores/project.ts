@@ -835,6 +835,10 @@ function persistableClip(clip: Clip): PersistedClip {
 function normalizeStyle(value: ProjectStyle) {
   value.banner.visible = value.banner.visible !== false
   if (!isEncoderChoice(value.video.encoder)) value.video.encoder = 'auto'
+  if (!Number.isFinite(value.video.musicFadeIn)) value.video.musicFadeIn = 0.25
+  if (!Number.isFinite(value.video.musicFadeOut)) value.video.musicFadeOut = 0.3
+  value.video.musicFadeIn = Math.max(0, Math.min(30, value.video.musicFadeIn))
+  value.video.musicFadeOut = Math.max(0, Math.min(30, value.video.musicFadeOut))
   value.ranking.showPreviousTitles = value.ranking.showPreviousTitles === true
   if (value.ranking.sort !== 'reverse' && value.ranking.sort !== 'title' && value.ranking.sort !== 'titleDesc') {
     value.ranking.sort = 'list'

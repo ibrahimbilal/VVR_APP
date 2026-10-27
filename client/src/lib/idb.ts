@@ -282,13 +282,14 @@ export async function clearScreensaverAudio(): Promise<void> {
   }
 }
 
-/** Clears cached main media and any legacy active-frame entry (full page reload). */
+/** Clears cached main media, background audio, and any legacy active-frame entry (full page reload). */
 export async function clearScreensaverPreviewCache(): Promise<void> {
   const db = await openDb()
   try {
     const transaction = db.transaction('screensaver', 'readwrite')
     const store = transaction.objectStore('screensaver')
     store.delete('source')
+    store.delete('audio')
     store.delete('active-frame')
     await transactionDone(transaction)
   } finally {

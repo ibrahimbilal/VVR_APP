@@ -1,9 +1,12 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
-import { Eye, RotateCcw, SquareSplitHorizontal, Trash2, Upload } from '@lucide/vue'
+import { computed } from 'vue'
+import { Eye, RotateCcw, SquareSplitHorizontal, Trash2 } from '@lucide/vue'
 import { ADJUSTMENT_FIELDS } from '@shared/screensaverAdjust'
 import { FRAME_FILE_LIMIT } from '@shared/screensaverFrames'
 import { DURATION_PRESETS, SCREENSAVER_FPS, SCREENSAVER_OUTPUTS } from '@shared/screensaver'
+import AdvancedAudioControls from '../../../components/audio/AdvancedAudioControls.vue'
+import AudioFileField from '../../../components/audio/AudioFileField.vue'
+import FileDropZone from '../../../components/FileDropZone.vue'
 import SettingsAccordion from '../../../components/SettingsAccordion.vue'
 import SliderField from '../../../components/SliderField.vue'
 import { webGl2Available } from '../lib/render/createScreensaverRenderer'
@@ -19,40 +22,15 @@ const previewRendererActiveLabel = computed(() => {
 })
 
 const customMinutes = defineModel<number>('customMinutes', { default: 60 })
-const frameInput = ref<HTMLInputElement | null>(null)
-const frameDrag = ref(false)
 const frameLimitMb = FRAME_FILE_LIMIT / (1024 * 1024)
-let frameDragDepth = 0
 
-function isFileDrag(event: DragEvent): boolean {
-  const types = event.dataTransfer?.types
-  if (!types) return false
-  return Array.from(types).includes('Files')
+function onFrameFiles(files: File[]) {
+  if (files.length > 0) void store.uploadFrames(files)
 }
 
-function onFrameDragEnter(event: DragEvent) {
-  if (!isFileDrag(event)) return
-  frameDragDepth += 1
-  frameDrag.value = true
-}
-
-function onFrameDragLeave() {
-  frameDragDepth = Math.max(0, frameDragDepth - 1)
-  if (frameDragDepth === 0) frameDrag.value = false
-}
-
-function onFrameDrop(event: DragEvent) {
-  frameDragDepth = 0
-  frameDrag.value = false
-  const files = event.dataTransfer?.files
-  if (files && files.length > 0) void store.uploadFrames(Array.from(files))
-}
-
-function onFrameChange(event: Event) {
-  const input = event.target as HTMLInputElement
-  const files = input.files
-  if (files && files.length > 0) void store.uploadFrames(Array.from(files))
-  input.value = ''
+function onAudioFiles(files: File[]) {
+  const file = files[0]
+  if (file) void store.setAudioFile(file)
 }
 
 const hardwareEncoders = computed(() => store.encoderOptions.filter((item) => item.hardware && item.listed))
@@ -106,22 +84,17 @@ function onCustomMinutes() {
 <template>
   <div class="space-y-4">
     <SettingsAccordion title="Frames" :open="true">
-      <button
-        class="flex w-full cursor-pointer flex-col items-center gap-1 rounded-lg border border-dashed px-3 py-4 text-sm font-semibold disabled:cursor-wait disabled:opacity-60"
-        :class="frameDrag ? 'border-amber-300 bg-amber-300/10 text-amber-100' : 'border-zinc-600 bg-[#101114] text-zinc-100'"
-        type="button"
+      <FileDropZone
+        compact
+        accept="image/png,.png"
+        multiple
         :disabled="store.frameUploading"
-        @click="frameInput?.click()"
-        @dragenter.prevent="onFrameDragEnter"
-        @dragover.prevent
-        @dragleave.prevent="onFrameDragLeave"
-        @drop.prevent="onFrameDrop"
-      >
-        <Upload :size="16" />
-        <span>{{ store.frameUploading ? 'Uploading…' : frameDrag ? 'Drop PNG frames' : 'Upload PNG frames' }}</span>
-        <span class="text-[11px] font-normal text-zinc-500">PNG only, up to {{ frameLimitMb }} MB</span>
-      </button>
-      <input ref="frameInput" class="hidden" type="file" accept="image/png,.png" multiple @change="onFrameChange" />
+        label="Upload PNG frames"
+        drop-label="Drop PNG frames"
+        busy-label="Uploading…"
+        :hint="`PNG only, up to ${frameLimitMb} MB`"
+        @files="onFrameFiles"
+      />
       <p v-if="store.frames.length === 0" class="text-xs text-zinc-500">
         Uploaded frames show up here. Click one to place it over the picture. Click it again to clear it.
       </p>
@@ -166,7 +139,7 @@ function onCustomMinutes() {
       <div class="mt-3 space-y-1">
         <label class="text-xs text-zinc-500">Custom (minutes)</label>
         <div class="flex gap-2">
-          <input v-model.number="customMinutes" class="field flex-1" type="number" min="30" max="600" step="1" />
+          <input v-model.number="customMinutes" class="field flex-1" type="number" min="5" max="600" step="1" />
           <button class="btn btn-ghost cursor-pointer" type="button" @click="onCustomMinutes">Apply</button>
         </div>
         <p class="text-xs text-zinc-500">Output: {{ store.durationLabel }}</p>
@@ -352,59 +325,23 @@ function onCustomMinutes() {
         <option value="source" :disabled="!store.hasAudio">Original video audio</option>
         <option value="upload">Background audio</option>
       </select>
-      <div v-if="store.audioMode === 'upload'" class="mt-3 space-y-2">
-        <label class="btn btn-ghost w-full cursor-pointer">
-          Upload audio
-          <input
-            class="hidden"
-            type="file"
-            accept="audio/*,.mp3,.wav,.m4a,.aac,.ogg"
-            @change="
-              (e) => {
-                const f = (e.target as HTMLInputElement).files?.[0]
-                if (f) void store.setAudioFile(f)
-              }
-            "
-          />
-        </label>
-        <p v-if="store.audioFileName" class="truncate text-xs text-zinc-500">{{ store.audioFileName }}</p>
-        <button v-if="store.audioFileName" class="btn btn-ghost cursor-pointer text-xs" type="button" @click="store.clearAudio()">
-          Remove audio
-        </button>
-      </div>
-      <template v-if="store.audioMode !== 'none'">
-        <SliderField
-          class="mt-3"
-          label="Volume"
-          :min="0"
-          :max="1"
-          :step="0.05"
-          :model-value="store.audioVolume"
-          @update:model-value="(v) => (store.audioVolume = v)"
-        />
-        <label class="mt-2 flex items-center gap-2 text-sm">
-          <input v-model="store.loopAudio" type="checkbox" />
-          Loop background audio
-        </label>
-        <SliderField
-          class="mt-2"
-          label="Fade in (s)"
-          :min="0"
-          :max="30"
-          :step="0.5"
-          :model-value="store.audioFadeIn"
-          @update:model-value="(v) => (store.audioFadeIn = v)"
-        />
-        <SliderField
-          class="mt-2"
-          label="Fade out (s)"
-          :min="0"
-          :max="30"
-          :step="0.5"
-          :model-value="store.audioFadeOut"
-          @update:model-value="(v) => (store.audioFadeOut = v)"
-        />
-      </template>
+      <AudioFileField
+        v-if="store.audioMode === 'upload'"
+        class="mt-3"
+        :file-name="store.audioFileName"
+        @files="onAudioFiles"
+        @clear="store.clearAudio()"
+      />
+      <AdvancedAudioControls
+        v-if="store.audioMode !== 'none'"
+        class="mt-3"
+        v-model:volume="store.audioVolume"
+        v-model:fade-in="store.audioFadeIn"
+        v-model:fade-out="store.audioFadeOut"
+        v-model:loop="store.loopAudio"
+        volume-as-percent
+        loop-label="Loop background audio"
+      />
     </SettingsAccordion>
 
     <p class="text-xs text-zinc-500">

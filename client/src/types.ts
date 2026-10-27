@@ -75,6 +75,8 @@ export interface VideoStyle {
   normalize: boolean
   originalVolume: number
   musicVolume: number
+  musicFadeIn: number
+  musicFadeOut: number
   encoder: EncoderChoice
 }
 

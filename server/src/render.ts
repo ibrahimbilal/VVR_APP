@@ -40,6 +40,8 @@ export interface RenderRequest {
   normalize: boolean
   originalVolume: number
   musicVolume: number
+  musicFadeIn: number
+  musicFadeOut: number
   encoder?: EncoderChoice
 }
 
@@ -339,7 +341,12 @@ function buildFilter(
 
   if (job.musicPath) {
     const musicIndex = job.clips.length + job.overlays.length
-    const fadeOut = expected > 0.8 ? `,afade=t=in:st=0:d=0.25,afade=t=out:st=${n(Math.max(0, expected - 0.35))}:d=0.3` : ''
+    const fadeIn = Math.max(0, Math.min(30, job.musicFadeIn ?? 0.25))
+    const fadeOutSec = Math.max(0, Math.min(30, job.musicFadeOut ?? 0.3))
+    const fadeOut =
+      expected > 0.8 && (fadeIn > 0.001 || fadeOutSec > 0.001)
+        ? `,afade=t=in:st=0:d=${n(fadeIn)},afade=t=out:st=${n(Math.max(0, expected - fadeOutSec))}:d=${n(fadeOutSec)}`
+        : ''
     lines.push(
       `[${musicIndex}:a]atrim=start=0:end=${n(expected)},asetpts=PTS-STARTPTS,aresample=48000,aformat=sample_fmts=fltp:channel_layouts=stereo,volume=${n(job.musicVolume)}${fadeOut}[bgm]`,
     )

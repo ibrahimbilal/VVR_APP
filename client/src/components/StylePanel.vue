@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { OUTPUTS, FRAME_RATES, frameMetrics } from '@shared/frame'
-import { AudioLines, Hash, ListOrdered, Minus, Palette, Plus, SlidersHorizontal, TextAlignCenter, TextAlignEnd, TextAlignStart, Trash2, Trophy, X } from '@lucide/vue'
+import { Hash, ListOrdered, Minus, Palette, Plus, SlidersHorizontal, TextAlignCenter, TextAlignEnd, TextAlignStart, Trash2, Trophy, X } from '@lucide/vue'
 import { computed, onMounted, ref } from 'vue'
 import { usePlayback } from '../composables/usePlayback'
 import { formatRank, pageLabel } from '../lib/format'
@@ -8,6 +8,9 @@ import { FONT_OPTIONS } from '../lib/presets'
 import { useProjectStore } from '../stores/project'
 import ColorField from './ColorField.vue'
 import ColorSwatches from './ColorSwatches.vue'
+import AdvancedAudioControls from './audio/AdvancedAudioControls.vue'
+import AudioFileField from './audio/AudioFileField.vue'
+import SourceClipAudioControls from './audio/SourceClipAudioControls.vue'
 import SettingsAccordion from './SettingsAccordion.vue'
 import SliderField from './SliderField.vue'
 
@@ -32,7 +35,6 @@ const exampleIndex = computed(() => {
 const exampleTotal = computed(() => Math.max(store.clips.length, 1))
 const pageExample = computed(() => `${pageLabel(exampleIndex.value, exampleTotal.value)} Title`)
 const numberExample = computed(() => `${formatRank(exampleIndex.value, store.style.ranking.format)} Title`)
-const musicInput = ref<HTMLInputElement | null>(null)
 const wordIndex = ref(0)
 const activeWord = computed(() => store.spans[Math.min(wordIndex.value, Math.max(0, store.spans.length - 1))] ?? null)
 const bannerLimit = computed(() => Math.round(store.style.video.height * 0.42))
@@ -55,11 +57,9 @@ onMounted(() => {
   void store.loadEncoders()
 })
 
-function onMusic(event: Event) {
-  const target = event.target
-  if (!(target instanceof HTMLInputElement)) return
-  void store.setMusic(target.files?.[0] ?? null)
-  target.value = ''
+function onMusicFiles(files: File[]) {
+  const file = files[0]
+  if (file) void store.setMusic(file)
 }
 
 function onBannerHeight(value: number) {
@@ -380,44 +380,24 @@ function onResolution(event: Event) {
     </SettingsAccordion>
 
     <SettingsAccordion title="Audio">
-        <label class="flex items-center justify-between text-xs text-zinc-300">
-          Keep original audio
-          <input v-model="store.style.video.keepAudio" type="checkbox" />
-        </label>
-        <label v-if="store.style.video.keepAudio" class="flex items-center justify-between text-xs text-zinc-300">
-          Normalize audio
-          <input v-model="store.style.video.normalize" type="checkbox" />
-        </label>
-        <SliderField
-          v-if="store.style.video.keepAudio"
-          :model-value="Math.round(store.style.video.originalVolume * 100)"
-          label="Clip volume"
-          :min="0"
-          :max="100"
-          suffix="%"
-          @update:model-value="store.style.video.originalVolume = $event / 100"
+      <SourceClipAudioControls
+        v-model:keep-audio="store.style.video.keepAudio"
+        v-model:normalize="store.style.video.normalize"
+        v-model:original-volume="store.style.video.originalVolume"
+      />
+      <div class="space-y-2 border-t border-zinc-800 pt-3">
+        <p class="text-[11px] font-semibold uppercase tracking-[0.14em] text-zinc-500">Background music</p>
+        <AudioFileField :file-name="store.musicName" @files="onMusicFiles" @clear="store.setMusic(null)" />
+        <AdvancedAudioControls
+          v-if="store.musicName"
+          v-model:volume="store.style.video.musicVolume"
+          v-model:fade-in="store.style.video.musicFadeIn"
+          v-model:fade-out="store.style.video.musicFadeOut"
+          volume-label="Music volume"
+          volume-as-percent
+          :show-loop="false"
         />
-        <div class="space-y-2 border-t border-zinc-800 pt-3">
-          <button class="btn cursor-pointer btn-ghost w-full" type="button" @click="musicInput?.click()">
-            <AudioLines :size="16" />
-            {{ store.musicName ? 'Replace background music' : 'Add background music' }}
-          </button>
-          <p v-if="store.musicName" class="truncate text-xs text-zinc-400">{{ store.musicName }}</p>
-          <button v-if="store.musicName" class="btn cursor-pointer btn-danger w-full" type="button" @click="store.setMusic(null)">
-            <Trash2 :size="16" />
-            Remove music
-          </button>
-          <input ref="musicInput" class="hidden" type="file" accept="audio/*,.mp3,.wav,.m4a,.aac,.ogg" @change="onMusic" />
-          <SliderField
-            v-if="store.musicName"
-            :model-value="Math.round(store.style.video.musicVolume * 100)"
-            label="Music volume"
-            :min="0"
-            :max="100"
-            suffix="%"
-            @update:model-value="store.style.video.musicVolume = $event / 100"
-          />
-        </div>
+      </div>
     </SettingsAccordion>
   </aside>
 </template>

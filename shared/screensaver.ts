@@ -27,11 +27,12 @@ export const DURATION_PRESETS = [
   { label: '6 hours', seconds: 6 * 60 * 60 },
   { label: '8 hours', seconds: 8 * 60 * 60 },
   { label: '10 hours', seconds: 10 * 60 * 60 },
+  { label: '12 hours', seconds: 12 * 60 * 60 },
 ] as const
 
 export const DEFAULT_DURATION_SECONDS = 60 * 60
 export const MIN_DURATION_SECONDS = 30 * 60
-export const MAX_DURATION_SECONDS = 10 * 60 * 60
+export const MAX_DURATION_SECONDS = 12 * 60 * 60
 
 /** Server test script only — not accepted from normal API clients unless env allows. */
 export const TEST_MIN_DURATION_SECONDS = 5

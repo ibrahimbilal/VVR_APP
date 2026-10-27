@@ -153,6 +153,8 @@ export function createDefaultVideo(): VideoStyle {
     normalize: true,
     originalVolume: 1,
     musicVolume: 0.35,
+    musicFadeIn: 0.25,
+    musicFadeOut: 0.3,
     encoder: 'auto',
   }
 }
