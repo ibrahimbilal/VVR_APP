@@ -369,11 +369,11 @@ Uploads are PNG, JPEG, or WebP. Cover, contain, zoom, and pan apply only when th
 Export is 16:9 PNG or JPEG at 1280×720 (default), 1920×1080, or 3840×2160. JPEG has a quality slider. Download does not use FFmpeg.
 
 `npm run test:thumbnail` runs the shared contract tests.
-`npm run import:badges` copies and splits design SVGs from the html.to.design export into `client/src/assets/thumbnail-badges/` (`client/scripts/importThumbnailBadges.ts`; set `BADGE_SVG_SOURCE` to override the default Downloads folder). `npm run import:badges:patch` overlays single-label exports (720p set in `Downloads/Untitled`; override with `BADGE_SVG_PATCH`).
+Badge SVGs are committed under `client/src/assets/thumbnail-badges/` (catalog slugs in `shared/thumbnailBadges.ts`).
 
 ## Changelog
 
-- 2026-10-28 — Import dedicated 720p badge SVGs for all eight styles via `import:badges:patch` (`importThumbnailBadges.ts`, `client/src/assets/thumbnail-badges/**/720p.svg`).
+- 2026-10-28 — Remove badge import npm scripts and `client/scripts/importThumbnailBadges.ts`; SVGs are maintained in-repo only (`package.json`, `PROJECT.md`).
 - 2026-10-28 — Thumbnail badge resolution/duration are catalog dropdowns only; labels map 1:1 to SVG slugs; style previews use 4K artwork (`thumbnailBadges.ts`, `ThumbnailControls.vue`, `thumbnailTransfer.ts`).
 - 2026-10-28 — Thumbnail badges use imported SVG assets instead of HTML/canvas markup; remove HTML badge catalog (`thumbnailBadges.ts`, `badgeAssets.ts`, `importThumbnailBadges.ts`, `client/src/assets/thumbnail-badges/`).
 - 2026-10-28 — Add `npm run export:badges` to generate `docs/thumbnail-badges.html` (`exportBadgeCatalog.ts`, `package.json`).
