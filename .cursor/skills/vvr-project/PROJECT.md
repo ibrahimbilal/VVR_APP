@@ -4,7 +4,7 @@ Local **Video's Factory** platform with three apps:
 
 1. **Ranking Videos** (legacy VVR) — 9:16 ranking compilation editor.
 2. **Frame Screensaver** — long-form 16:9 ambient video from one image or looping video.
-3. **Thumbnail Studio** — browser-only thumbnail editor. It can start from an uploaded image or from a Frame Screensaver / Ranking Videos transfer. It does not call FFmpeg.
+3. **Thumbnail Studio** — browser-only YouTube thumbnail tool. Upload an image or take one from Frame Screensaver / Ranking Videos, then place a resolution badge and a duration badge. It does not call FFmpeg.
 
 Ranking behavior is unchanged in substance: upload clips (or link titles only), order, style banner and ranks, preview, export MP4.
 
@@ -125,7 +125,7 @@ IndexedDB database `vvr`, **version 3** (`client/src/lib/idb.ts`): `meta`, `file
 - Each clip file is stored by clip id. Music is one blob.
 - Refresh rebuilds object URLs from those blobs and re-uploads if the server no longer has `serverId`. A local clip whose file is gone becomes `error`. A link clip whose file is gone stays `empty`.
 - Color sets are localStorage, not IndexedDB. New project clears the IndexedDB project and music, not the color sets.
-- `assets` stores image blobs by id (sha256 index, ref list). `thumbnail` stores `catalog`, `active`, `project:<id>`, `presets`, `preset-default`, and `pending-transfer`. Ranking and screensaver cleanup do not delete these. An asset is removed only when no project or pending transfer still references it.
+- `assets` stores image blobs by id (sha256 index, ref list). `thumbnail` stores one `document` (version 2) and `pending-transfer`. A version-1 layer project is discarded on open and its asset refs are released. Ranking and screensaver cleanup do not delete these. An asset is removed only when no document or pending transfer still references it.
 - Clearing site data wipes the project. Server files expire on their own (below).
 
 ## Order, ranks, and time
@@ -358,18 +358,28 @@ A static 1 fps file with the precomposed PNG matched the PNG at SSIM 0.995 (`npm
 
 ## Thumbnail Studio
 
-Own Pinia store `useThumbnailStore`. Ranking and screensaver stores stay independent. Preview and export both call `renderThumbnail` in `client/src/apps/thumbnail-studio/lib/renderThumbnail.ts` (no Vue mount required). Framed screensaver artwork is drawn with `bakePlacement` / `paintComposition`. Preview long edge is 960px. Export uses the selected pixel size.
+Own Pinia store `useThumbnailStore`. Ranking and screensaver stores stay independent. The document is version 2 in `shared/thumbnailProject.ts`: one image, a resolution badge, a duration badge, and export settings. There is no layer list. Preview and export both call `renderThumbnail` in `client/src/apps/thumbnail-studio/lib/renderThumbnail.ts`. Framed screensaver artwork is drawn with `bakePlacement` / `paintComposition`. The preview long edge is 960px. A full-size canvas is created only when downloading.
 
-Default output is 1280×720. Other presets: 1920×1080, 2560×1440, 3840×2160, plus custom, 16:9, 1:1, and 9:16. Built-in templates are frozen constants. User presets are version 1 JSON in IndexedDB.
+The screen is a 16:9 preview plus Image, Resolution Badge, Duration Badge, and one Badge style section, and **Download Thumbnail**. Both badges default on, in the gold plate style: resolution `4K UHD` at the top right, duration `2 HOURS` at the bottom left. Badge styles are HTML/CSS labels (gold plate, silver plate, gold stack, gold, silver, outline, invert). One choice updates both badges. Badge size is a shared slider from 40% to 200%. Plates split `4K UHD` into `4K` / `ULTRA HD` and `2 HOURS` into `2` / `HOURS`. Gold, silver, outline, and invert chips show a number and one letter: `4K`, `1080P`, `8H`, `30M`. Text and position stay separate. The preview paints the image on canvas and the badges in HTML. Those badges are laid out in pixels and resized with CSS scale. Download paints the same badge artwork onto the export canvas.
 
-Transfer payload is version 1 in `shared/thumbnailTransfer.ts` (`frame-screensaver`, `ranking-videos`, or `standalone`). It stores asset ids, not image bytes. **Create Thumbnail** on Frame Screensaver copies the current image (or the existing still thumbnail for a video) plus composition, frame PNG, output size, and duration. Ranking opens a clip-image picker and can capture the current preview frame without scanning every file. Snapshot is the default. Linked keeps a source id and can refresh from Frame Screensaver only while that image is still in memory. A transfer never replaces an open thumbnail project without Keep / Save and start new / Replace.
+Positions are nine presets, edge distance, and X/Y offsets, stored as normalized coordinates so export matches the preview. Dragging a badge sets a free position and leaves it there. Choosing the same preset corner for both badges nudges the one just changed, unless the other badge was dragged there on purpose.
 
-Quality badges use the video's short side when a transfer provided one, otherwise the thumbnail size, and will not label a higher tier than that size. Duration badges use `30 MIN`, `1 HOUR`, `2 HOURS 30 MIN`. Content badges stay off until enabled. Optional background blur never blurs the artwork layer.
+Uploads are PNG, JPEG, or WebP. Cover, contain, zoom, and pan apply only when the image has no screensaver composition. A Frame Screensaver transfer copies the current image (or the existing still for a video), composition, frame PNG, output size, and duration. Ranking still opens the clip-image picker and can capture the current preview frame. Either transfer fills the resolution badge from the video's short side and the duration badge from `formatBadgeDuration` (`30 MIN`, `1 HOUR`, `2 HOURS 30 MIN`). An uploaded image does not imply a video resolution. If a picture is already open, the transfer asks Keep or Replace.
+
+Export is 16:9 PNG or JPEG at 1280×720 (default), 1920×1080, or 3840×2160. JPEG has a quality slider. Download does not use FFmpeg.
 
 `npm run test:thumbnail` runs the shared contract tests.
 
 ## Changelog
 
+- 2026-10-28 — Add a silver chip badge style (`badgeHtml.ts`, `thumbnailProject.ts`, `rasterizeBadge.ts`).
+- 2026-10-28 — Remove Mono and Line badge styles; six styles remain (`thumbnailProject.ts`, `badgeHtml.ts`).
+- 2026-10-28 — Chip badges show a number and one letter: `4K` for resolution and `8H` for duration (`badgeHtml.ts`, `thumbnailProject.ts`).
+- 2026-10-28 — Thumbnail badge markup is sized in pixels and resized with CSS scale (`badgeHtml.ts`).
+- 2026-10-27 — Thumbnail badges share a size slider from 40% to 200% (`ThumbnailControls.vue`, `thumbnailProject.ts`).
+- 2026-10-27 — Thumbnail badges are HTML/CSS resolution labels (gold, silver, stack, mono, line, outline, invert) shared by the duration badge (`badgeHtml.ts`, `rasterizeBadge.ts`, `thumbnailProject.ts`).
+- 2026-10-27 — Thumbnail Studio badge style is one shared panel that updates both badges (`ThumbnailControls.vue`, `stores/thumbnail.ts`).
+- 2026-10-27 — Simplify Thumbnail Studio to one image and two badges: drop layers, templates, catalogs, and ZIP; keep screensaver and ranking transfer (`client/src/apps/thumbnail-studio/`, `shared/thumbnailProject.ts`, `shared/thumbnailTransfer.ts`, `shared/thumbnailLayout.ts`).
 - 2026-10-27 — Add Thumbnail Studio: route, editor, IndexedDB v3 assets, screensaver and ranking transfer, PNG/JPEG/WebP and ZIP export (`client/src/apps/thumbnail-studio/`, `shared/thumbnail*.ts`, `client/src/lib/idb.ts`).
 - 2026-10-27 — Boolean settings use shared toggle switches instead of checkboxes (`ToggleSwitch.vue`, `style.css`, ranking/style/audio/thumbnail/screensaver UI).
 - 2026-10-27 — Fix Frame Screensaver frame upload (`FileDropZone` import in `ScreensaverSettingsPanel.vue`).

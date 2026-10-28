@@ -8,12 +8,12 @@ import {
   type StoredImageAsset,
 } from '../../../lib/idb'
 
-const ALLOWED = new Set(['image/png', 'image/jpeg', 'image/webp', 'image/gif'])
+const ALLOWED = new Set(['image/png', 'image/jpeg', 'image/webp'])
 
 export async function storeImageBlob(blob: Blob, name: string, ref: string): Promise<StoredImageAsset> {
   const header = new Uint8Array(await blob.slice(0, 16).arrayBuffer())
   const mime = normalizeImageMime(blob.type, header)
-  if (!mime) throw new Error('Use a PNG, JPEG, WebP, or GIF image.')
+  if (!mime || !ALLOWED.has(mime)) throw new Error('Use a PNG, JPEG, or WebP image.')
   const sha256 = await sha256Hex(blob)
   const existing = await findImageAssetByHash(sha256)
   if (existing) {

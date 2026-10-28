@@ -2,36 +2,29 @@ import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 import { defaultComposition } from './screensaverComposition'
 import { moveAssetRefs, syncAssetRefs } from './thumbnailAssets'
-import { canRedo, canUndo, createHistory, historyCommit, historyRedo, historyUndo } from './thumbnailHistory'
-import { anchorPoint, autoPlaceBadges, contrastPair, normToPx, rectsOverlap, topLeftFromAnchor } from './thumbnailLayout'
+import { nudgeForSharedAnchor, normToPx, rectsOverlap, topLeftFromAnchor } from './thumbnailLayout'
 import {
-  THUMBNAIL_TEMPLATES,
-  applyPreset,
-  applyTemplate,
-  artworkLayer,
-  badgeLabel,
-  clampQualityChoice,
-  createThumbnailProject,
-  deleteUserPreset,
+  applyBadgeStyle,
+  assetIdsInDocument,
+  badgeAnchorPoint,
+  badgeAppearance,
+  badgeLines,
+  chipLabel,
+  createThumbnailDocument,
+  dragBadge,
   exactExportSize,
   formatBadgeDuration,
-  frameLayer,
-  layersInDrawOrder,
-  missingAssetIds,
-  parsePreset,
-  parseProject,
-  presetFromProject,
+  formatDurationParts,
+  legacyThumbnailAssets,
+  parseDurationText,
+  parseThumbnailDocument,
+  placeBadge,
   previewPixelSize,
   qualityFromResolution,
-  reorderLayer,
-  sanitizeFilenamePart,
-  sanitizeQualityOverride,
-  serializePreset,
-  serializeProject,
-  thumbnailFilename,
+  qualityIdFromText,
+  resetBadgePosition,
 } from './thumbnailProject'
-import { projectFromTransfer, validateThumbnailTransfer } from './thumbnailTransfer'
-import { zipStored } from './thumbnailZip'
+import { documentFromTransfer, validateThumbnailTransfer } from './thumbnailTransfer'
 
 describe('thumbnail transfer', () => {
   it('rejects a payload without artwork', () => {
@@ -41,7 +34,7 @@ describe('thumbnail transfer', () => {
     assert.equal(unknown.ok, false)
   })
 
-  it('drops unknown fields and keeps a framed screensaver composition', () => {
+  it('keeps a framed screensaver composition and fills both badges', () => {
     const composition = defaultComposition()
     composition.crop = { x: 0.1, y: 0.2, w: 0.5, h: 0.6 }
     composition.rotation = 12
@@ -62,17 +55,41 @@ describe('thumbnail transfer', () => {
     assert.equal('extra' in result.payload, false)
     assert.equal(result.payload.linkMode, 'linked')
     assert.equal(result.payload.artwork.composition?.rotation, 12)
-    assert.equal(result.payload.artwork.composition?.crop.x, 0.1)
-    const project = projectFromTransfer(result.payload)
-    assert.equal(artworkLayer(project)?.assetId, 'art')
-    assert.equal(artworkLayer(project)?.crop.w, 0.5)
-    assert.equal((artworkLayer(project)?.composition as { rotation: number }).rotation, 12)
-    assert.equal(frameLayer(project)?.assetId, 'frame-png')
-    assert.equal(frameLayer(project)?.visible, true)
-    assert.equal(project.returnPath, '/frame-screensaver')
-    assert.equal(badgeLabel(project, project.layers.find((item) => item.badgeRole === 'quality')!), '1080P')
-    assert.equal(badgeLabel(project, project.layers.find((item) => item.badgeRole === 'duration')!), '1 HOUR')
-    assert.deepEqual(missingAssetIds(project, ['art']), ['frame-png'])
+    const doc = documentFromTransfer(result.payload)
+    assert.equal(doc.image.assetId, 'art')
+    assert.equal(doc.image.crop.w, 0.5)
+    assert.equal((doc.image.composition as { rotation: number }).rotation, 12)
+    assert.equal(doc.image.frameAssetId, 'frame-png')
+    assert.equal(doc.source.returnPath, '/frame-screensaver')
+    assert.equal(doc.resolution.text, '1080P')
+    assert.equal(doc.duration.text, '1 HOUR')
+    assert.deepEqual(assetIdsInDocument(doc).sort(), ['art', 'frame-png'])
+  })
+
+  it('fills ranking metadata and leaves a plain upload on the default badges', () => {
+    const ranking = validateThumbnailTransfer({
+      version: 1,
+      sourceApp: 'ranking-videos',
+      linkMode: 'snapshot',
+      artwork: { assetId: 'clip' },
+      video: { width: 1080, height: 1920, durationSeconds: 8 * 60 * 60 },
+    })
+    assert.equal(ranking.ok, true)
+    if (!ranking.ok) return
+    const doc = documentFromTransfer(ranking.payload)
+    assert.equal(doc.resolution.text, '1080P')
+    assert.equal(doc.duration.text, '8 HOURS')
+    assert.equal(doc.image.composition, null)
+
+    const blank = createThumbnailDocument()
+    blank.image.sourceWidth = 640
+    blank.image.sourceHeight = 360
+    assert.equal(blank.resolution.text, '4K UHD')
+    assert.equal(blank.duration.text, '2 HOURS')
+    blank.resolution.text = '8K UHD'
+    const loaded = parseThumbnailDocument(JSON.parse(JSON.stringify(blank)))
+    assert.equal(loaded?.resolution.text, '8K UHD')
+    assert.equal(qualityIdFromText('8K UHD'), '8k')
   })
 })
 
@@ -83,10 +100,12 @@ describe('badges', () => {
     assert.equal(formatBadgeDuration(2 * 60 * 60), '2 HOURS')
     assert.equal(formatBadgeDuration(2.5 * 60 * 60), '2 HOURS 30 MIN')
     assert.equal(formatBadgeDuration(8 * 60 * 60), '8 HOURS')
-    assert.equal(formatBadgeDuration(12 * 60 * 60), '12 HOURS')
+    assert.equal(formatDurationParts(2, 30), '2 HOURS 30 MIN')
+    assert.deepEqual(parseDurationText('2 HOURS 30 MIN'), { hours: 2, minutes: 30 })
+    assert.equal(parseDurationText('ALL NIGHT'), null)
   })
 
-  it('maps quality from the short side and refuses a higher claim', () => {
+  it('maps quality from the short side', () => {
     assert.equal(qualityFromResolution(1920, 1080).label, '1080P')
     assert.equal(qualityFromResolution(1080, 1920).label, '1080P')
     assert.equal(qualityFromResolution(2560, 1440).label, '1440P')
@@ -94,127 +113,126 @@ describe('badges', () => {
     assert.equal(qualityFromResolution(7680, 4320).label, '8K UHD')
     assert.equal(qualityFromResolution(1280, 720).label, '720P')
     assert.equal(qualityFromResolution(640, 360).label, '360P')
-    assert.equal(clampQualityChoice('8k', '1080'), '1080')
-    assert.equal(clampQualityChoice('720', '1080'), '720')
-    assert.equal(sanitizeQualityOverride('8K UHD', 1920, 1080), null)
-    assert.equal(sanitizeQualityOverride('720P', 1920, 1080), '720P')
+  })
+
+  it('applies a badge style without moving the badge or the image', () => {
+    const doc = createThumbnailDocument()
+    doc.resolution.text = '720P'
+    doc.resolution.appearance.scale = 1.6
+    const next = applyBadgeStyle(doc.resolution, 'silver-plate')
+    assert.equal(next.text, '720P')
+    assert.equal(next.anchor, doc.resolution.anchor)
+    assert.equal(next.appearance.styleId, 'silver-plate')
+    assert.equal(next.appearance.scale, 1.6)
+    assert.equal(doc.resolution.appearance.styleId, 'gold-plate')
+    const mutated = badgeAppearance('outline')
+    mutated.styleId = 'gold'
+    assert.equal(badgeAppearance('outline').styleId, 'outline')
+    assert.equal(doc.image.assetId, null)
+  })
+
+  it('splits resolution and duration labels the same way', () => {
+    assert.deepEqual(badgeLines('4K UHD'), { hero: '4K', foot: 'ULTRA HD' })
+    assert.deepEqual(badgeLines('8K UHD'), { hero: '8K', foot: 'ULTRA HD' })
+    assert.deepEqual(badgeLines('1080P'), { hero: '1080P', foot: null })
+    assert.deepEqual(badgeLines('2 HOURS'), { hero: '2', foot: 'HOURS' })
+    assert.deepEqual(badgeLines('1 HOUR'), { hero: '1', foot: 'HOUR' })
+    assert.deepEqual(badgeLines('2 HOURS 30 MIN'), { hero: '2', foot: 'HOURS 30 MIN' })
+    assert.deepEqual(badgeLines('30 MIN'), { hero: '30', foot: 'MIN' })
+  })
+
+  it('shortens chip labels to a number and one letter', () => {
+    assert.equal(chipLabel('4K UHD'), '4K')
+    assert.equal(chipLabel('8K UHD'), '8K')
+    assert.equal(chipLabel('1080P'), '1080P')
+    assert.equal(chipLabel('720P'), '720P')
+    assert.equal(chipLabel('8 HOURS'), '8H')
+    assert.equal(chipLabel('2 HOURS'), '2H')
+    assert.equal(chipLabel('1 HOUR'), '1H')
+    assert.equal(chipLabel('30 MIN'), '30M')
+    assert.equal(chipLabel('2 HOURS 30 MIN'), '2H')
   })
 })
 
 describe('layout', () => {
   it('uses normalized coordinates that scale to any pixel size', () => {
-    assert.deepEqual(anchorPoint('top-left', 0.04), { x: 0.04, y: 0.04 })
-    assert.deepEqual(anchorPoint('center', 0.04), { x: 0.5, y: 0.5 })
-    const box = topLeftFromAnchor('top-right', 0.96, 0.04, 0.2, 0.1)
-    assert.equal(box.x, 0.76)
+    const doc = createThumbnailDocument()
+    assert.equal(doc.resolution.anchor, 'top-right')
+    assert.equal(doc.duration.anchor, 'bottom-left')
     assert.equal(normToPx(0.5, 1280) / 1280, normToPx(0.5, 3840) / 3840)
   })
 
-  it('places badges without overlap and prefers contrast', () => {
-    const placed = autoPlaceBadges(
-      [
-        { id: 'quality', width: 0.2, height: 0.1, prefer: 'top-right' },
-        { id: 'duration', width: 0.2, height: 0.1, prefer: 'bottom-left' },
-      ],
-      { margin: 0.04 },
-    )
-    assert.equal(placed.quality.anchor, 'top-right')
-    assert.equal(placed.duration.anchor, 'bottom-left')
-    const qualityBox = topLeftFromAnchor(placed.quality.anchor, placed.quality.x, placed.quality.y, 0.2, 0.1)
-    const durationBox = topLeftFromAnchor(placed.duration.anchor, placed.duration.x, placed.duration.y, 0.2, 0.1)
-    assert.equal(rectsOverlap(qualityBox, durationBox), false)
+  it('nudges a shared preset and leaves a dragged badge where it was dropped', () => {
+    assert.deepEqual(nudgeForSharedAnchor('top-right'), { x: 0, y: 0.16 })
+    assert.ok(nudgeForSharedAnchor('bottom-left').y < 0)
+    assert.ok(nudgeForSharedAnchor('middle-left').x > 0)
+    assert.ok(nudgeForSharedAnchor('middle-right').x < 0)
 
-    const contrasted = autoPlaceBadges(
-      [{ id: 'quality', width: 0.2, height: 0.1, prefer: 'top-right' }],
-      {
-        margin: 0.04,
-        textIsLight: true,
-        luminance: { 'top-right': 0.95, 'top-left': 0.05 },
-      },
-    )
-    assert.equal(contrasted.quality.anchor, 'top-left')
-    assert.equal(contrastPair(0.9).color, '#161616')
-    assert.equal(contrastPair(0.1).color, '#f7f7f7')
-  })
+    const doc = createThumbnailDocument()
+    doc.duration = placeBadge(doc.duration, 'top-right', doc.resolution)
+    assert.equal(doc.duration.anchor, 'top-right')
+    assert.equal(doc.duration.deliberate, false)
+    assert.ok(doc.duration.offsetY > 0)
+    const resolutionBox = topLeftFromAnchor(doc.resolution.anchor, doc.resolution.x, doc.resolution.y, 0.24, 0.12)
+    const durationPoint = badgeAnchorPoint(doc.duration)
+    const durationBox = topLeftFromAnchor(doc.duration.anchor, durationPoint.x, durationPoint.y, 0.24, 0.12)
+    assert.equal(rectsOverlap(resolutionBox, durationBox), false)
 
-  it('reorders layers by z', () => {
-    const project = createThumbnailProject()
-    const title = project.layers.find((item) => item.textRole === 'title')
-    assert.ok(title)
-    const reordered = reorderLayer(project.layers, title.id, -1)
-    const before = layersInDrawOrder(project.layers).map((item) => item.id)
-    const after = layersInDrawOrder(reordered).map((item) => item.id)
-    assert.notEqual(after.at(-1), before.at(-1))
-    assert.equal(after.at(-1), before.at(-2))
+    const nudgedY = doc.duration.y
+    doc.resolution = placeBadge(doc.resolution, 'top-right', doc.duration)
+    assert.equal(doc.resolution.offsetY, 0)
+    assert.equal(doc.duration.y, nudgedY)
+
+    const dragged = dragBadge(doc.duration, 0.42, 0.61)
+    assert.equal(dragged.anchor, 'free')
+    assert.equal(dragged.deliberate, true)
+    const moved = placeBadge(doc.resolution, dragged.anchor === 'free' ? 'top-right' : dragged.anchor, dragged)
+    assert.equal(dragged.x, 0.42)
+    assert.equal(dragged.y, 0.61)
+    assert.equal(moved.offsetY, 0)
+    const reset = resetBadgePosition(dragged, 'duration', doc.resolution)
+    assert.equal(reset.anchor, 'bottom-left')
+    assert.equal(reset.deliberate, false)
+    assert.equal(dragged.x, 0.42)
   })
 })
 
-describe('templates and presets', () => {
-  it('keeps built-in templates immutable', () => {
-    assert.equal(THUMBNAIL_TEMPLATES.length, 9)
-    assert.equal(Object.isFrozen(THUMBNAIL_TEMPLATES), true)
-    const first = applyTemplate(createThumbnailProject('Ribo'), 'luxury-gold')
-    const title = first.layers.find((item) => item.textRole === 'title')
-    assert.ok(title)
-    title.textStyle.color = '#000000'
-    const second = applyTemplate(createThumbnailProject('Ribo'), 'luxury-gold')
-    assert.notEqual(second.layers.find((item) => item.textRole === 'title')?.textStyle.color, '#000000')
-    assert.equal(first.templateId, 'luxury-gold')
-    const clean = applyTemplate(first, 'clean-artwork')
-    assert.equal(clean.layers.find((item) => item.badgeRole === 'quality')?.visible, false)
-    assert.equal(deleteUserPreset([], 'luxury-gold').length, 0)
-  })
-
-  it('round-trips a user preset and rejects a newer version', () => {
-    const styled = applyTemplate(createThumbnailProject('Named'), 'cinematic')
-    const preset = presetFromProject(styled, 'My cinematic')
-    const parsed = parsePreset(serializePreset(preset))
-    assert.equal(parsed.ok, true)
-    if (!parsed.ok) return
-    const applied = applyPreset(createThumbnailProject('Named'), parsed.preset)
-    assert.equal(applied.templateId, 'cinematic')
-    assert.equal(artworkLayer(applied)?.assetId, null)
-    const newer = parsePreset(JSON.stringify({ version: 2, name: 'Later' }))
-    assert.equal(newer.ok, false)
-  })
-})
-
-describe('export and history', () => {
-  it('keeps export pixels exact and caps preview', () => {
+describe('export and persistence', () => {
+  it('keeps 16:9 export pixels exact and caps preview', () => {
     assert.deepEqual(exactExportSize(3840, 2160), { width: 3840, height: 2160 })
+    assert.deepEqual(exactExportSize(1920, 1080), { width: 1920, height: 1080 })
+    assert.deepEqual(exactExportSize(100, 100), { width: 1280, height: 720 })
     const preview = previewPixelSize(3840, 2160, 960)
     assert.equal(Math.max(preview.width, preview.height), 960)
-    assert.equal(sanitizeFilenamePart('My Project!'), 'my-project')
-    assert.equal(thumbnailFilename('My Project', 'luxury-gold', 1280, 720, 'png'), 'my-project-thumbnail-luxury-gold-1280x720.png')
   })
 
-  it('undoes and redoes committed edits', () => {
-    const start = createThumbnailProject('One')
-    let history = createHistory(start)
-    history = historyCommit(history, { ...start, name: 'Two' })
-    history = historyCommit(history, { ...start, name: 'Three' })
-    assert.equal(canUndo(history), true)
-    history = historyUndo(history)
-    assert.equal(history.present.name, 'Two')
-    history = historyRedo(history)
-    assert.equal(history.present.name, 'Three')
-    const undone = historyUndo(historyUndo(historyUndo(history)))
-    assert.equal(canUndo(undone), false)
-    assert.equal(undone.present.name, 'One')
-  })
-
-  it('stores a zip of the selected variation bytes', () => {
-    const payload = new TextEncoder().encode('png-bytes')
-    const zip = zipStored([{ name: 'gallery-thumbnail-modern-dark-1280x720.png', data: payload }])
-    assert.equal(zip[0], 0x50)
-    assert.equal(zip[1], 0x4b)
-    const text = new TextDecoder().decode(zip)
-    assert.equal(text.includes('gallery-thumbnail-modern-dark-1280x720.png'), true)
-    assert.equal(text.includes('png-bytes'), true)
+  it('discards a legacy layer project and round-trips the badge document', () => {
+    assert.equal(parseThumbnailDocument({ version: 1, id: 'old', layers: [] }), null)
+    assert.equal(parseThumbnailDocument({ version: 9 }), null)
+    assert.deepEqual(legacyThumbnailAssets({ version: 1, id: 'old', layers: [{ assetId: 'a' }, { assetId: '' }] }), {
+      projectId: 'old',
+      assetIds: ['a'],
+    })
+    const doc = createThumbnailDocument()
+    doc.duration.text = '30 MIN'
+    doc.export = { width: 1920, height: 1080, format: 'jpeg', jpegQuality: 0.8 }
+    const loaded = parseThumbnailDocument(JSON.parse(JSON.stringify(doc)))
+    assert.ok(loaded)
+    assert.equal(loaded?.duration.text, '30 MIN')
+    assert.equal(loaded?.export.width, 1920)
+    assert.equal(loaded?.export.format, 'jpeg')
+    assert.equal(loaded?.resolution.appearance.styleId, 'gold-plate')
+    const legacy = JSON.parse(JSON.stringify(doc)) as { resolution: { appearance: { styleId: string } }; duration: { appearance: { styleId: string } } }
+    legacy.resolution.appearance.styleId = 'luxury-gold'
+    legacy.duration.appearance.styleId = 'modern-dark'
+    const migrated = parseThumbnailDocument(legacy)
+    assert.equal(migrated?.resolution.appearance.styleId, 'gold-plate')
+    assert.equal(migrated?.duration.appearance.styleId, 'invert')
+    assert.equal(loaded?.image.fit, 'cover')
   })
 })
 
-describe('assets and persistence', () => {
+describe('assets', () => {
   it('does not delete a shared asset that another project still uses', () => {
     const assets = [
       { id: 'shared', refs: ['one', 'two'] },
@@ -228,18 +246,5 @@ describe('assets and persistence', () => {
     const moved = moveAssetRefs([{ id: 'art', refs: ['pending-transfer'] }], 'pending-transfer', 'project-1')
     assert.deepEqual(moved.assets[0]?.refs, ['project-1'])
     assert.deepEqual(moved.removed, [])
-  })
-
-  it('round-trips a project document', () => {
-    const project = applyTemplate(createThumbnailProject('Saved'), 'nature')
-    project.durationSeconds = 90 * 60
-    const loaded = parseProject(JSON.parse(serializeProject(project)))
-    assert.ok(loaded)
-    assert.equal(loaded?.name, 'Saved')
-    assert.equal(loaded?.templateId, 'nature')
-    assert.equal(loaded?.width, 1280)
-    assert.equal(loaded?.height, 720)
-    assert.equal(loaded?.layers.length, project.layers.length)
-    assert.equal(parseProject({ version: 9 }), null)
   })
 })

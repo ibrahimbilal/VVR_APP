@@ -1,11 +1,11 @@
 import { sanitizeComposition, type ScreensaverComposition } from './screensaverComposition'
 import {
-  artworkLayer,
-  createThumbnailProject,
-  frameLayer,
+  createThumbnailDocument,
+  formatBadgeDuration,
+  qualityFromResolution,
+  type ThumbnailDocument,
   type ThumbnailFit,
   type ThumbnailLinkMode,
-  type ThumbnailProject,
   type ThumbnailSourceApp,
 } from './thumbnailProject'
 
@@ -88,62 +88,33 @@ export function validateThumbnailTransfer(raw: unknown): { ok: true; payload: Th
   return { ok: true, payload }
 }
 
-export function projectFromTransfer(payload: ThumbnailTransferPayload, id?: string): ThumbnailProject {
-  const project = createThumbnailProject(payload.title?.trim() || 'Untitled thumbnail')
-  if (id) project.id = id
-  project.linkMode = payload.linkMode
-  project.sourceApp = payload.sourceApp
-  project.sourceProjectId = payload.sourceProjectId ?? null
-  project.returnPath = payload.returnPath ?? null
-  project.name = payload.title?.trim() || project.name
-  project.videoWidth = payload.video?.width ?? null
-  project.videoHeight = payload.video?.height ?? null
-  project.durationSeconds = payload.video?.durationSeconds ?? null
-
-  const artwork = artworkLayer(project)
-  if (artwork) {
-    artwork.assetId = payload.artwork.assetId
-    artwork.fit = payload.artwork.fit ?? 'cover'
-    artwork.composition = payload.artwork.composition ?? null
-    if (payload.artwork.composition) artwork.crop = { ...payload.artwork.composition.crop }
+export function documentFromTransfer(payload: ThumbnailTransferPayload, id?: string): ThumbnailDocument {
+  const doc = createThumbnailDocument()
+  if (id) doc.id = id
+  doc.image.assetId = payload.artwork.assetId
+  doc.image.fit = payload.artwork.fit ?? 'cover'
+  doc.image.composition = payload.artwork.composition ?? null
+  if (payload.artwork.composition) doc.image.crop = { ...payload.artwork.composition.crop }
+  doc.image.frameAssetId = payload.frame?.assetId ?? null
+  doc.source.app = payload.sourceApp
+  doc.source.linkMode = payload.linkMode
+  doc.source.returnPath = payload.returnPath ?? null
+  doc.source.sourceProjectId = payload.sourceProjectId ?? null
+  doc.source.videoWidth = payload.video?.width ?? null
+  doc.source.videoHeight = payload.video?.height ?? null
+  doc.source.durationSeconds = payload.video?.durationSeconds ?? null
+  if (doc.source.videoWidth && doc.source.videoHeight) {
+    const quality = qualityFromResolution(doc.source.videoWidth, doc.source.videoHeight)
+    if (quality.label) doc.resolution.text = quality.label
   }
-  const frame = frameLayer(project)
-  if (frame && payload.frame?.assetId) {
-    frame.assetId = payload.frame.assetId
-    frame.visible = true
+  if (doc.source.durationSeconds != null) {
+    const label = formatBadgeDuration(doc.source.durationSeconds)
+    if (label) doc.duration.text = label
   }
-  const title = project.layers.find((item) => item.textRole === 'title')
-  if (title) {
-    title.text = project.name
-    title.userEdited = false
-  }
-  const duration = project.layers.find((item) => item.badgeRole === 'duration')
-  if (duration) duration.visible = project.durationSeconds != null
-  if (payload.artwork.composition) applyCompositionBackground(project, payload.artwork.composition)
-  project.updatedAt = Date.now()
-  return project
-}
-
-function applyCompositionBackground(project: ThumbnailProject, composition: ScreensaverComposition): void {
-  const background = project.layers.find((item) => item.kind === 'background')
-  if (!background) return
-  const mode = composition.background.mode
-  background.blur = 0
-  if (mode === 'blur') {
-    background.blur = composition.background.blur
-    background.boxStyle.fill = 'solid'
-    background.boxStyle.color = composition.background.color
-    background.boxStyle.color2 = composition.background.color
-    return
-  }
-  if (mode === 'transparent') {
-    background.boxStyle.fill = 'none'
-    return
-  }
-  const color = mode === 'white' ? '#ffffff' : mode === 'black' ? '#000000' : composition.background.color
-  background.boxStyle.fill = 'solid'
-  background.boxStyle.color = color
-  background.boxStyle.color2 = color
+  doc.resolution.enabled = true
+  doc.duration.enabled = true
+  doc.updatedAt = Date.now()
+  return doc
 }
 
 function optionalText(value: unknown, max: number): string | null {

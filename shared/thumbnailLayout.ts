@@ -13,16 +13,16 @@ export const ANCHOR_IDS = [
 export type FixedAnchor = (typeof ANCHOR_IDS)[number]
 export type AnchorId = FixedAnchor | 'free'
 
-export const ANCHORS: { id: AnchorId; label: string }[] = [
-  { id: 'top-left', label: 'Top left' },
-  { id: 'top-center', label: 'Top center' },
-  { id: 'top-right', label: 'Top right' },
-  { id: 'middle-left', label: 'Middle left' },
+export const ANCHORS: { id: FixedAnchor; label: string }[] = [
+  { id: 'top-left', label: 'Top Left' },
+  { id: 'top-center', label: 'Top Center' },
+  { id: 'top-right', label: 'Top Right' },
+  { id: 'middle-left', label: 'Middle Left' },
   { id: 'center', label: 'Center' },
-  { id: 'middle-right', label: 'Middle right' },
-  { id: 'bottom-left', label: 'Bottom left' },
-  { id: 'bottom-center', label: 'Bottom center' },
-  { id: 'bottom-right', label: 'Bottom right' },
+  { id: 'middle-right', label: 'Middle Right' },
+  { id: 'bottom-left', label: 'Bottom Left' },
+  { id: 'bottom-center', label: 'Bottom Center' },
+  { id: 'bottom-right', label: 'Bottom Right' },
 ]
 
 export interface NormBox {
@@ -88,14 +88,6 @@ export function pxToNorm(value: number, size: number): number {
   return value / size
 }
 
-export function snapNorm(value: number, grid: number, snapCenter: boolean): number {
-  let next = value
-  if (grid > 0) next = Math.round(value / grid) * grid
-  const threshold = Math.max(grid || 0, 0.015)
-  if (snapCenter && Math.abs(next - 0.5) <= threshold) next = 0.5
-  return clampUnit(next, -0.25, 1.25)
-}
-
 export function clampNormCrop(crop: NormCrop): NormCrop {
   const w = clampUnit(crop.w, 0.05, 1)
   const h = clampUnit(crop.h, 0.05, 1)
@@ -125,66 +117,19 @@ export function panNormCrop(crop: NormCrop, dx: number, dy: number): NormCrop {
   return clampNormCrop({ ...crop, x: crop.x + dx, y: crop.y + dy })
 }
 
-export interface BadgePlaceItem {
-  id: string
-  width: number
-  height: number
-  prefer: AnchorId
-}
-
-export interface PlacedAnchor {
-  anchor: FixedAnchor
-  x: number
-  y: number
-}
-
-function candidateAnchors(prefer: AnchorId): FixedAnchor[] {
-  if (prefer === 'free' || !ANCHOR_IDS.includes(prefer as FixedAnchor)) return [...ANCHOR_IDS]
-  return [prefer as FixedAnchor, ...ANCHOR_IDS.filter((id) => id !== prefer)]
-}
-
-/**
- * Deterministic badge placement. Non-overlapping spots win. When luminance
- * samples exist, higher contrast beats the preferred corner.
- */
-export function autoPlaceBadges(
-  items: BadgePlaceItem[],
-  options: {
-    margin: number
-    frameInset?: number
-    luminance?: Partial<Record<FixedAnchor, number>>
-    textIsLight?: boolean
-  },
-): Record<string, PlacedAnchor> {
-  const margin = clampUnit(options.margin + (options.frameInset ?? 0), 0, 0.45)
-  const textIsLight = options.textIsLight !== false
-  const occupied: NormBox[] = []
-  const result: Record<string, PlacedAnchor> = {}
-  for (const item of items) {
-    const width = clampUnit(item.width, 0.02, 1)
-    const height = clampUnit(item.height, 0.02, 1)
-    let best: { anchor: FixedAnchor; x: number; y: number; box: NormBox } | null = null
-    let bestScore = Number.NEGATIVE_INFINITY
-    for (const [index, anchor] of candidateAnchors(item.prefer).entries()) {
-      const point = anchorPoint(anchor, margin)
-      const box = topLeftFromAnchor(anchor, point.x, point.y, width, height)
-      const overlaps = occupied.some((placed) => rectsOverlap(placed, box))
-      const sample = options.luminance?.[anchor]
-      const contrast = sample == null ? 0.5 : textIsLight ? 1 - clampUnit(sample, 0, 1) : clampUnit(sample, 0, 1)
-      const score = contrast * 10 - index * 0.01 - (overlaps ? 100 : 0)
-      if (score > bestScore) {
-        bestScore = score
-        best = { anchor, x: point.x, y: point.y, box }
-      }
-    }
-    if (!best) continue
-    occupied.push(best.box)
-    result[item.id] = { anchor: best.anchor, x: best.x, y: best.y }
+export function presetAnchorPoint(anchor: FixedAnchor, margin: number, offsetX: number, offsetY: number): AnchorPoint {
+  const point = anchorPoint(anchor, margin)
+  return {
+    x: clampUnit(point.x + offsetX, -0.25, 1.25),
+    y: clampUnit(point.y + offsetY, -0.25, 1.25),
   }
-  return result
 }
 
-export function contrastPair(luminance: number): { color: string; fill: string } {
-  if (clampUnit(luminance, 0, 1) >= 0.55) return { color: '#161616', fill: 'rgba(255,255,255,0.82)' }
-  return { color: '#f7f7f7', fill: 'rgba(0,0,0,0.72)' }
+/** Move a second badge off a shared preset corner without touching a dragged badge. */
+export function nudgeForSharedAnchor(anchor: FixedAnchor, step = 0.16): { x: number; y: number } {
+  if (anchor.startsWith('top')) return { x: 0, y: step }
+  if (anchor.startsWith('bottom')) return { x: 0, y: -step }
+  if (anchor.endsWith('left')) return { x: step, y: 0 }
+  if (anchor.endsWith('right')) return { x: -step, y: 0 }
+  return { x: 0, y: step }
 }

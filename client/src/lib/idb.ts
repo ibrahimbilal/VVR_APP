@@ -335,6 +335,16 @@ export async function deleteThumbnailValue(key: string): Promise<void> {
   }
 }
 
+export async function listThumbnailKeys(): Promise<string[]> {
+  const db = await openDb()
+  try {
+    const keys = await requestToPromise(db.transaction('thumbnail', 'readonly').objectStore('thumbnail').getAllKeys())
+    return keys.filter((key): key is string => typeof key === 'string')
+  } finally {
+    db.close()
+  }
+}
+
 export async function getImageAsset(id: string): Promise<StoredImageAsset | null> {
   const db = await openDb()
   try {
