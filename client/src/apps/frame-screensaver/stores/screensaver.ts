@@ -610,6 +610,60 @@ export const useScreensaverStore = defineStore('screensaver', () => {
     void idb.clearScreensaverSource().catch(() => undefined)
   }
 
+  function resetToDefaults(): void {
+    const defaults = defaultProject()
+    name.value = defaults.name
+    mode.value = defaults.mode
+    mediaKind.value = defaults.mediaKind
+    serverId.value = defaults.serverId
+    fileName.value = defaults.fileName
+    width.value = defaults.width
+    height.value = defaults.height
+    sourceDuration.value = defaults.sourceDuration
+    hasAudio.value = defaults.hasAudio
+    thumbnail.value = defaults.thumbnail
+    outputWidth.value = defaults.outputWidth
+    outputHeight.value = defaults.outputHeight
+    fps.value = defaults.fps
+    durationSeconds.value = defaults.durationSeconds
+    durationPresetKey.value = defaults.durationPresetKey
+    fit.value = defaults.fit
+    loopType.value = defaults.loopType
+    crossfadeSeconds.value = defaults.crossfadeSeconds
+    audioMode.value = defaults.audioMode
+    audioVolume.value = defaults.audioVolume
+    audioFadeIn.value = defaults.audioFadeIn
+    audioFadeOut.value = defaults.audioFadeOut
+    loopAudio.value = defaults.loopAudio
+    backgroundColor.value = defaults.backgroundColor
+    audioFileName.value = defaults.audioFileName
+    profile.value = 'static-fast'
+    encoder.value = 'auto'
+    composition.value = defaultComposition()
+    history.value = [cloneComposition(composition.value)]
+    historyIndex.value = 0
+    uploadProgress.value = 0
+    uploadError.value = null
+    exportState.value = idleExport()
+    compareAdjustments.value = false
+    cropEditing.value = false
+    frameImage.value = null
+    autoStill.value = null
+    autoMotion.value = null
+  }
+
+  async function newProject(): Promise<void> {
+    const hasWork = mediaKind.value !== null || audioFileName.value !== null
+    if (hasWork && !window.confirm('Start a new project? The current source and settings will be cleared.')) return
+    cancelExport()
+    const previousServerId = serverId.value
+    removeSource()
+    clearAudio()
+    resetToDefaults()
+    if (previousServerId) void api.deleteClip(previousServerId).catch(() => undefined)
+    await idb.clearScreensaverProject().catch(() => undefined)
+  }
+
   function clearSourceUrls() {
     if (objectUrl.value) URL.revokeObjectURL(objectUrl.value)
     objectUrl.value = null
@@ -994,6 +1048,7 @@ export const useScreensaverStore = defineStore('screensaver', () => {
     DURATION_PRESETS,
     SCREENSAVER_OUTPUTS,
     init,
+    newProject,
     pickSource,
     removeSource,
     setDurationPreset,

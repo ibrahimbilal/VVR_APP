@@ -2,6 +2,7 @@ import { createRouter, createWebHistory } from 'vue-router'
 import DashboardView from '../views/DashboardView.vue'
 import RankingVideosView from '../apps/ranking-videos/RankingVideosView.vue'
 import FrameScreensaverView from '../apps/frame-screensaver/FrameScreensaverView.vue'
+import ThumbnailStudioView from '../apps/thumbnail-studio/ThumbnailStudioView.vue'
 
 export const router = createRouter({
   history: createWebHistory(),
@@ -23,6 +24,12 @@ export const router = createRouter({
       name: 'frame-screensaver',
       component: FrameScreensaverView,
       meta: { title: 'Frame Screensaver' },
+    },
+    {
+      path: '/thumbnail-studio',
+      name: 'thumbnail-studio',
+      component: ThumbnailStudioView,
+      meta: { title: 'Thumbnail Studio' },
     },
   ],
 })

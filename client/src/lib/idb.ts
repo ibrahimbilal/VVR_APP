@@ -1,7 +1,7 @@
 import type { PersistedClip, PresetId, ProjectStyle, TitleSpan } from '../types'
 
 const DB_NAME = 'vvr'
-const DB_VERSION = 2
+const DB_VERSION = 3
 const RANKING_META_KEY = 'ranking-videos'
 const LEGACY_META_KEY = 'current'
 
@@ -31,6 +31,11 @@ function openDb(): Promise<IDBDatabase> {
       if (!db.objectStoreNames.contains('files')) db.createObjectStore('files')
       if (!db.objectStoreNames.contains('music')) db.createObjectStore('music')
       if (!db.objectStoreNames.contains('screensaver')) db.createObjectStore('screensaver')
+      if (!db.objectStoreNames.contains('assets')) {
+        const assets = db.createObjectStore('assets', { keyPath: 'id' })
+        assets.createIndex('sha256', 'sha256', { unique: false })
+      }
+      if (!db.objectStoreNames.contains('thumbnail')) db.createObjectStore('thumbnail')
       const oldVersion = event.oldVersion
       if (oldVersion > 0 && oldVersion < 2) {
         const tx = request.transaction
@@ -207,6 +212,20 @@ export async function saveScreensaverProject<T>(project: T): Promise<void> {
   }
 }
 
+export async function clearScreensaverProject(): Promise<void> {
+  const db = await openDb()
+  try {
+    const transaction = db.transaction('screensaver', 'readwrite')
+    const store = transaction.objectStore('screensaver')
+    store.delete('project')
+    store.delete('source')
+    store.delete('audio')
+    await transactionDone(transaction)
+  } finally {
+    db.close()
+  }
+}
+
 export async function loadScreensaverProject<T>(): Promise<T | null> {
   const db = await openDb()
   try {
@@ -280,6 +299,116 @@ export async function clearScreensaverAudio(): Promise<void> {
   } finally {
     db.close()
   }
+}
+
+export interface StoredImageAsset {
+  id: string
+  name: string
+  mime: string
+  width: number
+  height: number
+  byteLength: number
+  sha256: string
+  refs: string[]
+  blob: Blob
+  createdAt: number
+}
+
+export async function loadThumbnailValue<T>(key: string): Promise<T | null> {
+  const db = await openDb()
+  try {
+    const saved = await requestToPromise(db.transaction('thumbnail', 'readonly').objectStore('thumbnail').get(key))
+    return (saved as T | undefined) ?? null
+  } finally {
+    db.close()
+  }
+}
+
+export async function saveThumbnailValue<T>(key: string, value: T): Promise<void> {
+  const plain = JSON.parse(JSON.stringify(value)) as T
+  const db = await openDb()
+  try {
+    const transaction = db.transaction('thumbnail', 'readwrite')
+    transaction.objectStore('thumbnail').put(plain, key)
+    await transactionDone(transaction)
+  } catch (error) {
+    throw storageError(error)
+  } finally {
+    db.close()
+  }
+}
+
+export async function deleteThumbnailValue(key: string): Promise<void> {
+  const db = await openDb()
+  try {
+    const transaction = db.transaction('thumbnail', 'readwrite')
+    transaction.objectStore('thumbnail').delete(key)
+    await transactionDone(transaction)
+  } finally {
+    db.close()
+  }
+}
+
+export async function listThumbnailKeys(): Promise<string[]> {
+  const db = await openDb()
+  try {
+    const keys = await requestToPromise(db.transaction('thumbnail', 'readonly').objectStore('thumbnail').getAllKeys())
+    return keys.filter((key): key is string => typeof key === 'string')
+  } finally {
+    db.close()
+  }
+}
+
+export async function getImageAsset(id: string): Promise<StoredImageAsset | null> {
+  const db = await openDb()
+  try {
+    const saved = await requestToPromise(db.transaction('assets', 'readonly').objectStore('assets').get(id))
+    return (saved as StoredImageAsset | undefined) ?? null
+  } finally {
+    db.close()
+  }
+}
+
+export async function findImageAssetByHash(sha256: string): Promise<StoredImageAsset | null> {
+  const db = await openDb()
+  try {
+    const index = db.transaction('assets', 'readonly').objectStore('assets').index('sha256')
+    const saved = await requestToPromise(index.get(sha256))
+    return (saved as StoredImageAsset | undefined) ?? null
+  } finally {
+    db.close()
+  }
+}
+
+export async function saveImageAsset(asset: StoredImageAsset): Promise<void> {
+  const db = await openDb()
+  try {
+    const transaction = db.transaction('assets', 'readwrite')
+    transaction.objectStore('assets').put(asset)
+    await transactionDone(transaction)
+  } catch (error) {
+    throw storageError(error)
+  } finally {
+    db.close()
+  }
+}
+
+export async function deleteImageAsset(id: string): Promise<void> {
+  const db = await openDb()
+  try {
+    const transaction = db.transaction('assets', 'readwrite')
+    transaction.objectStore('assets').delete(id)
+    await transactionDone(transaction)
+  } finally {
+    db.close()
+  }
+}
+
+function storageError(error: unknown): Error {
+  if (error instanceof DOMException && error.name === 'QuotaExceededError') {
+    return new Error('This browser ran out of space for local images.')
+  }
+  return error instanceof Error ? error : new Error('Local project storage failed.')
 }
 
 /** Clears cached main media, background audio, and any legacy active-frame entry (full page reload). */

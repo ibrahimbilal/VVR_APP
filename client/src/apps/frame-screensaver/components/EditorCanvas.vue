@@ -29,6 +29,27 @@ const store = useScreensaverStore()
 const { previewRenderer } = storeToRefs(store)
 const shell = ref<HTMLElement | null>(null)
 const shellHeight = ref(180)
+const desktopPreview = ref(false)
+let desktopPreviewMq: MediaQueryList | null = null
+
+function syncDesktopPreview(): void {
+  desktopPreview.value = desktopPreviewMq?.matches ?? false
+}
+
+function previewPixelSize(boxW: number, boxH: number): { width: number; height: number } {
+  const widthCap = Math.max(320, boxW)
+  if (!desktopPreview.value || boxH < 120) {
+    const height = Math.round((widthCap * 9) / 16)
+    return { width: widthCap, height }
+  }
+  let width = widthCap
+  let height = Math.round((width * 9) / 16)
+  if (height > boxH) {
+    height = Math.max(180, boxH)
+    width = Math.round((height * 16) / 9)
+  }
+  return { width, height }
+}
 const previewCanvas = ref<HTMLCanvasElement | null>(null)
 /** New DOM canvas per backend switch (WebGL and 2D cannot share one canvas). */
 const previewCanvasKey = ref(0)
@@ -94,8 +115,7 @@ async function mountRenderer(): Promise<void> {
     renderer = await createScreensaverRenderer(preview, lifecycle)
   }
   if (shell.value) {
-    const width = Math.max(320, shell.value.clientWidth)
-    const height = Math.round((width * 9) / 16)
+    const { width, height } = previewPixelSize(shell.value.clientWidth, shell.value.clientHeight)
     shellHeight.value = height
     const ratio = Math.min(2, window.devicePixelRatio || 1)
     renderer.resize(width, height, Math.round(width * ratio), Math.round(height * ratio))
@@ -179,8 +199,7 @@ function resize() {
   const overlay = overlayCanvas.value
   const host = shell.value
   if (!preview || !overlay || !host) return
-  const width = Math.max(320, host.clientWidth)
-  const height = Math.round((width * 9) / 16)
+  const { width, height } = previewPixelSize(host.clientWidth, host.clientHeight)
   shellHeight.value = height
   const ratio = Math.min(2, window.devicePixelRatio || 1)
   const pixelWidth = Math.round(width * ratio)
@@ -223,11 +242,46 @@ function draw() {
     return
   }
   scheduler.scheduleDraw(() => buildRenderInput(), () => {
-    if (selected.value && media.value) {
-      const ctx = overlay.getContext('2d')
-      if (ctx) drawHandles(ctx, overlay)
-    }
+    const ctx = overlay.getContext('2d')
+    if (!ctx) return
+    drawOutputFrameBorder(ctx, overlay)
+    if (selected.value && media.value) drawHandles(ctx, overlay)
   })
+}
+
+function drawOutputFrameBorder(ctx: CanvasRenderingContext2D, element: HTMLCanvasElement) {
+  const corners = [
+    forward(0, 0, element),
+    forward(1, 0, element),
+    forward(1, 1, element),
+    forward(0, 1, element),
+  ]
+  const w = element.width
+  const h = element.height
+  const viewChanged =
+    Math.abs(zoom.value - 1) > 0.004 || Math.abs(panX.value) > 0.001 || Math.abs(panY.value) > 0.001
+
+  if (viewChanged) {
+    ctx.save()
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.65)'
+    ctx.beginPath()
+    ctx.rect(0, 0, w, h)
+    ctx.moveTo(corners[0].x, corners[0].y)
+    for (let i = 1; i < corners.length; i += 1) ctx.lineTo(corners[i].x, corners[i].y)
+    ctx.closePath()
+    ctx.fill('evenodd')
+    ctx.restore()
+  }
+
+  ctx.save()
+  ctx.strokeStyle = '#F4320B'
+  ctx.lineWidth = Math.max(2, Math.round(Math.min(w, h) / 360))
+  ctx.setLineDash([10, 8])
+  ctx.beginPath()
+  corners.forEach((point, index) => (index === 0 ? ctx.moveTo(point.x, point.y) : ctx.lineTo(point.x, point.y)))
+  ctx.closePath()
+  ctx.stroke()
+  ctx.restore()
 }
 
 function drawCrop(ctx: CanvasRenderingContext2D, element: HTMLCanvasElement) {
@@ -610,9 +664,18 @@ watch(
 watch(previewRenderer, () => {
   void remountPreviewRenderer()
 })
+watch(desktopPreview, () => {
+  resize()
+})
+watch([zoom, panX, panY], () => {
+  draw()
+})
 
 let observer: ResizeObserver | null = null
 onMounted(() => {
+  desktopPreviewMq = window.matchMedia('(min-width: 1024px)')
+  syncDesktopPreview()
+  desktopPreviewMq.addEventListener('change', syncDesktopPreview)
   void remountPreviewRenderer()
   observer = new ResizeObserver(() => resize())
   if (shell.value) observer.observe(shell.value)
@@ -620,6 +683,8 @@ onMounted(() => {
   window.addEventListener('keydown', nudge)
 })
 onBeforeUnmount(() => {
+  desktopPreviewMq?.removeEventListener('change', syncDesktopPreview)
+  desktopPreviewMq = null
   scheduler.cancel()
   renderer?.dispose()
   renderer = null
@@ -630,7 +695,7 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <div class="flex w-full flex-col">
+  <div class="flex min-h-0 w-full flex-1 flex-col">
     <div class="mb-3 flex flex-wrap items-center gap-2">
       <span class="text-xs text-zinc-500">{{ viewLabel }}</span>
       <button class="btn btn-ghost cursor-pointer px-2 py-1" type="button" aria-label="Zoom out" title="Zoom out" @click="zoom = clamp(zoom - 0.1, 0.25, 4); draw()">
@@ -698,8 +763,8 @@ onBeforeUnmount(() => {
     </div>
     <div
       ref="shell"
-      class="relative flex w-full shrink-0 items-center justify-center overflow-hidden rounded-lg border border-zinc-800"
-      :style="{ height: `${shellHeight}px`, touchAction: 'none' }"
+      class="relative flex w-full min-h-[180px] items-center justify-center overflow-hidden rounded-lg border border-zinc-800 max-lg:shrink-0 lg:min-h-0 lg:flex-1"
+      :style="desktopPreview ? { touchAction: 'none' } : { height: `${shellHeight}px`, touchAction: 'none' }"
       tabindex="0"
       @pointerdown="onPointerDown"
       @pointermove="onPointerMove"
@@ -715,6 +780,8 @@ onBeforeUnmount(() => {
       <p v-if="!store.objectUrl" class="pointer-events-none absolute inset-0 grid place-items-center text-sm text-zinc-500">Upload media to preview</p>
     </div>
     <audio ref="audioRef" class="hidden" />
-    <p class="mt-2 text-xs text-zinc-500">View zoom does not change the export. Drag the image to place it. Corner handles scale it. The round handle rotates it.</p>
+    <p class="mt-2 text-xs text-zinc-500">
+      View zoom does not change the export. The dashed yellow outline is the export frame. Drag the image to place it. Corner handles scale it. The round handle rotates it.
+    </p>
   </div>
 </template>
