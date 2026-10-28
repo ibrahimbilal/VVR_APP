@@ -166,9 +166,35 @@ describe('badges', () => {
 describe('layout', () => {
   it('uses normalized coordinates that scale to any pixel size', () => {
     const doc = createThumbnailDocument()
-    assert.equal(doc.resolution.anchor, 'top-right')
+    assert.equal(doc.resolution.anchor, 'top-left')
     assert.equal(doc.duration.anchor, 'bottom-left')
     assert.equal(normToPx(0.5, 1280) / 1280, normToPx(0.5, 3840) / 3840)
+  })
+
+  it('places preset badges marginPx from the export edges', () => {
+    const doc = createThumbnailDocument()
+    const exportWidth = 1280
+    const exportHeight = 720
+    doc.resolution.margin = 64
+    const point = badgeAnchorPoint(doc.resolution, exportWidth, exportHeight)
+    assert.equal(Math.round(point.x * exportWidth), 64)
+    assert.equal(Math.round(point.y * exportHeight), 64)
+
+    doc.duration.margin = 48
+    doc.duration.anchor = 'bottom-left'
+    const bottomLeft = badgeAnchorPoint(doc.duration, exportWidth, exportHeight)
+    assert.equal(Math.round(bottomLeft.x * exportWidth), 48)
+    assert.equal(Math.round((1 - bottomLeft.y) * exportHeight), 48)
+  })
+
+  it('migrates legacy normalized margin on load', () => {
+    const doc = createThumbnailDocument()
+    doc.resolution.margin = 0.1
+    const loaded = parseThumbnailDocument(JSON.parse(JSON.stringify(doc)))
+    assert.ok(loaded)
+    assert.equal(loaded?.resolution.margin, 72)
+    const point = badgeAnchorPoint(loaded!.resolution, loaded!.export.width, loaded!.export.height)
+    assert.equal(Math.round(point.x * loaded!.export.width), 72)
   })
 
   it('nudges a shared preset and leaves a dragged badge where it was dropped', () => {
@@ -178,28 +204,35 @@ describe('layout', () => {
     assert.ok(nudgeForSharedAnchor('middle-right').x < 0)
 
     const doc = createThumbnailDocument()
-    doc.duration = placeBadge(doc.duration, 'top-right', doc.resolution)
-    assert.equal(doc.duration.anchor, 'top-right')
+    doc.resolution.enabled = true
+    doc.duration = placeBadge(doc.duration, 'top-left', doc.resolution, doc.export.width, doc.export.height)
+    assert.equal(doc.duration.anchor, 'top-left')
     assert.equal(doc.duration.deliberate, false)
     assert.ok(doc.duration.offsetY > 0)
     const resolutionBox = topLeftFromAnchor(doc.resolution.anchor, doc.resolution.x, doc.resolution.y, 0.24, 0.12)
-    const durationPoint = badgeAnchorPoint(doc.duration)
+    const durationPoint = badgeAnchorPoint(doc.duration, doc.export.width, doc.export.height)
     const durationBox = topLeftFromAnchor(doc.duration.anchor, durationPoint.x, durationPoint.y, 0.24, 0.12)
     assert.equal(rectsOverlap(resolutionBox, durationBox), false)
 
     const nudgedY = doc.duration.y
-    doc.resolution = placeBadge(doc.resolution, 'top-right', doc.duration)
+    doc.resolution = placeBadge(doc.resolution, 'top-left', doc.duration, doc.export.width, doc.export.height)
     assert.equal(doc.resolution.offsetY, 0)
     assert.equal(doc.duration.y, nudgedY)
 
     const dragged = dragBadge(doc.duration, 0.42, 0.61)
     assert.equal(dragged.anchor, 'free')
     assert.equal(dragged.deliberate, true)
-    const moved = placeBadge(doc.resolution, dragged.anchor === 'free' ? 'top-right' : dragged.anchor, dragged)
+    const moved = placeBadge(
+      doc.resolution,
+      dragged.anchor === 'free' ? 'top-left' : dragged.anchor,
+      dragged,
+      doc.export.width,
+      doc.export.height,
+    )
     assert.equal(dragged.x, 0.42)
     assert.equal(dragged.y, 0.61)
     assert.equal(moved.offsetY, 0)
-    const reset = resetBadgePosition(dragged, 'duration', doc.resolution)
+    const reset = resetBadgePosition(dragged, 'duration', doc.resolution, doc.export.width, doc.export.height)
     assert.equal(reset.anchor, 'bottom-left')
     assert.equal(reset.deliberate, false)
     assert.equal(dragged.x, 0.42)
@@ -211,11 +244,12 @@ describe('badge assets', () => {
     assert.equal(resolveBadgeAssetSlug('gold-plate', '4K UHD'), '4k-uhd')
     assert.equal(resolveBadgeAssetSlug('gold', '4K UHD'), '4k')
     assert.equal(resolveBadgeAssetSlug('silver', '1080P'), '1080p')
-    assert.equal(resolveBadgeAssetSlug('outline', '2 HOURS'), '2-hours')
+    assert.equal(resolveBadgeAssetSlug('outline', '2 HOURS'), '2h')
+    assert.equal(resolveBadgeAssetSlug('gold-plate', '2 HOURS'), '2-hours')
     assert.equal(resolveBadgeAssetSlug('invert', '30 MIN'), '30m')
     assert.equal(badgeAssetFolder('gold-stack'), 'stacks/gold-stack')
     assert.equal(RESOLUTION_BADGE_OPTIONS.length, 5)
-    assert.equal(DURATION_BADGE_OPTIONS.length, 4)
+    assert.equal(DURATION_BADGE_OPTIONS.length, 8)
   })
 
   it('normalizes legacy badge text to catalog labels', () => {

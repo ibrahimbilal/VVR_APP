@@ -5,9 +5,11 @@ import {
   type NormCrop,
   ANCHOR_IDS,
   anchorPoint,
+  clampBadgeMarginPx,
   clampNormCrop,
   clampUnit,
   fullNormCrop,
+  migrateLegacyBadgeMargin,
   nudgeForSharedAnchor,
   presetAnchorPoint,
 } from './thumbnailLayout'
@@ -17,7 +19,8 @@ export const PREVIEW_MAX_EDGE = 960
 export const PENDING_ASSET_REF = 'pending-transfer'
 export const THUMBNAIL_DOCUMENT_KEY = 'document'
 export const THUMBNAIL_CANVAS_COLOR = '#101114'
-export const DEFAULT_BADGE_MARGIN = 0.05
+/** Default edge inset at 1280×720 export (5% of the short side). */
+export const DEFAULT_BADGE_MARGIN = 16
 
 export const THUMBNAIL_OUTPUTS = [
   { width: 1280, height: 720, label: '1280 × 720' },
@@ -28,7 +31,7 @@ export const THUMBNAIL_OUTPUTS = [
 export type ThumbnailFit = 'contain' | 'cover'
 export type ThumbnailSourceApp = 'frame-screensaver' | 'ranking-videos' | 'standalone'
 export type ThumbnailLinkMode = 'snapshot' | 'linked'
-export type QualityId = '720' | '1080' | '1440' | '4k' | '8k' | 'custom'
+export type QualityId = '720' | '1080' | '1440' | '4k' | '8k'
 export type BadgeStyleId = 'gold-plate' | 'silver-plate' | 'gold-stack' | 'silver-stack' | 'gold' | 'silver' | 'outline' | 'invert'
 export type BadgeId = 'resolution' | 'duration'
 
@@ -38,7 +41,6 @@ export const QUALITY_OPTIONS: { id: QualityId; label: string }[] = [
   { id: '1440', label: '1440P' },
   { id: '4k', label: '4K UHD' },
   { id: '8k', label: '8K UHD' },
-  { id: 'custom', label: 'Custom' },
 ]
 
 export const BADGE_STYLES: { id: BadgeStyleId; label: string }[] = [
@@ -52,7 +54,7 @@ export const BADGE_STYLES: { id: BadgeStyleId; label: string }[] = [
   { id: 'invert', label: 'Invert' },
 ]
 
-export const BADGE_SCALE_MIN = 0.4
+export const BADGE_SCALE_MIN = 0.25
 export const BADGE_SCALE_MAX = 2
 
 export interface BadgeAppearance {
@@ -71,6 +73,7 @@ export interface ThumbnailBadge {
   anchor: AnchorId
   x: number
   y: number
+  /** Distance from the frame edge in export pixels (horizontal and vertical). */
   margin: number
   offsetX: number
   offsetY: number
@@ -116,7 +119,7 @@ export interface ThumbnailDocument {
   updatedAt: number
 }
 
-export function badgeAppearance(styleId: BadgeStyleId, scale = 1): BadgeAppearance {
+export function badgeAppearance(styleId: BadgeStyleId, scale = 0.5): BadgeAppearance {
   return { styleId, scale: clampBadgeScale(scale) }
 }
 
@@ -171,13 +174,13 @@ export function qualityFromResolution(width: number, height: number): { id: Qual
   if (short >= 1440) return { id: '1440', label: '1440P' }
   if (short >= 1080) return { id: '1080', label: '1080P' }
   if (short >= 720) return { id: '720', label: '720P' }
-  if (short > 0) return { id: 'custom', label: `${Math.round(short)}P` }
-  return { id: 'custom', label: '' }
+  if (short > 0) return { id: '720', label: `${Math.round(short)}P` }
+  return { id: '720', label: '' }
 }
 
 export function qualityIdFromText(text: string): QualityId {
-  const found = QUALITY_OPTIONS.find((item) => item.id !== 'custom' && item.label.toLowerCase() === text.trim().toLowerCase())
-  return found?.id ?? 'custom'
+  const found = QUALITY_OPTIONS.find((item) => item.label.toLowerCase() === text.trim().toLowerCase())
+  return found?.id ?? '720'
 }
 
 export function formatBadgeDuration(seconds: number): string {
@@ -233,26 +236,39 @@ export function assetIdsInDocument(doc: ThumbnailDocument): string[] {
   return [...new Set(ids)]
 }
 
-export function badgeAnchorPoint(badge: ThumbnailBadge): AnchorPoint {
+export function badgeAnchorPoint(badge: ThumbnailBadge, frameWidth: number, frameHeight: number): AnchorPoint {
   if (badge.anchor === 'free' || badge.deliberate) return { x: badge.x, y: badge.y }
-  return presetAnchorPoint(badge.anchor, badge.margin, badge.offsetX, badge.offsetY)
+  return presetAnchorPoint(badge.anchor, badge.margin, badge.offsetX, badge.offsetY, frameWidth, frameHeight)
+}
+
+export function syncPresetBadgeCoords(badge: ThumbnailBadge, frameWidth: number, frameHeight: number): void {
+  if (badge.anchor === 'free' || badge.deliberate) return
+  const point = presetAnchorPoint(badge.anchor, badge.margin, badge.offsetX, badge.offsetY, frameWidth, frameHeight)
+  badge.x = point.x
+  badge.y = point.y
 }
 
 export function applyBadgeStyle(badge: ThumbnailBadge, styleId: BadgeStyleId): ThumbnailBadge {
   return { ...badge, appearance: badgeAppearance(styleId, badge.appearance.scale) }
 }
 
-export function placeBadge(badge: ThumbnailBadge, anchor: FixedAnchor, other: ThumbnailBadge): ThumbnailBadge {
-  const margin = clampUnit(badge.margin, 0, 0.2)
-  const base = anchorPoint(anchor, margin)
+export function placeBadge(
+  badge: ThumbnailBadge,
+  anchor: FixedAnchor,
+  other: ThumbnailBadge,
+  frameWidth: number,
+  frameHeight: number,
+): ThumbnailBadge {
+  const margin = clampBadgeMarginPx(badge.margin, frameWidth, frameHeight)
+  const base = anchorPoint(anchor, margin, frameWidth, frameHeight)
   let offsetX = 0
   let offsetY = 0
-  if (sharesPresetPoint(other, anchor, base)) {
+  if (sharesPresetPoint(other, anchor, base, frameWidth, frameHeight)) {
     const nudge = nudgeForSharedAnchor(anchor)
     offsetX = nudge.x
     offsetY = nudge.y
   }
-  const point = presetAnchorPoint(anchor, margin, offsetX, offsetY)
+  const point = presetAnchorPoint(anchor, margin, offsetX, offsetY, frameWidth, frameHeight)
   return {
     ...badge,
     appearance: { ...badge.appearance },
@@ -266,9 +282,15 @@ export function placeBadge(badge: ThumbnailBadge, anchor: FixedAnchor, other: Th
   }
 }
 
-export function resetBadgePosition(badge: ThumbnailBadge, role: BadgeId, other: ThumbnailBadge): ThumbnailBadge {
-  const anchor: FixedAnchor = role === 'resolution' ? 'top-right' : 'bottom-left'
-  return placeBadge({ ...badge, margin: DEFAULT_BADGE_MARGIN, offsetX: 0, offsetY: 0 }, anchor, other)
+export function resetBadgePosition(
+  badge: ThumbnailBadge,
+  role: BadgeId,
+  other: ThumbnailBadge,
+  frameWidth: number,
+  frameHeight: number,
+): ThumbnailBadge {
+  const anchor: FixedAnchor = role === 'resolution' ? 'top-left' : 'bottom-left'
+  return placeBadge({ ...badge, margin: DEFAULT_BADGE_MARGIN, offsetX: 0, offsetY: 0 }, anchor, other, frameWidth, frameHeight)
 }
 
 export function dragBadge(badge: ThumbnailBadge, x: number, y: number): ThumbnailBadge {
@@ -297,7 +319,7 @@ export function createThumbnailDocument(): ThumbnailDocument {
       sourceWidth: 0,
       sourceHeight: 0,
     },
-    resolution: defaultBadge('4K UHD', 'top-right'),
+    resolution: defaultBadge('4K UHD', 'top-left'),
     duration: defaultBadge('2 HOURS', 'bottom-left'),
     export: { width: 1280, height: 720, format: 'png', jpegQuality: 0.92 },
     source: {
@@ -322,9 +344,9 @@ export function parseThumbnailDocument(raw: unknown): ThumbnailDocument | null {
   if (!image) return null
   const fallback = createThumbnailDocument()
   fallback.id = data.id.trim()
-  const resolution = parseBadge(data.resolution, fallback.resolution)
-  const duration = parseBadge(data.duration, fallback.duration)
   const size = exactExportSize(numberOr(data.export && (data.export as { width?: unknown }).width, 1280), numberOr(data.export && (data.export as { height?: unknown }).height, 720))
+  const resolution = parseBadge(data.resolution, fallback.resolution, size.width, size.height)
+  const duration = parseBadge(data.duration, fallback.duration, size.width, size.height)
   const exp = data.export && typeof data.export === 'object' ? (data.export as Record<string, unknown>) : {}
   const source = parseSource(data.source)
   return {
@@ -359,9 +381,11 @@ export function legacyThumbnailAssets(raw: unknown): { projectId: string; assetI
 }
 
 function defaultBadge(text: string, anchor: FixedAnchor): ThumbnailBadge {
-  const point = anchorPoint(anchor, DEFAULT_BADGE_MARGIN)
+  const frameWidth = 1280
+  const frameHeight = 720
+  const point = anchorPoint(anchor, DEFAULT_BADGE_MARGIN, frameWidth, frameHeight)
   return {
-    enabled: true,
+    enabled: false,
     text,
     anchor,
     x: point.x,
@@ -374,9 +398,15 @@ function defaultBadge(text: string, anchor: FixedAnchor): ThumbnailBadge {
   }
 }
 
-function sharesPresetPoint(other: ThumbnailBadge, anchor: FixedAnchor, base: AnchorPoint): boolean {
+function sharesPresetPoint(
+  other: ThumbnailBadge,
+  anchor: FixedAnchor,
+  base: AnchorPoint,
+  frameWidth: number,
+  frameHeight: number,
+): boolean {
   if (!other.enabled || other.deliberate || other.anchor !== anchor) return false
-  const point = badgeAnchorPoint(other)
+  const point = badgeAnchorPoint(other, frameWidth, frameHeight)
   return Math.abs(point.x - base.x) < 0.02 && Math.abs(point.y - base.y) < 0.02
 }
 
@@ -400,18 +430,18 @@ function parseImage(raw: unknown): ThumbnailImage | null {
   }
 }
 
-function parseBadge(raw: unknown, fallback: ThumbnailBadge): ThumbnailBadge {
+function parseBadge(raw: unknown, fallback: ThumbnailBadge, frameWidth: number, frameHeight: number): ThumbnailBadge {
   if (!raw || typeof raw !== 'object') return fallback
   const data = raw as Record<string, unknown>
   const anchor = parseAnchor(data.anchor, fallback.anchor)
   const deliberate = data.deliberate === true || anchor === 'free'
-  const margin = clampUnit(numberOr(data.margin, fallback.margin), 0, 0.2)
+  const margin = migrateLegacyBadgeMargin(numberOr(data.margin, fallback.margin), frameWidth, frameHeight)
   const offsetX = clampUnit(numberOr(data.offsetX, 0), -0.45, 0.45)
   const offsetY = clampUnit(numberOr(data.offsetY, 0), -0.45, 0.45)
   let x = clampUnit(numberOr(data.x, fallback.x), -0.25, 1.25)
   let y = clampUnit(numberOr(data.y, fallback.y), -0.25, 1.25)
   if (anchor !== 'free' && !deliberate) {
-    const point = presetAnchorPoint(anchor, margin, offsetX, offsetY)
+    const point = presetAnchorPoint(anchor, margin, offsetX, offsetY, frameWidth, frameHeight)
     x = point.x
     y = point.y
   }

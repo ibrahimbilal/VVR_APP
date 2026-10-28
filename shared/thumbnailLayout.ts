@@ -56,12 +56,33 @@ export function anchorFactors(anchor: AnchorId): { ax: number; ay: number } {
   return { ax, ay }
 }
 
-export function anchorPoint(anchor: FixedAnchor, margin: number): AnchorPoint {
-  const m = clampUnit(margin, 0, 0.45)
+export const BADGE_MARGIN_MAX_RATIO = 0.2
+
+export function maxBadgeMarginPx(frameWidth: number, frameHeight: number): number {
+  const short = Math.min(Math.max(1, frameWidth), Math.max(1, frameHeight))
+  return Math.round(BADGE_MARGIN_MAX_RATIO * short)
+}
+
+export function clampBadgeMarginPx(marginPx: number, frameWidth: number, frameHeight: number): number {
+  return clampUnit(marginPx, 0, maxBadgeMarginPx(frameWidth, frameHeight))
+}
+
+/** Saved projects before 2026-10-28 stored margin as a normalized fraction of the frame. */
+export function migrateLegacyBadgeMargin(value: number, frameWidth: number, frameHeight: number): number {
+  if (value > 0 && value <= 0.45) {
+    return Math.round(value * Math.min(Math.max(1, frameWidth), Math.max(1, frameHeight)))
+  }
+  return clampBadgeMarginPx(value, frameWidth, frameHeight)
+}
+
+export function anchorPoint(anchor: FixedAnchor, marginPx: number, frameWidth: number, frameHeight: number): AnchorPoint {
+  const px = clampBadgeMarginPx(marginPx, frameWidth, frameHeight)
+  const mx = px / Math.max(1, frameWidth)
+  const my = px / Math.max(1, frameHeight)
   const { ax, ay } = anchorFactors(anchor)
   return {
-    x: ax === 0 ? m : ax === 1 ? 1 - m : 0.5,
-    y: ay === 0 ? m : ay === 1 ? 1 - m : 0.5,
+    x: ax === 0 ? mx : ax === 1 ? 1 - mx : 0.5,
+    y: ay === 0 ? my : ay === 1 ? 1 - my : 0.5,
   }
 }
 
@@ -117,8 +138,15 @@ export function panNormCrop(crop: NormCrop, dx: number, dy: number): NormCrop {
   return clampNormCrop({ ...crop, x: crop.x + dx, y: crop.y + dy })
 }
 
-export function presetAnchorPoint(anchor: FixedAnchor, margin: number, offsetX: number, offsetY: number): AnchorPoint {
-  const point = anchorPoint(anchor, margin)
+export function presetAnchorPoint(
+  anchor: FixedAnchor,
+  marginPx: number,
+  offsetX: number,
+  offsetY: number,
+  frameWidth: number,
+  frameHeight: number,
+): AnchorPoint {
+  const point = anchorPoint(anchor, marginPx, frameWidth, frameHeight)
   return {
     x: clampUnit(point.x + offsetX, -0.25, 1.25),
     y: clampUnit(point.y + offsetY, -0.25, 1.25),

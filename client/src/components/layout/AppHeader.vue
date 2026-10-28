@@ -2,15 +2,27 @@
 import { CircleAlert, CircleCheck, FilePlus, Menu } from '@lucide/vue'
 import { computed } from 'vue'
 import { useRoute } from 'vue-router'
+import { useScreensaverStore } from '../../apps/frame-screensaver/stores/screensaver'
+import { useThumbnailStore } from '../../apps/thumbnail-studio/stores/thumbnail'
 import { usePlatformStore } from '../../stores/platform'
 import { useProjectStore } from '../../stores/project'
 
 const route = useRoute()
 const platform = usePlatformStore()
 const project = useProjectStore()
+const screensaver = useScreensaverStore()
+const thumbnail = useThumbnailStore()
 
 const title = computed(() => (route.meta.title as string) || "Video's Factory")
-const isRanking = computed(() => route.name === 'ranking-videos')
+const showNewProject = computed(() =>
+  route.name === 'ranking-videos' || route.name === 'frame-screensaver' || route.name === 'thumbnail-studio',
+)
+
+function startNewProject(): void {
+  if (route.name === 'ranking-videos') void project.newProject()
+  else if (route.name === 'frame-screensaver') void screensaver.newProject()
+  else if (route.name === 'thumbnail-studio') void thumbnail.newProject()
+}
 
 const emit = defineEmits<{ openNav: [trigger: HTMLElement] }>()
 </script>
@@ -27,10 +39,10 @@ const emit = defineEmits<{ openNav: [trigger: HTMLElement] }>()
     </button>
     <h1 class="min-w-0 truncate text-sm font-semibold text-zinc-200">{{ title }}</h1>
     <button
-      v-if="isRanking"
+      v-if="showNewProject"
       class="btn btn-ghost shrink-0 cursor-pointer"
       type="button"
-      @click="project.newProject()"
+      @click="startNewProject()"
     >
       <FilePlus :size="16" />
       <span class="hidden sm:inline">New project</span>

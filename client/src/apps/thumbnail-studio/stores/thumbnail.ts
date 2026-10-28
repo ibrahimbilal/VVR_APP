@@ -1,5 +1,5 @@
-import { fullNormCrop, panNormCrop, presetAnchorPoint, zoomNormCrop, type FixedAnchor } from '@shared/thumbnailLayout'
-import { DURATION_BADGE_OPTIONS, RESOLUTION_BADGE_OPTIONS, normalizeThumbnailBadgeLabels } from '@shared/thumbnailBadges'
+import { clampBadgeMarginPx, fullNormCrop, panNormCrop, presetAnchorPoint, zoomNormCrop, type FixedAnchor } from '@shared/thumbnailLayout'
+import { DURATION_BADGE_OPTIONS, RESOLUTION_BADGE_OPTIONS } from '@shared/thumbnailBadges'
 import {
   type BadgeId,
   type BadgeStyleId,
@@ -16,6 +16,7 @@ import {
   parseThumbnailDocument,
   placeBadge,
   resetBadgePosition,
+  syncPresetBadgeCoords,
   thumbnailFilename,
 } from '@shared/thumbnailProject'
 import { documentFromTransfer, validateThumbnailTransfer, type ThumbnailTransferPayload } from '@shared/thumbnailTransfer'
@@ -60,28 +61,48 @@ export const useThumbnailStore = defineStore('thumbnail', () => {
 
   async function restore(): Promise<void> {
     await discardLegacy()
+    await clearPersistedDocument()
+    resetDocument()
+    hydrated.value = true
+  }
+
+  async function clearPersistedDocument(): Promise<void> {
     const stored = await loadThumbnailValue<unknown>(THUMBNAIL_DOCUMENT_KEY)
+    if (!stored) return
     const parsed = parseThumbnailDocument(stored)
     if (parsed) {
-      const same = JSON.stringify(parsed.resolution.appearance) === JSON.stringify(parsed.duration.appearance)
-      if (!same) parsed.duration.appearance = { ...parsed.resolution.appearance }
-      const normalized = normalizeThumbnailBadgeLabels(parsed)
-      doc.value = normalized
-      savedAssetIds = assetIdsInDocument(normalized)
-      if (
-        !same
-        || normalized.resolution.text !== parsed.resolution.text
-        || normalized.duration.text !== parsed.duration.text
-      ) {
-        scheduleSave()
-      }
-    } else if (stored) {
+      await syncProjectAssets(parsed.id, assetIdsInDocument(parsed), [])
+    } else {
       const legacy = legacyThumbnailAssets(stored)
       if (legacy) await syncProjectAssets(legacy.projectId, legacy.assetIds, [])
-      await deleteThumbnailValue(THUMBNAIL_DOCUMENT_KEY)
     }
-    hydrated.value = true
-    await syncBitmaps()
+    await deleteThumbnailValue(THUMBNAIL_DOCUMENT_KEY)
+  }
+
+  function resetDocument(): void {
+    doc.value = createThumbnailDocument()
+    savedAssetIds = []
+    bitmapKey = ''
+    for (const id of [...bitmaps.keys()]) {
+      bitmaps.get(id)?.close()
+      bitmaps.delete(id)
+    }
+    assetEpoch.value += 1
+  }
+
+  async function newProject(): Promise<void> {
+    const hasWork = hasImage.value || pending.value !== null
+    if (hasWork && !window.confirm('Start a new project? The current thumbnail will be cleared.')) return
+    window.clearTimeout(saveTimer)
+    const previousId = doc.value.id
+    const previousIds = assetIdsInDocument(doc.value)
+    pending.value = null
+    promptOpen.value = false
+    replaceOnTransfer.value = false
+    resetDocument()
+    await syncProjectAssets(previousId, previousIds, [])
+    await deleteThumbnailValue(THUMBNAIL_DOCUMENT_KEY)
+    await deleteThumbnailValue('pending-transfer')
   }
 
   async function discardLegacy(): Promise<void> {
@@ -174,7 +195,8 @@ export const useThumbnailStore = defineStore('thumbnail', () => {
       mutator(draft[id])
       const badge = draft[id]
       if (badge.anchor !== 'free' && !badge.deliberate) {
-        const point = presetAnchorPoint(badge.anchor, badge.margin, badge.offsetX, badge.offsetY)
+        const { width, height } = draft.export
+        const point = presetAnchorPoint(badge.anchor, badge.margin, badge.offsetX, badge.offsetY, width, height)
         badge.x = point.x
         badge.y = point.y
       }
@@ -271,13 +293,16 @@ export const useThumbnailStore = defineStore('thumbnail', () => {
   function place(id: BadgeId, anchor: FixedAnchor): void {
     edit((draft) => {
       const other = id === 'resolution' ? draft.duration : draft.resolution
-      draft[id] = placeBadge(draft[id], anchor, other)
+      const { width, height } = draft.export
+      draft[id] = placeBadge(draft[id], anchor, other, width, height)
     })
   }
 
-  function setMargin(id: BadgeId, margin: number): void {
-    patchBadge(id, (badge) => {
-      badge.margin = clamp(margin, 0, 0.2)
+  function setMargin(id: BadgeId, marginPx: number): void {
+    edit((draft) => {
+      const { width, height } = draft.export
+      draft[id].margin = clampBadgeMarginPx(marginPx, width, height)
+      syncPresetBadgeCoords(draft[id], width, height)
     })
   }
 
@@ -298,7 +323,8 @@ export const useThumbnailStore = defineStore('thumbnail', () => {
   function resetPosition(id: BadgeId): void {
     edit((draft) => {
       const other = id === 'resolution' ? draft.duration : draft.resolution
-      draft[id] = resetBadgePosition(draft[id], id, other)
+      const { width, height } = draft.export
+      draft[id] = resetBadgePosition(draft[id], id, other, width, height)
     })
   }
 
@@ -329,6 +355,8 @@ export const useThumbnailStore = defineStore('thumbnail', () => {
       const size = exactSize(width, height)
       draft.export.width = size.width
       draft.export.height = size.height
+      syncPresetBadgeCoords(draft.resolution, size.width, size.height)
+      syncPresetBadgeCoords(draft.duration, size.width, size.height)
     })
   }
 
@@ -421,6 +449,7 @@ export const useThumbnailStore = defineStore('thumbnail', () => {
     hasImage,
     hasComposition,
     init,
+    newProject,
     consumeStoredTransfer,
     requestReplaceOnNextTransfer,
     clearReplaceOnNextTransfer,

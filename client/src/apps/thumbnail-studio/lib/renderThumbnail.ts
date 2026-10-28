@@ -84,11 +84,11 @@ async function paintBadges(ctx: CanvasRenderingContext2D, doc: ThumbnailDocument
     if (!badge.enabled || !badge.text.trim()) continue
     const raster = await rasterizeBadge(badge.appearance.styleId, badge.text, Math.max(48, width * BADGE_WIDTH_RATIO), badge.appearance.scale)
     if (!raster) continue
-    const point = badgeAnchorPoint(badge)
+    const point = badgeAnchorPoint(badge, doc.export.width, doc.export.height)
     const anchor = badge.anchor === 'free' || badge.deliberate ? 'free' : badge.anchor
     const { ax, ay } = anchorFactors(anchor)
-    const x = point.x * width - raster.contentWidth * ax - raster.pad
-    const y = point.y * height - raster.contentHeight * ay - raster.pad
+    const x = point.x * width - raster.contentWidth * ax - raster.padX
+    const y = point.y * height - raster.contentHeight * ay - raster.padY
     ctx.drawImage(raster.canvas, x, y)
   }
 }

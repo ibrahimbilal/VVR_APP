@@ -4,7 +4,7 @@ import { badgeAnchorPoint, clampBadgeScale, type ThumbnailBadge } from '@shared/
 import { computed } from 'vue'
 import { BADGE_WIDTH_RATIO, badgeLayoutMetrics, badgeSvgUrl } from '../lib/badgeAssets'
 
-const props = defineProps<{ badge: ThumbnailBadge; frameWidth: number }>()
+const props = defineProps<{ badge: ThumbnailBadge; frameWidth: number; exportWidth: number; exportHeight: number }>()
 
 const src = computed(() => badgeSvgUrl(props.badge.appearance.styleId, props.badge.text))
 
@@ -17,18 +17,19 @@ const layoutBox = computed(() => {
   const assetScale = contentWidth / layout.contentW
   const assetWidth = layout.assetW * assetScale
   const assetHeight = layout.assetH * assetScale
-  const pad = layout.padX * assetScale
-  return { contentWidth, contentHeight, assetWidth, assetHeight, pad }
+  const padX = layout.padX * assetScale
+  const padY = layout.padY * assetScale
+  return { contentWidth, contentHeight, assetWidth, assetHeight, padX, padY }
 })
 
 const position = computed(() => {
-  const point = badgeAnchorPoint(props.badge)
+  const point = badgeAnchorPoint(props.badge, props.exportWidth, props.exportHeight)
   const anchor = props.badge.anchor === 'free' || props.badge.deliberate ? 'free' : props.badge.anchor
   const { ax, ay } = anchorFactors(anchor)
-  const { contentWidth, contentHeight, assetWidth, assetHeight, pad } = layoutBox.value
+  const { contentWidth, contentHeight, assetWidth, assetHeight, padX, padY } = layoutBox.value
   return {
-    left: `calc(${point.x * 100}% - ${pad + contentWidth * ax}px)`,
-    top: `calc(${point.y * 100}% - ${pad + contentHeight * ay}px)`,
+    left: `calc(${point.x * 100}% - ${padX + contentWidth * ax}px)`,
+    top: `calc(${point.y * 100}% - ${padY + contentHeight * ay}px)`,
     width: `${assetWidth}px`,
     height: `${assetHeight}px`,
   }
@@ -41,7 +42,7 @@ const position = computed(() => {
     :src="src"
     alt=""
     draggable="false"
-    class="absolute z-10 touch-none select-none pointer-events-none"
+    class="absolute z-10 cursor-grab touch-none select-none"
     :style="position"
   />
 </template>

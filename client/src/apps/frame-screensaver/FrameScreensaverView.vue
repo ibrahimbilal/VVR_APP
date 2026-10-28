@@ -49,9 +49,9 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
         <ScreensaverSettingsPanel v-model:custom-minutes="customMinutes" />
       </div>
     </aside>
-    <div class="flex min-h-0 min-w-0 flex-1 flex-col overflow-y-auto p-4">
-      <EditorCanvas class="w-full shrink-0 mb-4" />
-      <div class="mt-auto shrink-0 space-y-3">
+    <div class="flex min-h-0 min-w-0 flex-1 flex-col overflow-y-auto p-4 lg:overflow-hidden">
+      <EditorCanvas class="mb-3 flex min-h-0 w-full flex-1 flex-col lg:mb-2" />
+      <div class="shrink-0 space-y-3">
         <ScreensaverExportBar />
         <div class="flex flex-wrap items-center gap-3">
           <button

@@ -212,6 +212,20 @@ export async function saveScreensaverProject<T>(project: T): Promise<void> {
   }
 }
 
+export async function clearScreensaverProject(): Promise<void> {
+  const db = await openDb()
+  try {
+    const transaction = db.transaction('screensaver', 'readwrite')
+    const store = transaction.objectStore('screensaver')
+    store.delete('project')
+    store.delete('source')
+    store.delete('audio')
+    await transactionDone(transaction)
+  } finally {
+    db.close()
+  }
+}
+
 export async function loadScreensaverProject<T>(): Promise<T | null> {
   const db = await openDb()
   try {

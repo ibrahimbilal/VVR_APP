@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ANCHORS } from '@shared/thumbnailLayout'
+import { ANCHORS, maxBadgeMarginPx } from '@shared/thumbnailLayout'
 import { DURATION_BADGE_OPTIONS, RESOLUTION_BADGE_OPTIONS } from '@shared/thumbnailBadges'
 import { BADGE_STYLES, THUMBNAIL_OUTPUTS, type BadgeStyleId } from '@shared/thumbnailProject'
 import { computed } from 'vue'
@@ -21,6 +21,10 @@ const zoom = computed(() => {
   if (!Number.isFinite(width) || width <= 0) return 1
   return Math.min(4, Math.max(1, 1 / width))
 })
+
+const marginMaxPx = computed(() => maxBadgeMarginPx(store.doc.export.width, store.doc.export.height))
+
+const anyBadgeEnabled = computed(() => store.doc.resolution.enabled || store.doc.duration.enabled)
 
 function onFiles(files: File[]): void {
   const file = files[0]
@@ -108,6 +112,7 @@ function onExportSize(event: Event): void {
           <ToggleSwitch :model-value="store.doc[section.id].enabled" :aria-label="`Show ${section.title}`" @update:model-value="store.setBadgeEnabled(section.id, $event)" />
         </div>
 
+        <template v-if="store.doc[section.id].enabled">
         <label v-if="section.id === 'resolution'" class="block text-xs text-zinc-400">
           Resolution
           <select class="field mt-1" :value="store.doc.resolution.text" @change="onResolution">
@@ -139,11 +144,11 @@ function onExportSize(event: Event): void {
         <SliderField
           v-if="!store.doc[section.id].deliberate"
           label="Distance from edges"
-          :model-value="Math.round(store.doc[section.id].margin * 100)"
+          :model-value="Math.round(store.doc[section.id].margin)"
           :min="0"
-          :max="20"
-          suffix="%"
-          @update:model-value="store.setMargin(section.id, $event / 100)"
+          :max="marginMaxPx"
+          suffix="px"
+          @update:model-value="store.setMargin(section.id, $event)"
         />
         <SliderField
           :label="store.doc[section.id].deliberate ? 'Horizontal position' : 'Horizontal offset'"
@@ -162,15 +167,16 @@ function onExportSize(event: Event): void {
           @update:model-value="store.setVertical(section.id, $event / 100)"
         />
         <button class="btn btn-ghost cursor-pointer" type="button" @click="store.resetPosition(section.id)">Reset position</button>
+        </template>
       </section>
 
-      <section class="space-y-3 border-b border-zinc-800 px-4 py-4">
+      <section v-if="anyBadgeEnabled" class="space-y-3 border-b border-zinc-800 px-4 py-4">
         <h2 class="text-[11px] font-semibold uppercase tracking-[0.14em] text-zinc-400">Badge style</h2>
         <p class="text-xs text-zinc-500">Same look on the resolution and duration badges. Previews show the 4K artwork.</p>
         <SliderField
           label="Badge size"
           :model-value="Math.round(store.doc.resolution.appearance.scale * 100)"
-          :min="40"
+          :min="25"
           :max="200"
           suffix="%"
           @update:model-value="store.setBadgeScale($event / 100)"

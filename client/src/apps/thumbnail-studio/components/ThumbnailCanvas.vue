@@ -105,6 +105,8 @@ onBeforeUnmount(() => observer?.disconnect())
         :key="id"
         :badge="store.doc[id]"
         :frame-width="display.width"
+        :export-width="store.doc.export.width"
+        :export-height="store.doc.export.height"
         :class="dragging === id ? 'cursor-grabbing' : ''"
         @pointerdown="onPointerDown(id, $event)"
         @pointermove="onPointerMove"

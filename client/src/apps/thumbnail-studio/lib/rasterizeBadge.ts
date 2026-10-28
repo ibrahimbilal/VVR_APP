@@ -3,7 +3,8 @@ import { badgeLayoutMetrics, badgeSvgUrl } from './badgeAssets'
 
 export interface RasterBadge {
   canvas: HTMLCanvasElement
-  pad: number
+  padX: number
+  padY: number
   contentWidth: number
   contentHeight: number
 }
@@ -37,7 +38,8 @@ export async function rasterizeBadge(styleId: BadgeStyleId, text: string, refere
   const assetScale = contentWidth / layout.contentW
   const assetW = Math.ceil(layout.assetW * assetScale)
   const assetH = Math.ceil(layout.assetH * assetScale)
-  const pad = Math.ceil(layout.padX * assetScale)
+  const padX = Math.ceil(layout.padX * assetScale)
+  const padY = Math.ceil(layout.padY * assetScale)
   const img = await loadImage(url)
   const canvas = document.createElement('canvas')
   canvas.width = assetW
@@ -47,5 +49,5 @@ export async function rasterizeBadge(styleId: BadgeStyleId, text: string, refere
   ctx.imageSmoothingEnabled = true
   ctx.imageSmoothingQuality = 'high'
   ctx.drawImage(img, 0, 0, assetW, assetH)
-  return { canvas, pad, contentWidth, contentHeight }
+  return { canvas, padX, padY, contentWidth, contentHeight }
 }
