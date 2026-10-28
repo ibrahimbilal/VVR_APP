@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ArrowRight, ListVideo, MonitorPlay } from '@lucide/vue'
+import { ArrowRight, Image as ThumbnailIcon, ListVideo, MonitorPlay } from '@lucide/vue'
 import { RouterLink } from 'vue-router'
 
 const apps = [
@@ -16,6 +16,12 @@ const apps = [
     description:
       'Create long-form 16:9 ambient videos, digital art displays, and TV screensavers from images and videos.',
     icon: MonitorPlay,
+  },
+  {
+    path: '/thumbnail-studio',
+    title: 'Thumbnail Studio',
+    description: 'Design YouTube thumbnails from your own images or from a Ranking or Frame Screensaver project.',
+    icon: ThumbnailIcon,
   },
 ]
 </script>

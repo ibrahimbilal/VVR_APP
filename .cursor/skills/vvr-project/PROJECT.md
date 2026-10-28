@@ -1,9 +1,10 @@
 # Video's Factory — project map
 
-Local **Video's Factory** platform with two apps:
+Local **Video's Factory** platform with three apps:
 
 1. **Ranking Videos** (legacy VVR) — 9:16 ranking compilation editor.
 2. **Frame Screensaver** — long-form 16:9 ambient video from one image or looping video.
+3. **Thumbnail Studio** — browser-only YouTube thumbnail tool. Upload an image or take one from Frame Screensaver / Ranking Videos, then place a resolution badge and a duration badge. It does not call FFmpeg.
 
 Ranking behavior is unchanged in substance: upload clips (or link titles only), order, style banner and ranks, preview, export MP4.
 
@@ -31,11 +32,12 @@ Workspaces: root `vvr-app`, `client` (`vvr-client`), `server` (`vvr-server`). Sh
 
 ```
 client/src/App.vue                      platform shell (sidebar, header, toasts)
-client/src/app/router.ts                /, /ranking-videos, /frame-screensaver
+client/src/app/router.ts                /, /ranking-videos, /frame-screensaver, /thumbnail-studio
 client/src/stores/platform.ts           renderer health, global toasts, nav UI
 client/src/stores/project.ts            ranking editor state
 client/src/apps/ranking-videos/         RankingVideosView (editor layout)
 client/src/apps/frame-screensaver/      screensaver view, store, components
+client/src/apps/thumbnail-studio/       thumbnail view, store, canvas renderer, transfer
 client/src/components/layout/           AppSidebar, AppHeader, MobileNavDrawer
 client/src/composables/usePlayback.ts     ranking preview clock
 client/src/components/                  ranking panels (ClipSidebar, PreviewStage, …)
@@ -53,14 +55,14 @@ Stack: Vue 3, **vue-router**, Pinia, Tailwind 4, Lucide. Client aliases `@shared
 
 ## Platform shell
 
-`App.vue`: left sidebar (desktop), header with renderer status (`GET /api/health`), `router-view`, global toasts (`usePlatformStore`).
+`App.vue`: left sidebar (desktop), header with renderer status (`GET /api/health`), **New project** on Ranking Videos, Frame Screensaver, and Thumbnail Studio (`AppHeader.vue`), `router-view`, global toasts (`usePlatformStore`).
 
-- Routes: `/` dashboard, `/ranking-videos`, `/frame-screensaver`. SPA fallback in production.
+- Routes: `/` dashboard, `/ranking-videos`, `/frame-screensaver`, `/thumbnail-studio`. SPA fallback in production.
 - Mobile: hamburger opens left drawer; ranking mobile tabs unchanged inside `RankingVideosView`.
 
 ## Ranking screen
 
-`RankingVideosView.vue`: New project, optional mobile tabs, editor grid, `TimelineBar`.
+`RankingVideosView.vue`: optional mobile tabs, editor grid, `TimelineBar`. New project lives in the platform header.
 
 - `xl` and up: clips `350px`, preview flex, style `350px`; selected clip panel `280px`.
 - Space toggles play on the ranking route only (not in inputs).
@@ -116,7 +118,7 @@ Color sets live outside the project: `localStorage` key `vvr-color-sets` (`clien
 
 ## Persistence
 
-IndexedDB database `vvr`, **version 2** (`client/src/lib/idb.ts`): `meta`, `files`, `music`, `screensaver`.
+IndexedDB database `vvr`, **version 3** (`client/src/lib/idb.ts`): `meta`, `files`, `music`, `screensaver`, `assets`, `thumbnail`.
 
 - Ranking: `meta/ranking-videos` (`SavedProject` v1). Legacy `meta/current` migrates on load. Saved 400ms after changes, once hydrated.
 - Screensaver: `screensaver/project`, blobs `screensaver/source` and `screensaver/audio`.
@@ -124,6 +126,7 @@ IndexedDB database `vvr`, **version 2** (`client/src/lib/idb.ts`): `meta`, `file
 - Each clip file is stored by clip id. Music is one blob.
 - Refresh rebuilds object URLs from those blobs and re-uploads if the server no longer has `serverId`. A local clip whose file is gone becomes `error`. A link clip whose file is gone stays `empty`.
 - Color sets are localStorage, not IndexedDB. New project clears the IndexedDB project and music, not the color sets.
+- `assets` stores image blobs by id (sha256 index, ref list). `thumbnail` stores `document` (version 2, written while editing but **discarded on every full page load** so Thumbnail Studio always opens fresh) and `pending-transfer` (kept until consumed). A version-1 layer project is discarded on open and its asset refs are released. Ranking and screensaver cleanup do not delete these. An asset is removed only when no document or pending transfer still references it.
 - Clearing site data wipes the project. Server files expire on their own (below).
 
 ## Order, ranks, and time
@@ -155,7 +158,7 @@ Two orders:
 
 `PreviewStage.vue` scales a 1080×1920 (or 720×1280) stage to fit. The video box starts at `bannerHeight` and is `videoHeight` tall. Crop uses `object-fit: cover`. Fit and blur use `contain`. Blur shows the background video with a CSS blur. The canvas is full frame and calls `drawOverlay` with the active clip's list index.
 
-`frameMetrics` (`shared/frame.ts`) is the shared layout: even banner height, min 80, max 42% of frame height, video height even. A height of 0 means no banner. Preview, `startExport`, and `runExport` all pass 0 when `banner.visible === false`, so the video fills the frame in both places. The Title section has a Show title checkbox. `drawOverlay` also skips the banner rectangle when `visible` is false.
+`frameMetrics` (`shared/frame.ts`) is the shared layout: even banner height, min 80, max 42% of frame height, video height even. A height of 0 means no banner. Preview, `startExport`, and `runExport` all pass 0 when `banner.visible === false`, so the video fills the frame in both places. The Title section has a Show title toggle. `drawOverlay` also skips the banner rectangle when `visible` is false.
 
 ## Canvas overlay
 
@@ -282,6 +285,7 @@ Sweep every 10 minutes: outputs older than 2 hours, jobs and incoming older than
 | Probe | `server/src/probe.ts` |
 | oEmbed | `server/src/oembed.ts` |
 | Screensaver editor, export, frames | `client/src/apps/frame-screensaver/`, `shared/screensaver.ts`, `shared/screensaverComposition.ts`, `shared/screensaverFrames.ts`, `shared/screensaverAdjust.ts`, `server/src/frames.ts` |
+| Thumbnail editor, transfer, export | `client/src/apps/thumbnail-studio/`, `shared/thumbnailProject.ts`, `shared/thumbnailTransfer.ts`, `shared/thumbnailLayout.ts`, `client/src/lib/idb.ts` |
 | Screensaver encode and encoder probe | `server/src/renderScreensaver.ts`, `server/src/screensaverGraph.ts`, `server/src/encoders.ts` |
 
 ## Invariants
@@ -353,8 +357,47 @@ Timed tests (3 seconds, 1080p, still, standard quality), not the 8-second export
 
 A static 1 fps file with the precomposed PNG matched the PNG at SSIM 0.995 (`npm run test:screensaver`).
 
+## Thumbnail Studio
+
+Own Pinia store `useThumbnailStore`. Ranking and screensaver stores stay independent. A full page refresh resets the thumbnail document to defaults (IndexedDB `document` is cleared on init; in-app navigation keeps in-memory state). The document is version 2 in `shared/thumbnailProject.ts`: one image, a resolution badge, a duration badge, and export settings. There is no layer list. Preview and export both call `renderThumbnail` in `client/src/apps/thumbnail-studio/lib/renderThumbnail.ts`. Framed screensaver artwork is drawn with `bakePlacement` / `paintComposition`. The preview long edge is 960px. A full-size canvas is created only when downloading.
+
+The screen is a 16:9 preview plus Image, Resolution Badge, Duration Badge, and one Badge style section, and **Download Thumbnail**. Both badges default off (Show badge toggles resolution/duration/position controls and the shared Badge style section). Default look when enabled is gold plate: resolution `4K UHD` at the top left, duration `2 HOURS` at the bottom left. Badge styles are baked SVG artwork (gold plate, silver plate, gold stack, silver stack, gold, silver, outline, invert) under `client/src/assets/thumbnail-badges/`. `shared/thumbnailBadges.ts` maps badge text + style to a slug; preview uses `<img>` (`ThumbnailBadge.vue`) and download rasterizes the same SVG (`rasterizeBadge.ts`). One style choice updates both badges. Badge size is a shared slider from 40% to 200%. Resolution and duration come from dropdowns in `RESOLUTION_BADGE_OPTIONS` / `DURATION_BADGE_OPTIONS` (`shared/thumbnailBadges.ts`); each label maps to one SVG slug per style (chips use compact slugs such as `4k` / `30m`). Style previews always show the 4K artwork (`4k` or `4k-uhd`). Text and position stay separate. The preview paints the image on canvas and overlays badge images aligned to the same anchor box as export.
+
+Positions are nine presets, edge distance in export pixels, and X/Y offsets; anchor math converts to normalized coordinates so export matches the preview. Dragging a badge sets a free position and leaves it there. Choosing the same preset corner for both badges nudges the one just changed, unless the other badge was dragged there on purpose.
+
+Uploads are PNG, JPEG, or WebP. Cover, contain, zoom, and pan apply only when the image has no screensaver composition. A Frame Screensaver transfer copies the current image (or the existing still for a video), composition, frame PNG, output size, and duration. Ranking still opens the clip-image picker and can capture the current preview frame. Either transfer fills the resolution badge from the video's short side (snapped to a catalog resolution) and the duration badge to the nearest catalog duration (`30 MIN`, `1 HOUR`, `2 HOURS`, `8 HOURS`). An uploaded image does not imply a video resolution. If a picture is already open, the transfer asks Keep or Replace.
+
+Export is 16:9 PNG or JPEG at 1280×720 (default), 1920×1080, or 3840×2160. JPEG has a quality slider. Download does not use FFmpeg.
+
+`npm run test:thumbnail` runs the shared contract tests.
+Badge SVGs are committed under `client/src/assets/thumbnail-badges/` (catalog slugs in `shared/thumbnailBadges.ts`).
+
 ## Changelog
 
+- 2026-10-29 — Thumbnail resolution badge defaults to top-left (`thumbnailProject.ts`).
+- 2026-10-29 — Frame Screensaver preview draws a dashed export-frame outline (dims outside when view zoom/pan changes) (`EditorCanvas.vue`).
+- 2026-10-29 — Frame Screensaver desktop preview fits the center column height (16:9 letterboxed) so export and **Create Thumbnail** stay visible without scrolling (`FrameScreensaverView.vue`, `EditorCanvas.vue`).
+- 2026-10-29 — **New project** in the platform header for Ranking Videos, Frame Screensaver, and Thumbnail Studio (`AppHeader.vue`, `stores/screensaver.ts`, `stores/thumbnail.ts`, `idb.ts`).
+- 2026-10-28 — Thumbnail Studio resets to a fresh document on full page load; persisted `document` is cleared and asset refs released (`stores/thumbnail.ts`).
+- 2026-10-28 — Thumbnail badge anchors align to the chip box using separate SVG padX/padY (`ThumbnailBadge.vue`, `rasterizeBadge.ts`, `renderThumbnail.ts`).
+- 2026-10-28 — Re-enable thumbnail badge drag on the preview (`ThumbnailBadge.vue`).
+- 2026-10-28 — Thumbnail badge “Distance from edges” is in export pixels; legacy normalized margins migrate on load (`thumbnailLayout.ts`, `thumbnailProject.ts`, `ThumbnailControls.vue`, `thumbnail.test.ts`).
+- 2026-10-28 — Remove badge import npm scripts and `client/scripts/importThumbnailBadges.ts`; SVGs are maintained in-repo only (`package.json`, `PROJECT.md`).
+- 2026-10-28 — Thumbnail badges default off; Show badge hides per-badge settings and the shared Badge style section until at least one badge is on (`thumbnailProject.ts`, `ThumbnailControls.vue`).
+- 2026-10-28 — Thumbnail badge resolution/duration are catalog dropdowns only; labels map 1:1 to SVG slugs; style previews use 4K artwork (`thumbnailBadges.ts`, `ThumbnailControls.vue`, `thumbnailTransfer.ts`).
+- 2026-10-28 — Thumbnail badges use imported SVG assets instead of HTML/canvas markup; remove HTML badge catalog (`thumbnailBadges.ts`, `badgeAssets.ts`, `importThumbnailBadges.ts`, `client/src/assets/thumbnail-badges/`).
+- 2026-10-28 — Add `npm run export:badges` to generate `docs/thumbnail-badges.html` (`exportBadgeCatalog.ts`, `package.json`).
+- 2026-10-28 — Thumbnail download uses the preview badge layout, size, and artwork (`badgeHtml.ts`, `rasterizeBadge.ts`, `renderThumbnail.ts`).
+- 2026-10-28 — Add a silver chip badge style (`badgeHtml.ts`, `thumbnailProject.ts`, `rasterizeBadge.ts`).
+- 2026-10-28 — Remove Mono and Line badge styles; six styles remain (`thumbnailProject.ts`, `badgeHtml.ts`).
+- 2026-10-28 — Chip badges show a number and one letter: `4K` for resolution and `8H` for duration (`badgeHtml.ts`, `thumbnailProject.ts`).
+- 2026-10-28 — Thumbnail badge markup is sized in pixels and resized with CSS scale (`badgeHtml.ts`).
+- 2026-10-27 — Thumbnail badges share a size slider from 40% to 200% (`ThumbnailControls.vue`, `thumbnailProject.ts`).
+- 2026-10-27 — Thumbnail badges are HTML/CSS resolution labels (gold, silver, stack, mono, line, outline, invert) shared by the duration badge (`badgeHtml.ts`, `rasterizeBadge.ts`, `thumbnailProject.ts`).
+- 2026-10-27 — Thumbnail Studio badge style is one shared panel that updates both badges (`ThumbnailControls.vue`, `stores/thumbnail.ts`).
+- 2026-10-27 — Simplify Thumbnail Studio to one image and two badges: drop layers, templates, catalogs, and ZIP; keep screensaver and ranking transfer (`client/src/apps/thumbnail-studio/`, `shared/thumbnailProject.ts`, `shared/thumbnailTransfer.ts`, `shared/thumbnailLayout.ts`).
+- 2026-10-27 — Add Thumbnail Studio: route, editor, IndexedDB v3 assets, screensaver and ranking transfer, PNG/JPEG/WebP and ZIP export (`client/src/apps/thumbnail-studio/`, `shared/thumbnail*.ts`, `client/src/lib/idb.ts`).
+- 2026-10-27 — Boolean settings use shared toggle switches instead of checkboxes (`ToggleSwitch.vue`, `style.css`, ranking/style/audio/thumbnail/screensaver UI).
 - 2026-10-27 — Fix Frame Screensaver frame upload (`FileDropZone` import in `ScreensaverSettingsPanel.vue`).
 - 2026-10-27 — Shared advanced audio UI (`components/audio/`); ranking background music fade in/out on export (`VideoStyle`, `render.ts`).
 - 2026-10-27 — Frame Screensaver full page reload clears cached background audio and resets audio to No audio (`idb.ts`, `stores/screensaver.ts`).

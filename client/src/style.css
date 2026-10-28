@@ -22,8 +22,7 @@ body {
   scrollbar-color: #3f4450 transparent;
 }
 
-input[type='range'],
-input[type='checkbox'] {
+input[type='range'] {
   accent-color: #ffcc33;
 }
 
@@ -121,6 +120,66 @@ input[type='color'] {
     background: #262a31;
     padding: 0.15rem 0.3rem 0.15rem 0.65rem;
     font-size: 0.75rem;
+  }
+
+  .toggle-switch {
+    position: relative;
+    display: inline-flex;
+    flex-shrink: 0;
+    cursor: pointer;
+  }
+
+  .toggle-switch--disabled {
+    cursor: not-allowed;
+    opacity: 0.45;
+  }
+
+  .toggle-switch__input {
+    position: absolute;
+    inset: 0;
+    z-index: 1;
+    margin: 0;
+    cursor: inherit;
+    opacity: 0;
+  }
+
+  .toggle-switch__track {
+    display: block;
+    box-sizing: border-box;
+    width: 2.25rem;
+    height: 1.25rem;
+    padding: 0.125rem;
+    border: 1px solid #3f4450;
+    border-radius: 9999px;
+    background: #343841;
+    transition:
+      background 0.15s ease,
+      border-color 0.15s ease;
+  }
+
+  .toggle-switch__input:checked + .toggle-switch__track {
+    border-color: #ffcc33;
+    background: #ffcc33;
+  }
+
+  .toggle-switch__thumb {
+    display: block;
+    width: 0.875rem;
+    height: 0.875rem;
+    border-radius: 9999px;
+    background: #f4f4f5;
+    box-shadow: 0 1px 2px rgb(0 0 0 / 0.35);
+    transition: transform 0.15s ease;
+  }
+
+  .toggle-switch__input:checked + .toggle-switch__track .toggle-switch__thumb {
+    transform: translateX(1rem);
+    background: #1c1500;
+  }
+
+  .toggle-switch__input:focus-visible + .toggle-switch__track {
+    outline: 2px solid #ffcc33;
+    outline-offset: 2px;
   }
 }
 

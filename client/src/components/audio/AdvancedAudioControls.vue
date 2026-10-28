@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import SliderField from '../SliderField.vue'
+import ToggleSwitch from '../ToggleSwitch.vue'
 
 const props = withDefaults(
   defineProps<{
@@ -43,10 +44,10 @@ const volumeUi = computed({
       :suffix="volumeAsPercent ? '%' : undefined"
       @update:model-value="(v) => (volumeUi = v)"
     />
-    <label v-if="showLoop && loop !== undefined" class="flex items-center gap-2 text-sm">
-      <input v-model="loop" type="checkbox" />
-      {{ loopLabel }}
-    </label>
+    <div v-if="showLoop && loop !== undefined" class="flex items-center justify-between gap-3 text-sm">
+      <span>{{ loopLabel }}</span>
+      <ToggleSwitch v-model="loop" :aria-label="loopLabel" />
+    </div>
     <SliderField
       v-if="showFades && fadeIn !== undefined"
       :model-value="fadeIn"

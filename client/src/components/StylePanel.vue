@@ -13,6 +13,7 @@ import AudioFileField from './audio/AudioFileField.vue'
 import SourceClipAudioControls from './audio/SourceClipAudioControls.vue'
 import SettingsAccordion from './SettingsAccordion.vue'
 import SliderField from './SliderField.vue'
+import ToggleSwitch from './ToggleSwitch.vue'
 
 const aligns = [
   { id: 'left' as const, icon: TextAlignStart, label: 'Align left' },
@@ -204,10 +205,10 @@ function onResolution(event: Event) {
     </SettingsAccordion>
 
     <SettingsAccordion title="Title">
-        <label class="flex items-center justify-between text-xs text-zinc-300">
-          Show title
-          <input v-model="store.style.banner.visible" type="checkbox" />
-        </label>
+        <div class="flex items-center justify-between text-xs text-zinc-300">
+          <span>Show title</span>
+          <ToggleSwitch v-model="store.style.banner.visible" aria-label="Show title" />
+        </div>
         <p v-if="store.style.banner.visible === false" class="text-[11px] leading-relaxed text-zinc-500">The title banner is hidden and the video fills the frame.</p>
         <textarea
           class="field min-h-20 resize-y"
@@ -269,10 +270,10 @@ function onResolution(event: Event) {
         <SliderField v-model="store.style.banner.lineHeight" label="Line spacing" :min="0.9" :max="1.6" :step="0.01" />
         <SliderField v-model="store.style.banner.outlineWidth" label="Text outline" :min="0" :max="12" suffix="px" />
         <ColorField v-model="store.style.banner.outlineColor" label="Outline color" />
-        <label class="flex items-center justify-between text-xs text-zinc-300">
-          Text shadow
-          <input v-model="store.style.banner.shadow" type="checkbox" />
-        </label>
+        <div class="flex items-center justify-between text-xs text-zinc-300">
+          <span>Text shadow</span>
+          <ToggleSwitch v-model="store.style.banner.shadow" aria-label="Text shadow" />
+        </div>
     </SettingsAccordion>
 
     <SettingsAccordion title="Ranking">
@@ -313,10 +314,10 @@ function onResolution(event: Event) {
         <SliderField v-model="store.style.ranking.outlineWidth" label="Outline" :min="0" :max="28" suffix="px" />
         <ColorField v-model="store.style.ranking.outlineColor" label="Outline color" />
         <SliderField v-model="store.style.ranking.opacity" label="Opacity" :min="0.2" :max="1" :step="0.05" />
-        <label class="flex items-center justify-between text-xs text-zinc-300">
-          Number shadow
-          <input v-model="store.style.ranking.shadow" type="checkbox" />
-        </label>
+        <div class="flex items-center justify-between text-xs text-zinc-300">
+          <span>Number shadow</span>
+          <ToggleSwitch v-model="store.style.ranking.shadow" aria-label="Number shadow" />
+        </div>
     </SettingsAccordion>
 
     <SettingsAccordion title="Video">
@@ -366,14 +367,14 @@ function onResolution(event: Event) {
           :step="0.05"
           suffix="s"
         />
-        <label class="flex items-center justify-between text-xs text-zinc-300">
-          Show clip titles
-          <input v-model="store.style.caption.enabled" type="checkbox" />
-        </label>
-        <label v-if="store.style.caption.enabled" class="flex items-center justify-between text-xs text-zinc-300">
-          Show previous titles
-          <input v-model="store.style.ranking.showPreviousTitles" type="checkbox" />
-        </label>
+        <div class="flex items-center justify-between text-xs text-zinc-300">
+          <span>Show clip titles</span>
+          <ToggleSwitch v-model="store.style.caption.enabled" aria-label="Show clip titles" />
+        </div>
+        <div v-if="store.style.caption.enabled" class="flex items-center justify-between text-xs text-zinc-300">
+          <span>Show previous titles</span>
+          <ToggleSwitch v-model="store.style.ranking.showPreviousTitles" aria-label="Show previous titles" />
+        </div>
         <p v-if="store.style.caption.enabled" class="text-[11px] leading-relaxed text-zinc-500">On the full ranking list, a clip title stays visible after that clip has played.</p>
         <SliderField v-if="store.style.caption.enabled" v-model="store.style.caption.fontSize" label="Clip title size" :min="18" :max="90" suffix="px" />
         <p v-if="store.style.caption.enabled" class="text-[11px] leading-relaxed text-zinc-500">Each clip has its own title color in the selected clip column.</p>

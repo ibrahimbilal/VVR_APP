@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { onBeforeUnmount, onMounted, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+import { createThumbnailFromScreensaver } from './lib/createThumbnail'
 import ScreensaverExportBar from './components/ScreensaverExportBar.vue'
 import ScreensaverExportDetails from './components/ScreensaverExportDetails.vue'
 import EditorCanvas from './components/EditorCanvas.vue'
@@ -8,10 +9,13 @@ import ScreensaverDiagnostics from './components/ScreensaverDiagnostics.vue'
 import ScreensaverSettingsPanel from './components/ScreensaverSettingsPanel.vue'
 import { installPreviewBenchHook } from './lib/benchPreview'
 import { screensaverDiagnosticsEnabled } from './lib/previewMetrics'
+import ToggleSwitch from '../../components/ToggleSwitch.vue'
 import { useScreensaverStore } from './stores/screensaver'
 
 const store = useScreensaverStore()
 const customMinutes = ref(60)
+const linkThumbnail = ref(false)
+const canThumbnail = computed(() => (store.mediaKind === 'image' && Boolean(store.objectUrl)) || Boolean(store.thumbnail?.startsWith('data:')))
 
 function onKey(event: KeyboardEvent) {
   const target = event.target
@@ -45,10 +49,24 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
         <ScreensaverSettingsPanel v-model:custom-minutes="customMinutes" />
       </div>
     </aside>
-    <div class="flex min-h-0 min-w-0 flex-1 flex-col overflow-y-auto p-4">
-      <EditorCanvas class="w-full shrink-0 mb-4" />
-      <div class="mt-auto shrink-0">
+    <div class="flex min-h-0 min-w-0 flex-1 flex-col overflow-y-auto p-4 lg:overflow-hidden">
+      <EditorCanvas class="mb-3 flex min-h-0 w-full flex-1 flex-col lg:mb-2" />
+      <div class="shrink-0 space-y-3">
         <ScreensaverExportBar />
+        <div class="flex flex-wrap items-center gap-3">
+          <button
+            class="btn btn-ghost cursor-pointer"
+            type="button"
+            :disabled="!canThumbnail"
+            @click="createThumbnailFromScreensaver(linkThumbnail ? 'linked' : 'snapshot')"
+          >
+            Create Thumbnail
+          </button>
+          <div class="flex items-center gap-2 text-xs text-zinc-400">
+            <ToggleSwitch v-model="linkThumbnail" aria-label="Link to source" />
+            <span>Link to source</span>
+          </div>
+        </div>
       </div>
     </div>
     <ScreensaverExportDetails />
