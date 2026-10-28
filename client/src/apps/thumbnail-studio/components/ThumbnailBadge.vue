@@ -1,32 +1,47 @@
 <script setup lang="ts">
 import { anchorFactors } from '@shared/thumbnailLayout'
-import { badgeAnchorPoint, type ThumbnailBadge } from '@shared/thumbnailProject'
+import { badgeAnchorPoint, clampBadgeScale, type ThumbnailBadge } from '@shared/thumbnailProject'
 import { computed } from 'vue'
-import { BADGE_WIDTH_RATIO, badgeMarkup } from '../lib/badgeHtml'
+import { BADGE_WIDTH_RATIO, badgeLayoutMetrics, badgeSvgUrl } from '../lib/badgeAssets'
 
 const props = defineProps<{ badge: ThumbnailBadge; frameWidth: number }>()
 
-const html = computed(() =>
-  badgeMarkup(props.badge.appearance.styleId, props.badge.text, Math.max(48, props.frameWidth * BADGE_WIDTH_RATIO), props.badge.appearance.scale),
-)
+const src = computed(() => badgeSvgUrl(props.badge.appearance.styleId, props.badge.text))
+
+const layoutBox = computed(() => {
+  const layout = badgeLayoutMetrics(props.badge.appearance.styleId)
+  const reference = Math.max(48, props.frameWidth * BADGE_WIDTH_RATIO)
+  const safe = clampBadgeScale(props.badge.appearance.scale)
+  const contentWidth = reference * safe
+  const contentHeight = contentWidth * (layout.contentH / layout.contentW)
+  const assetScale = contentWidth / layout.contentW
+  const assetWidth = layout.assetW * assetScale
+  const assetHeight = layout.assetH * assetScale
+  const pad = layout.padX * assetScale
+  return { contentWidth, contentHeight, assetWidth, assetHeight, pad }
+})
 
 const position = computed(() => {
   const point = badgeAnchorPoint(props.badge)
   const anchor = props.badge.anchor === 'free' || props.badge.deliberate ? 'free' : props.badge.anchor
   const { ax, ay } = anchorFactors(anchor)
+  const { contentWidth, contentHeight, assetWidth, assetHeight, pad } = layoutBox.value
   return {
-    left: `${point.x * 100}%`,
-    top: `${point.y * 100}%`,
-    transform: `translate(${-ax * 100}%, ${-ay * 100}%)`,
+    left: `calc(${point.x * 100}% - ${pad + contentWidth * ax}px)`,
+    top: `calc(${point.y * 100}% - ${pad + contentHeight * ay}px)`,
+    width: `${assetWidth}px`,
+    height: `${assetHeight}px`,
   }
 })
 </script>
 
 <template>
-  <div
-    v-if="badge.enabled && badge.text.trim()"
-    class="absolute z-10 touch-none select-none"
+  <img
+    v-if="badge.enabled && badge.text.trim() && src"
+    :src="src"
+    alt=""
+    draggable="false"
+    class="absolute z-10 touch-none select-none pointer-events-none"
     :style="position"
-    v-html="html"
   />
 </template>

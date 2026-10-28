@@ -2,7 +2,7 @@ import { sanitizeComposition } from '@shared/screensaverComposition'
 import { anchorFactors } from '@shared/thumbnailLayout'
 import { badgeAnchorPoint, exactExportSize, previewPixelSize, THUMBNAIL_CANVAS_COLOR, type ThumbnailDocument } from '@shared/thumbnailProject'
 import { bakePlacement, paintComposition } from '../../frame-screensaver/lib/composeCanvas'
-import { badgeReferenceWidth } from './badgeHtml'
+import { BADGE_WIDTH_RATIO } from './badgeAssets'
 import { rasterizeBadge } from './rasterizeBadge'
 
 export interface ThumbnailBitmap {
@@ -31,6 +31,7 @@ export async function ensureThumbnailFonts(): Promise<void> {
     '400 64px Inter',
     '700 64px Inter',
     '400 64px Montserrat',
+    '700 64px Montserrat',
     '800 64px Montserrat',
   ]
   await Promise.all(faces.map((face) => document.fonts.load(face).catch(() => [])))
@@ -81,7 +82,7 @@ async function paintBadges(ctx: CanvasRenderingContext2D, doc: ThumbnailDocument
   const height = ctx.canvas.height
   for (const badge of [doc.resolution, doc.duration]) {
     if (!badge.enabled || !badge.text.trim()) continue
-    const raster = await rasterizeBadge(badge.appearance.styleId, badge.text, badgeReferenceWidth(width, badge.appearance.scale))
+    const raster = await rasterizeBadge(badge.appearance.styleId, badge.text, Math.max(48, width * BADGE_WIDTH_RATIO), badge.appearance.scale)
     if (!raster) continue
     const point = badgeAnchorPoint(badge)
     const anchor = badge.anchor === 'free' || badge.deliberate ? 'free' : badge.anchor

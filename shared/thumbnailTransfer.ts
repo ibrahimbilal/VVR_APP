@@ -1,7 +1,7 @@
+import { nearestDurationBadgeLabel, normalizeResolutionBadgeText, normalizeThumbnailBadgeLabels } from './thumbnailBadges'
 import { sanitizeComposition, type ScreensaverComposition } from './screensaverComposition'
 import {
   createThumbnailDocument,
-  formatBadgeDuration,
   qualityFromResolution,
   type ThumbnailDocument,
   type ThumbnailFit,
@@ -105,16 +105,15 @@ export function documentFromTransfer(payload: ThumbnailTransferPayload, id?: str
   doc.source.durationSeconds = payload.video?.durationSeconds ?? null
   if (doc.source.videoWidth && doc.source.videoHeight) {
     const quality = qualityFromResolution(doc.source.videoWidth, doc.source.videoHeight)
-    if (quality.label) doc.resolution.text = quality.label
+    doc.resolution.text = normalizeResolutionBadgeText(quality.label, doc.source.videoWidth, doc.source.videoHeight)
   }
   if (doc.source.durationSeconds != null) {
-    const label = formatBadgeDuration(doc.source.durationSeconds)
-    if (label) doc.duration.text = label
+    doc.duration.text = nearestDurationBadgeLabel(doc.source.durationSeconds)
   }
   doc.resolution.enabled = true
   doc.duration.enabled = true
   doc.updatedAt = Date.now()
-  return doc
+  return normalizeThumbnailBadgeLabels(doc)
 }
 
 function optionalText(value: unknown, max: number): string | null {

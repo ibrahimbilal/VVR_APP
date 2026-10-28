@@ -4,6 +4,15 @@ import { defaultComposition } from './screensaverComposition'
 import { moveAssetRefs, syncAssetRefs } from './thumbnailAssets'
 import { nudgeForSharedAnchor, normToPx, rectsOverlap, topLeftFromAnchor } from './thumbnailLayout'
 import {
+  DURATION_BADGE_OPTIONS,
+  RESOLUTION_BADGE_OPTIONS,
+  badgeAssetFolder,
+  nearestDurationBadgeLabel,
+  normalizeDurationBadgeText,
+  normalizeResolutionBadgeText,
+  resolveBadgeAssetSlug,
+} from './thumbnailBadges'
+import {
   applyBadgeStyle,
   assetIdsInDocument,
   badgeAnchorPoint,
@@ -194,6 +203,25 @@ describe('layout', () => {
     assert.equal(reset.anchor, 'bottom-left')
     assert.equal(reset.deliberate, false)
     assert.equal(dragged.x, 0.42)
+  })
+})
+
+describe('badge assets', () => {
+  it('maps catalog labels to svg slugs and folders', () => {
+    assert.equal(resolveBadgeAssetSlug('gold-plate', '4K UHD'), '4k-uhd')
+    assert.equal(resolveBadgeAssetSlug('gold', '4K UHD'), '4k')
+    assert.equal(resolveBadgeAssetSlug('silver', '1080P'), '1080p')
+    assert.equal(resolveBadgeAssetSlug('outline', '2 HOURS'), '2-hours')
+    assert.equal(resolveBadgeAssetSlug('invert', '30 MIN'), '30m')
+    assert.equal(badgeAssetFolder('gold-stack'), 'stacks/gold-stack')
+    assert.equal(RESOLUTION_BADGE_OPTIONS.length, 5)
+    assert.equal(DURATION_BADGE_OPTIONS.length, 4)
+  })
+
+  it('normalizes legacy badge text to catalog labels', () => {
+    assert.equal(normalizeResolutionBadgeText('1440P'), '1080P')
+    assert.equal(normalizeDurationBadgeText('2 HOURS 30 MIN', 9000), '2 HOURS')
+    assert.equal(nearestDurationBadgeLabel(3600), '1 HOUR')
   })
 })
 

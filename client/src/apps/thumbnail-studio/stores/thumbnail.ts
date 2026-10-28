@@ -1,19 +1,17 @@
 import { fullNormCrop, panNormCrop, presetAnchorPoint, zoomNormCrop, type FixedAnchor } from '@shared/thumbnailLayout'
+import { DURATION_BADGE_OPTIONS, RESOLUTION_BADGE_OPTIONS, normalizeThumbnailBadgeLabels } from '@shared/thumbnailBadges'
 import {
   type BadgeId,
   type BadgeStyleId,
-  type QualityId,
   type ThumbnailBadge,
   type ThumbnailDocument,
   type ThumbnailFit,
-  QUALITY_OPTIONS,
   THUMBNAIL_DOCUMENT_KEY,
   assetIdsInDocument,
   badgeAppearance,
   clampBadgeScale,
   createThumbnailDocument,
   dragBadge,
-  formatDurationParts,
   legacyThumbnailAssets,
   parseThumbnailDocument,
   placeBadge,
@@ -67,9 +65,16 @@ export const useThumbnailStore = defineStore('thumbnail', () => {
     if (parsed) {
       const same = JSON.stringify(parsed.resolution.appearance) === JSON.stringify(parsed.duration.appearance)
       if (!same) parsed.duration.appearance = { ...parsed.resolution.appearance }
-      doc.value = parsed
-      savedAssetIds = assetIdsInDocument(parsed)
-      if (!same) scheduleSave()
+      const normalized = normalizeThumbnailBadgeLabels(parsed)
+      doc.value = normalized
+      savedAssetIds = assetIdsInDocument(normalized)
+      if (
+        !same
+        || normalized.resolution.text !== parsed.resolution.text
+        || normalized.duration.text !== parsed.duration.text
+      ) {
+        scheduleSave()
+      }
     } else if (stored) {
       const legacy = legacyThumbnailAssets(stored)
       if (legacy) await syncProjectAssets(legacy.projectId, legacy.assetIds, [])
@@ -253,16 +258,14 @@ export const useThumbnailStore = defineStore('thumbnail', () => {
     })
   }
 
-  function setResolutionChoice(choice: QualityId): void {
-    if (choice === 'custom') return
-    const label = QUALITY_OPTIONS.find((item) => item.id === choice)?.label
-    if (label) setBadgeText('resolution', label)
+  function setResolutionLabel(label: string): void {
+    const option = RESOLUTION_BADGE_OPTIONS.find((item) => item.label === label)
+    if (option) setBadgeText('resolution', option.label)
   }
 
-  function setDurationParts(hours: number, minutes: number): void {
-    const text = formatDurationParts(hours, minutes)
-    if (!text) return
-    setBadgeText('duration', text)
+  function setDurationLabel(label: string): void {
+    const option = DURATION_BADGE_OPTIONS.find((item) => item.label === label)
+    if (option) setBadgeText('duration', option.label)
   }
 
   function place(id: BadgeId, anchor: FixedAnchor): void {
@@ -429,8 +432,8 @@ export const useThumbnailStore = defineStore('thumbnail', () => {
     resetCrop,
     setBadgeEnabled,
     setBadgeText,
-    setResolutionChoice,
-    setDurationParts,
+    setResolutionLabel,
+    setDurationLabel,
     place,
     setMargin,
     setHorizontal,

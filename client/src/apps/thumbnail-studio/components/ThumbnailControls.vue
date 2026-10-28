@@ -1,17 +1,9 @@
 <script setup lang="ts">
 import { ANCHORS } from '@shared/thumbnailLayout'
-import {
-  BADGE_STYLES,
-  QUALITY_OPTIONS,
-  THUMBNAIL_OUTPUTS,
-  parseDurationText,
-  qualityIdFromText,
-  type BadgeId,
-  type BadgeStyleId,
-  type QualityId,
-} from '@shared/thumbnailProject'
+import { DURATION_BADGE_OPTIONS, RESOLUTION_BADGE_OPTIONS } from '@shared/thumbnailBadges'
+import { BADGE_STYLES, THUMBNAIL_OUTPUTS, type BadgeStyleId } from '@shared/thumbnailProject'
 import { computed } from 'vue'
-import { badgeMarkup } from '../lib/badgeHtml'
+import { stylePreviewSvgUrl } from '../lib/badgeAssets'
 import FileDropZone from '../../../components/FileDropZone.vue'
 import SliderField from '../../../components/SliderField.vue'
 import ToggleSwitch from '../../../components/ToggleSwitch.vue'
@@ -42,34 +34,20 @@ async function updateFromScreensaver(): Promise<void> {
   store.clearReplaceOnNextTransfer()
 }
 
-function onQuality(id: BadgeId, event: Event): void {
-  const value = (event.target as HTMLSelectElement).value as QualityId
-  store.setResolutionChoice(value)
-  if (value === 'custom' && qualityIdFromText(store.doc.resolution.text) !== 'custom') store.setBadgeText(id, '')
+function onResolution(event: Event): void {
+  store.setResolutionLabel((event.target as HTMLSelectElement).value)
 }
 
-function onDurationHours(event: Event): void {
-  const hours = Number((event.target as HTMLInputElement).value)
-  const minutes = parseDurationText(store.doc.duration.text)?.minutes ?? 0
-  store.setDurationParts(hours, minutes)
-}
-
-function onDurationMinutes(event: Event): void {
-  const minutes = Number((event.target as HTMLInputElement).value)
-  const hours = parseDurationText(store.doc.duration.text)?.hours ?? 0
-  store.setDurationParts(hours, minutes)
-}
-
-function onText(id: BadgeId, event: Event): void {
-  store.setBadgeText(id, (event.target as HTMLInputElement).value)
+function onDuration(event: Event): void {
+  store.setDurationLabel((event.target as HTMLSelectElement).value)
 }
 
 const sharedStyle = computed(() =>
   store.doc.resolution.appearance.styleId === store.doc.duration.appearance.styleId ? store.doc.resolution.appearance.styleId : null,
 )
 
-function swatch(styleId: BadgeStyleId): string {
-  return badgeMarkup(styleId, '4K UHD', 132)
+function swatchUrl(styleId: BadgeStyleId): string | null {
+  return stylePreviewSvgUrl(styleId)
 }
 
 function onExportSize(event: Event): void {
@@ -130,27 +108,17 @@ function onExportSize(event: Event): void {
           <ToggleSwitch :model-value="store.doc[section.id].enabled" :aria-label="`Show ${section.title}`" @update:model-value="store.setBadgeEnabled(section.id, $event)" />
         </div>
 
-        <template v-if="section.id === 'resolution'">
-          <label class="block text-xs text-zinc-400">
-            Resolution
-            <select class="field mt-1" :value="qualityIdFromText(store.doc.resolution.text)" @change="onQuality(section.id, $event)">
-              <option v-for="option in QUALITY_OPTIONS" :key="option.id" :value="option.id">{{ option.label }}</option>
-            </select>
-          </label>
-        </template>
-        <div v-else class="grid grid-cols-2 gap-2">
-          <label class="block text-xs text-zinc-400">
-            Hours
-            <input class="field mt-1" type="number" min="0" max="99" :value="parseDurationText(store.doc.duration.text)?.hours ?? ''" @change="onDurationHours" />
-          </label>
-          <label class="block text-xs text-zinc-400">
-            Minutes
-            <input class="field mt-1" type="number" min="0" max="59" :value="parseDurationText(store.doc.duration.text)?.minutes ?? ''" @change="onDurationMinutes" />
-          </label>
-        </div>
-        <label class="block text-xs text-zinc-400">
-          Badge text
-          <input class="field mt-1" type="text" maxlength="32" :value="store.doc[section.id].text" @input="onText(section.id, $event)" />
+        <label v-if="section.id === 'resolution'" class="block text-xs text-zinc-400">
+          Resolution
+          <select class="field mt-1" :value="store.doc.resolution.text" @change="onResolution">
+            <option v-for="option in RESOLUTION_BADGE_OPTIONS" :key="option.label" :value="option.label">{{ option.label }}</option>
+          </select>
+        </label>
+        <label v-else class="block text-xs text-zinc-400">
+          Duration
+          <select class="field mt-1" :value="store.doc.duration.text" @change="onDuration">
+            <option v-for="option in DURATION_BADGE_OPTIONS" :key="option.label" :value="option.label">{{ option.label }}</option>
+          </select>
         </label>
 
         <div>
@@ -198,7 +166,7 @@ function onExportSize(event: Event): void {
 
       <section class="space-y-3 border-b border-zinc-800 px-4 py-4">
         <h2 class="text-[11px] font-semibold uppercase tracking-[0.14em] text-zinc-400">Badge style</h2>
-        <p class="text-xs text-zinc-500">Same look on the resolution and duration badges.</p>
+        <p class="text-xs text-zinc-500">Same look on the resolution and duration badges. Previews show the 4K artwork.</p>
         <SliderField
           label="Badge size"
           :model-value="Math.round(store.doc.resolution.appearance.scale * 100)"
@@ -218,7 +186,7 @@ function onExportSize(event: Event): void {
             :aria-pressed="sharedStyle === style.id"
             @click="store.setBadgeStyle(style.id)"
           >
-            <span class="pointer-events-none" v-html="swatch(style.id)" />
+            <img v-if="swatchUrl(style.id)" :src="swatchUrl(style.id)!" alt="" class="pointer-events-none h-10 w-auto max-w-full object-contain" />
           </button>
         </div>
       </section>
