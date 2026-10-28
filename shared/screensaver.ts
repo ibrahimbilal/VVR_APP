@@ -20,7 +20,6 @@ export const ENCODER_CHOICES = ['auto', 'cpu', 'h264_nvenc', 'h264_qsv', 'h264_a
 export type EncoderChoice = (typeof ENCODER_CHOICES)[number]
 
 export const DURATION_PRESETS = [
-  { label: '1 minute', seconds: 60 },
   { label: '30 minutes', seconds: 30 * 60 },
   { label: '1 hour', seconds: 60 * 60 },
   { label: '2 hours', seconds: 2 * 60 * 60 },
@@ -32,7 +31,7 @@ export const DURATION_PRESETS = [
 ] as const
 
 export const DEFAULT_DURATION_SECONDS = 60 * 60
-export const MIN_DURATION_SECONDS = 60
+export const MIN_DURATION_SECONDS = 30 * 60
 export const MAX_DURATION_SECONDS = 12 * 60 * 60
 
 /** Server test script only — not accepted from normal API clients unless env allows. */
