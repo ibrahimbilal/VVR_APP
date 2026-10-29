@@ -27,7 +27,7 @@ import * as idb from '../../../lib/idb'
 import { readImageFile, readVideoFile, validateAudioFile, validateImageFile, validateScreensaverVideoFile } from '../../../lib/media'
 import { beginTrackedRender, endTrackedRender, syncTrackedRender } from '../../../lib/renderJobTracking'
 import { pageWasReloaded } from '../../../lib/pageNavigation'
-import { ensureRenderNotificationPermission, notifyRenderReady } from '../../../lib/renderNotifications'
+import { notifyRenderReady } from '../../../lib/renderNotifications'
 import { usePlatformStore } from '../../../stores/platform'
 import type { ExportState } from '../../../types'
 import { composeExportPng } from '../lib/exportComposeWorker'
@@ -922,7 +922,6 @@ export const useScreensaverStore = defineStore('screensaver', () => {
     if (outputWidth.value >= 3840 && durationSeconds.value >= 2 * 3600) {
       toast('4K exports over two hours can produce very large files and long renders.', 'info')
     }
-    ensureRenderNotificationPermission()
     exportAbort = new AbortController()
     const signal = exportAbort.signal
     const filename = name.value.trim() || 'screensaver'

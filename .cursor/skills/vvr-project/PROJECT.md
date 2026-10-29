@@ -55,7 +55,7 @@ Stack: Vue 3, **vue-router**, Pinia, Tailwind 4, Lucide. Client aliases `@shared
 
 ## Platform shell
 
-`App.vue`: left sidebar (desktop), header with **notifications** (bell, left of renderer status), renderer status (`GET /api/health`), **New project** on Ranking Videos, Frame Screensaver, and Thumbnail Studio (`AppHeader.vue`, `AppNotifications.vue`), `router-view`, global toasts (`usePlatformStore`). Finished Ranking and Frame Screensaver renders are listed in the header notification panel and may also use the browser **desktop notification** API when allowed (`renderNotifications.ts`, `platform.ts`).
+`App.vue`: left sidebar (desktop), header with **notifications** (bell, left of renderer status), renderer status (`GET /api/health`), **New project** on Ranking Videos, Frame Screensaver, and Thumbnail Studio (`AppHeader.vue`, `AppNotifications.vue`), `router-view`, global toasts (`usePlatformStore`). Finished Ranking and Frame Screensaver renders are listed in the header notification panel (`renderNotifications.ts`, `platform.ts`).
 
 - Routes: `/` dashboard, `/ranking-videos`, `/frame-screensaver`, `/thumbnail-studio`. SPA fallback in production.
 - Mobile: hamburger opens left drawer; ranking mobile tabs inside `RankingVideosView`; Frame Screensaver uses **Settings / Preview** tabs (`FrameScreensaverView.vue`).
@@ -375,6 +375,7 @@ Badge SVGs are committed under `client/src/assets/thumbnail-badges/` (catalog sl
 ## Changelog
 
 - 2026-10-29 — Launcher: `launcher/nuget.config` for NuGet.org (fixes NU1100 when no global feed); TFM `net8.0` console app.
+- 2026-10-29 — Remove browser desktop notifications for render-ready; in-app header notifications only (`renderNotifications.ts`, `project.ts`, `screensaver.ts`).
 - 2026-10-29 — Replace Node SEA launcher with native C# `Video Factory.exe` (`launcher/`, `npm run build:launcher`).
 - 2026-10-29 — Full page reload clears header render queues and export-in-progress UI; bfcache restore clears queues too (`renderQueueBootstrap.ts`, `platform.ts`, ranking/screensaver `init`).
 - 2026-10-29 — Ranking and Frame Screensaver export status sidebars start collapsed (`RankingExportDetails.vue`, `ScreensaverExportDetails.vue`).

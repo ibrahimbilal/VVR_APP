@@ -11,13 +11,6 @@ const visible = computed(
   () => store.exporting || Boolean(store.exportState.encoder) || store.exportState.phase === 'done',
 )
 
-watch(
-  () => store.exporting,
-  (busy) => {
-    if (busy) open.value = true
-  },
-)
-
 function formatSeconds(value: number | null | undefined): string {
   if (value == null || !Number.isFinite(value)) return '—'
   const total = Math.max(0, Math.round(value))

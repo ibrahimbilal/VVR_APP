@@ -11,7 +11,7 @@ import * as api from '../lib/api'
 import { runExport } from '../lib/exportJob'
 import { beginTrackedRender, endTrackedRender, syncTrackedRender } from '../lib/renderJobTracking'
 import { pageWasReloaded } from '../lib/pageNavigation'
-import { ensureRenderNotificationPermission, notifyRenderReady } from '../lib/renderNotifications'
+import { notifyRenderReady } from '../lib/renderNotifications'
 import { triggerDownload } from '../lib/triggerDownload'
 import { ensureServerUploadCleanupOnClose } from '../lib/serverUploadCleanup'
 import { formatRank, sourceLabel, titleFromFileName } from '../lib/format'
@@ -603,7 +603,6 @@ export const useProjectStore = defineStore('project', () => {
       resolveFade(durations, style.value.video.transition, style.value.video.fadeDuration),
     )
     if (total > 5 * 60) toast('This compilation is long. Rendering may take several minutes.', 'info')
-    ensureRenderNotificationPermission()
     exportAbort = new AbortController()
     const signal = exportAbort.signal
     const filename = name.value.trim() && name.value !== 'Untitled ranking' ? name.value : titleText.value.replace(/\s+/g, ' ').trim()
