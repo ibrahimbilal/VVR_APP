@@ -18,7 +18,7 @@ interface ExportInput {
   onUpdate: (patch: ExportUpdate) => void
 }
 
-export async function runExport(input: ExportInput): Promise<void> {
+export async function submitRankingExport(input: ExportInput): Promise<string> {
   const metrics = frameMetrics(
     input.style.video.width,
     input.style.video.height,
@@ -34,33 +34,45 @@ export async function runExport(input: ExportInput): Promise<void> {
   if (!context) throw new Error('This browser cannot draw the title overlay.')
 
   const sequence = playbackOrder(input.clips)
-  const overlays: Blob[] = []
+  const titleHideAfter =
+    input.style.caption.enabled && input.style.ranking.titleHideAfter > 0 ? input.style.ranking.titleHideAfter : 0
+  const overlayFiles: { name: string; blob: Blob }[] = []
   for (let index = 0; index < sequence.length; index += 1) {
     const clip = sequence[index]
     if (!clip) continue
     const listIndex = input.clips.findIndex((item) => item.id === clip.id)
-    drawOverlay(context, {
-      width: metrics.width,
-      height: metrics.height,
-      bannerHeight: metrics.bannerHeight,
-      banner: input.style.banner,
-      spans: input.spans,
-      ranking: input.style.ranking,
-      caption: input.style.caption,
-      ranks: overlayRanks(
-        input.clips,
-        listIndex,
-        input.style.ranking.format,
-        input.style.ranking.color,
-        input.style.caption.enabled,
-        input.style.ranking.display,
-        input.style.caption.color,
-        input.style.ranking.pageStyle,
-        input.style.ranking.showPreviousTitles,
-        input.style.ranking.sort,
-      ),
-    })
-    overlays.push(await canvasToPng(canvas))
+    const draw = (clipLocalTime: number) => {
+      drawOverlay(context, {
+        width: metrics.width,
+        height: metrics.height,
+        bannerHeight: metrics.bannerHeight,
+        banner: input.style.banner,
+        spans: input.spans,
+        ranking: input.style.ranking,
+        caption: input.style.caption,
+        ranks: overlayRanks(
+          input.clips,
+          listIndex,
+          input.style.ranking.format,
+          input.style.ranking.color,
+          input.style.caption.enabled,
+          input.style.ranking.display,
+          input.style.caption.color,
+          input.style.ranking.pageStyle,
+          input.style.ranking.showPreviousTitles,
+          input.style.ranking.sort,
+          input.style.ranking.visible,
+          titleHideAfter,
+          clipLocalTime,
+        ),
+      })
+    }
+    draw(0)
+    overlayFiles.push({ name: `overlay-${index}.png`, blob: await canvasToPng(canvas) })
+    if (titleHideAfter > 0) {
+      draw(titleHideAfter)
+      overlayFiles.push({ name: `overlay-${index}-late.png`, blob: await canvasToPng(canvas) })
+    }
     input.onUpdate({ progress: 0.02 + ((index + 1) / sequence.length) * 0.06 })
     if (input.signal.aborted) throw new DOMException('The export was cancelled.', 'AbortError')
   }
@@ -70,6 +82,7 @@ export async function runExport(input: ExportInput): Promise<void> {
     'project',
     JSON.stringify({
       filename: input.filename,
+      titleHideAfter,
       clips: sequence.map((clip) => ({
         id: clip.serverId,
         trimStart: clip.trimStart,
@@ -93,7 +106,7 @@ export async function runExport(input: ExportInput): Promise<void> {
       },
     }),
   )
-  overlays.forEach((overlay, index) => body.append('overlays', overlay, `overlay-${index}.png`))
+  overlayFiles.forEach((overlay) => body.append('overlays', overlay.blob, overlay.name))
   if (input.musicFile && input.style.video.musicVolume > 0) body.append('music', input.musicFile, input.musicFile.name)
 
   input.onUpdate({ phase: 'uploading', progress: 0.09, message: 'Sending overlays to the renderer.' })
@@ -104,9 +117,13 @@ export async function runExport(input: ExportInput): Promise<void> {
     await cancelJob(started.jobId)
     throw new DOMException('The export was cancelled.', 'AbortError')
   }
+  return started.jobId
+}
 
+export async function runExport(input: ExportInput): Promise<void> {
+  const jobId = await submitRankingExport(input)
   try {
-    await pollJobUntilDone(started.jobId, input.signal, (patch) => {
+    await pollJobUntilDone(jobId, input.signal, (patch) => {
       input.onUpdate(patch as ExportUpdate)
     })
   } catch (error) {

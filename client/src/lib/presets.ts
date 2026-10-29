@@ -33,6 +33,7 @@ const classicBanner: BannerStyle = {
 }
 
 const classicRanking: RankingStyle = {
+  visible: true,
   fontFamily: 'Anton',
   fontSize: 85,
   fontWeight: 400,
@@ -48,6 +49,7 @@ const classicRanking: RankingStyle = {
   display: 'stack',
   pageStyle: 'fraction',
   showPreviousTitles: false,
+  titleHideAfter: 0,
   sort: 'list',
 }
 

@@ -60,7 +60,11 @@ export class Canvas2DScreensaverRenderer implements ScreensaverImageRenderer {
 
   private currentBake(input: ScreensaverRenderInput, element: HTMLCanvasElement): RasterSurface | null {
     const source = input.source
-    if (!source || input.sourceWidth < 1) return null
+    if (!source || input.sourceWidth < 1) {
+      this.baked = null
+      this.bakeKey = ''
+      return null
+    }
     const key = `${element.width}x${element.height}:${input.compareAdjustments}:${JSON.stringify(input.composition.adjustments)}:${JSON.stringify(input.composition.crop)}:${input.composition.width}:${input.composition.height}:${input.previewReducedQuality}`
     if (!this.baked || this.bakeKey !== key) {
       const composition = input.previewReducedQuality

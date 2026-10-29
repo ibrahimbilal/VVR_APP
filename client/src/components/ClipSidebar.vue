@@ -129,7 +129,7 @@ function kept(duration: number, start: number, end: number): string {
 
     <div class="min-h-0 flex-1 space-y-2 overflow-y-auto p-3" @dragover.prevent>
       <p v-if="store.clips.length === 0" class="px-2 py-8 text-center text-sm text-zinc-500">
-        Drop MP4, MOV, or WebM files here. Export stays off until there are two clips.
+        Drop MP4, MOV, or WebM files here. Export stays off until there is at least one clip.
       </p>
       <article
         v-for="(clip, index) in store.clips"

@@ -152,18 +152,31 @@ function togglePlay() {
   }
 }
 
+let mediaLoadId = 0
+let previewVideo: HTMLVideoElement | null = null
+
 function loadMedia(url: string | null, kind: 'image' | 'video' | null) {
+  const loadId = ++mediaLoadId
+  if (previewVideo) {
+    previewVideo.pause()
+    previewVideo.removeAttribute('src')
+    previewVideo.load()
+    previewVideo = null
+  }
   media.value = null
   mediaWidth.value = 0
   mediaHeight.value = 0
+  playing.value = false
+  selected.value = false
   if (!url || !kind) {
-    media.value = null
+    resetView()
     draw()
     return
   }
   if (kind === 'image') {
     const image = new Image()
     image.onload = () => {
+      if (loadId !== mediaLoadId) return
       media.value = image
       mediaWidth.value = image.naturalWidth
       mediaHeight.value = image.naturalHeight
@@ -173,11 +186,13 @@ function loadMedia(url: string | null, kind: 'image' | 'video' | null) {
     return
   }
   const video = document.createElement('video')
+  previewVideo = video
   video.muted = true
   video.playsInline = true
   video.loop = true
   video.preload = 'auto'
   video.onloadeddata = () => {
+    if (loadId !== mediaLoadId) return
     media.value = video
     mediaWidth.value = video.videoWidth
     mediaHeight.value = video.videoHeight

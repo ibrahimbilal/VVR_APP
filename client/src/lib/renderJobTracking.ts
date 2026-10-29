@@ -1,6 +1,31 @@
+import { cancelJob } from './api'
 import { RENDER_APP_ROUTES, type RenderAppId } from './renderNotifications'
 import { usePlatformStore } from '../stores/platform'
 import type { ExportState } from '../types'
+
+type RenderCancelRegistration = {
+  abort: () => void
+  getServerJobId: () => string | null
+}
+
+const cancelRegistry = new Map<string, RenderCancelRegistration>()
+
+export function registerRenderCancel(trackId: string, registration: RenderCancelRegistration): void {
+  cancelRegistry.set(trackId, registration)
+}
+
+export function unregisterRenderCancel(trackId: string): void {
+  cancelRegistry.delete(trackId)
+}
+
+/** Cancel one tracked export (client abort + server job when known). */
+export function cancelTrackedRender(trackId: string): void {
+  const entry = cancelRegistry.get(trackId)
+  if (!entry) return
+  const serverId = entry.getServerJobId()
+  if (serverId) void cancelJob(serverId)
+  entry.abort()
+}
 
 export function beginTrackedRender(app: RenderAppId, projectName: string): string {
   const id = crypto.randomUUID()

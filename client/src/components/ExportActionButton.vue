@@ -1,16 +1,23 @@
 <script setup lang="ts">
 import { CircleX, Download } from '@lucide/vue'
 import { computed } from 'vue'
+import { resolveExportButtonMode, isLocalPrepPhase } from '../lib/exportButtonMode'
 import { formatBytes } from '../lib/format'
 import { useProjectStore } from '../stores/project'
 
 const store = useProjectStore()
 
-const mode = computed(() => {
-  if (store.exporting) return 'busy'
-  if (store.exportState.phase === 'done' && store.exportState.downloadUrl) return 'download'
-  return 'export'
-})
+const mode = computed(() =>
+  resolveExportButtonMode({
+    phase: store.exportState.phase,
+    hasDownload: Boolean(store.exportState.downloadUrl),
+    activeExportCount: store.activeExportCount,
+  }),
+)
+
+const queueHint = computed(() =>
+  store.activeExportCount > 1 ? `${store.activeExportCount} exports queued` : '',
+)
 
 const progress = computed(() => Math.min(100, Math.max(0, Math.round(store.exportState.progress * 100))))
 
@@ -31,7 +38,7 @@ const downloadLabel = computed(() => {
 })
 
 function onClick() {
-  if (mode.value === 'busy') {
+  if (mode.value === 'busy' && isLocalPrepPhase(store.exportState.phase)) {
     store.cancelExport()
     return
   }
@@ -59,13 +66,24 @@ function onClick() {
   >
     <span class="export-action__layer export-action__layer--default">
       <Download v-if="mode === 'export' || mode === 'download'" :size="16" />
-      <span class="truncate">{{ mode === 'export' ? 'Export MP4' : mode === 'download' ? downloadLabel : busyLabel }}</span>
+      <span class="truncate">
+        {{
+          mode === 'export'
+            ? store.activeExportCount > 0
+              ? 'Queue export'
+              : 'Export MP4'
+            : mode === 'download'
+              ? downloadLabel
+              : busyLabel
+        }}
+      </span>
     </span>
     <span class="export-action__layer export-action__layer--cancel">
       <CircleX :size="16" />
       <span>Cancel</span>
     </span>
   </button>
+  <p v-if="queueHint" class="mt-1 text-center text-[10px] text-zinc-500">{{ queueHint }}</p>
 </template>
 
 <style scoped>

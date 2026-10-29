@@ -14,7 +14,7 @@ interface ScreensaverExportInput {
   onUpdate: (patch: ScreensaverExportUpdate) => void
 }
 
-export async function runScreensaverExport(input: ScreensaverExportInput): Promise<void> {
+export async function submitScreensaverExport(input: ScreensaverExportInput): Promise<string> {
   const body = new FormData()
   body.append('project', JSON.stringify(input.projectJson))
   if (input.audioFile) body.append('audio', input.audioFile, input.audioFile.name)
@@ -34,9 +34,13 @@ export async function runScreensaverExport(input: ScreensaverExportInput): Promi
     await cancelJob(started.jobId)
     throw new DOMException('The export was cancelled.', 'AbortError')
   }
+  return started.jobId
+}
 
+export async function runScreensaverExport(input: ScreensaverExportInput): Promise<void> {
+  const jobId = await submitScreensaverExport(input)
   try {
-    await pollJobUntilDone(started.jobId, input.signal, (patch) => {
+    await pollJobUntilDone(jobId, input.signal, (patch) => {
       input.onUpdate(patch as ScreensaverExportUpdate)
     }, 0.16)
   } catch (error) {

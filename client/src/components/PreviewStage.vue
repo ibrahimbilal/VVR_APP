@@ -18,6 +18,7 @@ const {
   duration,
   activeClip,
   activeIndex,
+  clipLocalTime,
   segments,
   toggle,
   toggleMute,
@@ -78,7 +79,7 @@ const playerStyle = computed(() => {
   return { width: `${Math.max(180, metrics.value.width * scale.value)}px` }
 })
 const placeholder = computed(() => {
-  if (!activeClip.value) return 'Add at least two videos.'
+  if (!activeClip.value) return 'Add at least one video.'
   if (!activeClip.value.objectUrl) return 'This slot needs a video file. Upload one you have permission to use.'
   if (activeClip.value.previewBlocked) return 'This browser cannot play this codec. Export can still try to render it.'
   return ''
@@ -144,6 +145,9 @@ function paint() {
       store.style.ranking.pageStyle,
       store.style.ranking.showPreviousTitles,
       store.style.ranking.sort,
+      store.style.ranking.visible,
+      store.style.caption.enabled ? store.style.ranking.titleHideAfter : 0,
+      clipLocalTime.value,
     ),
   })
 }
@@ -180,6 +184,8 @@ watch(
     store.style.ranking,
     store.style.caption,
     activeIndex.value,
+    clipLocalTime.value,
+    playhead.value,
     store.clips.map((clip) => `${clip.title}\n${clip.rankColor ?? ''}\n${clip.titleColor ?? ''}\n${clip.playAtEnd ? '1' : '0'}\n${clip.objectUrl ? '1' : '0'}`).join('\n'),
   ],
   () => paint(),

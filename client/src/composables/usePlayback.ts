@@ -65,6 +65,7 @@ function createPlayback() {
   const location = computed(() => locate(playhead.value))
   const activeClip = computed(() => location.value?.segment.clip ?? null)
   const activeIndex = computed(() => location.value?.segment.index ?? -1)
+  const clipLocalTime = computed(() => location.value?.local ?? 0)
 
   watch(
     () => store.musicUrl,
@@ -408,6 +409,7 @@ function createPlayback() {
     duration,
     activeClip,
     activeIndex,
+    clipLocalTime,
     segments,
     secondaryOpacity,
     toggle,

@@ -55,7 +55,7 @@ Stack: Vue 3, **vue-router**, Pinia, Tailwind 4, Lucide. Client aliases `@shared
 
 ## Platform shell
 
-`App.vue`: left sidebar (desktop), header with **notifications** (bell, left of renderer status), renderer status (`GET /api/health`), **New project** on Ranking Videos, Frame Screensaver, and Thumbnail Studio (`AppHeader.vue`, `AppNotifications.vue`), `router-view`, global toasts (`usePlatformStore`). Finished Ranking and Frame Screensaver renders are listed in the header notification panel (`renderNotifications.ts`, `platform.ts`).
+`App.vue`: left sidebar (desktop), header with **notifications** (bell, left of renderer status), renderer status (`GET /api/health`), **New project** on Ranking Videos, Frame Screensaver, and Thumbnail Studio (`AppHeader.vue`, `AppNotifications.vue`), `router-view`, global toasts (`usePlatformStore`). Finished Ranking and Frame Screensaver renders are listed in the header notification panel (`renderNotifications.ts`, `platform.ts`). In-progress rows have **Cancel** (per export: client abort + server `POST /api/jobs/:id/cancel` when submitted; `renderJobTracking.ts`).
 
 - Routes: `/` dashboard, `/ranking-videos`, `/frame-screensaver`, `/thumbnail-studio`. SPA fallback in production.
 - Mobile: hamburger opens left drawer; ranking mobile tabs inside `RankingVideosView`; Frame Screensaver uses **Settings / Preview** tabs (`FrameScreensaverView.vue`).
@@ -76,7 +76,7 @@ Stack: Vue 3, **vue-router**, Pinia, Tailwind 4, Lucide. Client aliases `@shared
 3. Edit the banner sentence. Each word is a span with its own color. A newline in the title sets `breakBefore` on the first word of the next line.
 4. Pick a preset (Classic Ranking, Tier List, Minimal) or keep Custom. Style banner, ranking, video, and audio.
 5. Play the preview. Banner and ranks stay painted on a canvas while `<video>` elements play underneath.
-6. Export MP4. Download starts only after the server verifies the file.
+6. Export MP4. Queue multiple exports (each click snapshots the current project); the server encodes one at a time. Download starts only after the server verifies the file.
 
 A link stores a title and thumbnail when the platform allows it. It does not download the video. `uploadState: 'empty'` until the user attaches a file. Instagram never fetches a title (no Meta token).
 
@@ -86,9 +86,9 @@ A link stores a title and thumbnail when the platform allows it. It does not dow
 
 Reactive: `name`, `titleText`, `spans`, `style`, `activePreset`, `clips`, `selectedClipId`, `selectedPanelOpen`, `colorSets`, `activeColorSetId`, `musicUrl`, `musicName`, `serverOnline`, `hydrated`, `exportState`, `toasts`, `urlNotice`.
 
-Module-level (not reactive): `fileMap` (clip id → File), `musicFile`, `exportAbort`, `applying` (suppresses the preset→custom watcher).
+Module-level (not reactive): `fileMap` (clip id → File), `musicFile`, `applying` (suppresses the preset→custom watcher). Export jobs live in `useManagedExportJobs()` inside the store.
 
-Export is blocked (`exportBlocker`) when the renderer is offline, fewer than 2 clips, any clip is uploading / empty / error, or any kept span is under 0.3s.
+Export is blocked (`exportBlocker`) when the renderer is offline, there are no clips, any clip is uploading / empty / error, or any kept span is under 0.3s. An export already running does not block another; up to 12 jobs can be queued per app (`managedExportJobs.ts`, `exportQueueRunner.ts`).
 
 Changing `style` or `spans` after hydration sets `activePreset` to `custom`, unless `applying` is true (preset apply and resolution change set that flag).
 
@@ -108,7 +108,7 @@ Defined in `client/src/types.ts`.
 - `PersistedClip` is the clip without objectUrl, upload progress, and error. `playAtEnd` is persisted.
 - `ProjectStyle`: `banner`, `ranking`, `caption`, `video`.
 - Banner: visible (off = no banner, video fills the frame), background, height, font, size, weight, align, lineHeight, outline, shadow.
-- Ranking: font, size, weight, color, itemSpacing (0–100, treated as a percent of font size), positionX/Y, outline, shadow, opacity, format (`dot | plain | hash | pad` → `1.` / `1` / `#1` / `01`), display (`stack` = all numbers, `page` = current only), pageStyle (`fraction` = `1 / N`, `number` = the format), showPreviousTitles, sort (`list | reverse | title | titleDesc`).
+- Ranking: **visible** (off = hide rank numbers on the overlay; clip titles can still show), font, size, weight, color, itemSpacing (0–100, treated as a percent of font size), positionX/Y, outline, shadow, opacity, format (`dot | plain | hash | pad` → `1.` / `1` / `#1` / `01`), display (`stack` = all numbers, `page` = current only), pageStyle (`fraction` = `1 / N`, `number` = the format), showPreviousTitles, **titleHideAfter** (seconds; 0 = off — hides only the **current** clip title after that time in preview and export), sort (`list | reverse | title | titleDesc`). Style panel: master toggles stay visible; dependent controls hide when off (**Title** banner, **Ranking** numbers/titles, **Presets** number display, **Video** crossfade — same pattern as **Audio** keep-original). Export with **titleHideAfter** sends a second PNG per clip (`overlay-N-late.png`); FFmpeg switches overlays at that timestamp (`render.ts`).
 - Caption styles the clip title drawn beside the rank number. `caption.bottom` is stored and scaled on resolution change. The canvas does not read it.
 - Video: width, height, fps, scaleMode (`crop | fit | blur`), backgroundColor, transition (`cut | fade`), fadeDuration, keepAudio, normalize, originalVolume, musicVolume (0–1), encoder (`auto` default, same choices as Frame Screensaver).
 - Presets: `classic | tier | minimal | custom`. Definitions and default video (1080×1920, 30 fps, crop, cut, fade 0.35, keep audio, normalize, music 0.35) are in `client/src/lib/presets.ts`. Fonts: Oswald, Anton, Bebas Neue, Montserrat, Inter.
@@ -136,7 +136,7 @@ Two orders:
 - List order is the sidebar. Rank numbers follow list index (`formatRank`), not playback position.
 - Playback order (`client/src/lib/order.ts`) is list order with the single `playAtEnd` clip moved to the end. Preview, timeline blocks, and the export clip list all use this order.
 
-`rankingRows` (`client/src/lib/format.ts`) builds the painted list: list order by default, or sort (`reverse`, title A–Z, title Z–A). `playAtEnd` does not move a row on the overlay; only playback order changes. `overlayRanks` paints every row in stack mode. In page mode it paints one row. With "Show previous titles", a stack row shows its title when it is the current clip or an earlier playback clip.
+`rankingRows` (`client/src/lib/format.ts`) builds the painted list: list order by default, or sort (`reverse`, title A–Z, title Z–A). `playAtEnd` does not move a row on the overlay; only playback order changes. `overlayRanks` paints every row in stack mode. In page mode it paints one row. With "Show previous titles", a stack row shows its title when it is the current clip or an earlier playback clip. **titleHideAfter** drops the current clip title once `clipLocalTime` reaches that threshold (previous titles unchanged).
 
 `shared/timeline.ts`:
 
@@ -171,7 +171,7 @@ Two orders:
 
 ## Export
 
-`startExport` in the store checks the blocker, warns above 5 minutes, then `runExport` (`client/src/lib/exportJob.ts`):
+`startExport` in the store checks the blocker, warns above 5 minutes, snapshots clips/style/spans/music, and enqueues work (`client/src/lib/managedExportJobs.ts`). The queue runs one browser prep/upload at a time, then polls each server job in parallel while FFmpeg still encodes sequentially. Each job uses `submitRankingExport` (`client/src/lib/exportJob.ts`):
 
 1. `overlays` — one full-frame PNG per clip in playback order. `overlayRanks` receives format, display, page style, showPreviousTitles, and sort. Progress ~2–8%.
 2. `uploading` — multipart `POST /api/export`. Field `project` is JSON. Fields `overlays` are `overlay-0.png` … in the same order. Field `music` is sent only when a file exists and `musicVolume > 0`. Progress ~9–16%.
@@ -181,7 +181,7 @@ Two orders:
 
 Project JSON clips are `{ id: serverId, trimStart, trimEnd }` in playback order. The server does not know titles or rank colors. Those exist only in the PNGs.
 
-Server `parseProject` requires 2–30 clips, UUID ids, 1080×1920 or 720×1280, fps 24/30/60, hex banner and background, scale and transition enums, trim ≥ 0.3s, sequence ≤ 30 minutes. Overlay count must match clips and each PNG must match the output size.
+Server `parseProject` requires 1–30 clips, UUID ids, 1080×1920 or 720×1280, fps 24/30/60, hex banner and background, scale and transition enums, trim ≥ 0.3s, sequence ≤ 30 minutes. Overlay count must match clips and each PNG must match the output size.
 
 ## Renderer
 
@@ -246,7 +246,7 @@ Sweep every 10 minutes: outputs older than 2 hours, jobs and incoming older than
 - 30 clips, 20 minutes each, 30 minutes per compilation, 500 MB per video, 40 MB per music, overlay, or screensaver frame PNG.
 - Trim at least 0.3 seconds. Fade at most 1 second and 40% of the shortest clip.
 - Banner height 80px to 42% of the frame, even.
-- One FFmpeg process at a time. The queue still accepts jobs.
+- One FFmpeg process at a time on the server. The client may queue up to 12 ranking and 12 screensaver exports (snapshots); browser overlay/composition prep runs one at a time globally (`exportQueueRunner.ts`).
 - Preview codecs are whatever the browser can play. Export codecs are whatever this FFmpeg build can read. They are not the same set.
 - Uploaded server files are not the saved project. The project is this browser's IndexedDB.
 
@@ -268,7 +268,7 @@ Sweep every 10 minutes: outputs older than 2 hours, jobs and incoming older than
 | Rank labels, sort, page vs stack | `client/src/lib/format.ts`, `client/src/lib/order.ts` |
 | Word colors | `client/src/lib/title.ts` |
 | Painted banner and numbers | `client/src/lib/drawOverlay.ts` |
-| PNG build and job polling | `client/src/lib/exportJob.ts` |
+| PNG build, submit, and job polling | `client/src/lib/exportJob.ts`, `client/src/lib/exportQueueRunner.ts`, `client/src/lib/managedExportJobs.ts`, `client/src/lib/exportState.ts`, `client/src/lib/exportButtonMode.ts` |
 | Fetch wrappers | `client/src/lib/api.ts` |
 | Server upload purge (both apps) | `client/src/lib/serverUploadCleanup.ts` |
 | Browser save | `client/src/lib/idb.ts` |
@@ -300,7 +300,7 @@ Sweep every 10 minutes: outputs older than 2 hours, jobs and incoming older than
 
 ## Frame Screensaver
 
-Editor state is `useScreensaverStore` (`client/src/apps/frame-screensaver/stores/screensaver.ts`). Ranking state is untouched.
+Editor state is `useScreensaverStore` (`client/src/apps/frame-screensaver/stores/screensaver.ts`). Ranking state is untouched. Export uses the same queued multi-export pipeline as Ranking Videos (snapshot per click, shared `exportQueueRunner.ts`).
 
 Saved projects are IndexedDB `screensaver/project` version 2. Version 1 loads with the old fit (contain, cover, blur) turned into a composition, profile `balanced`, encoder `auto`, and the saved frame rate left as it was. The original media blob is not rewritten. `clearRankingProject()` does not clear this store.
 
@@ -374,7 +374,14 @@ Badge SVGs are committed under `client/src/assets/thumbnail-badges/` (catalog sl
 
 ## Changelog
 
+- 2026-10-29 — Frame Screensaver **New project** and source removal clear the preview canvas (WebGL empty-source path, stale media load guard, `EditorCanvas.vue`).
+- 2026-10-29 — Per-job **Cancel** on in-progress render notifications (`AppNotifications.vue`, `renderJobTracking.ts`, `platform.ts`).
+- 2026-10-29 — Queued multi-export for Ranking Videos and Frame Screensaver: snapshot on each click, shared prep queue, up to 12 jobs per app, header notifications per job (`exportQueueRunner.ts`, `managedExportJobs.ts`, ranking/screensaver stores, export buttons).
 - 2026-10-29 — Hostinger deploy archive excludes `launcher/` and all `*.exe` (e.g. root `Video Factory.exe`; Hostinger deploy skill).
+- 2026-10-29 — Ranking **Hide clip title after a while** (`ranking.titleHideAfter`); dual export overlays + FFmpeg timed switch (`format.ts`, `exportJob.ts`, `render.ts`, `StylePanel.vue`).
+- 2026-10-29 — Style panel collapses dependent controls when **Show title**, **Show ranking numbers**, or **Show clip titles** is off (`StylePanel.vue`).
+- 2026-10-29 — Ranking export allows a single clip (client `exportBlocker`, server `parseProject`, copy in `ClipSidebar.vue` / `PreviewStage.vue`).
+- 2026-10-29 — Ranking style: **Show ranking numbers** toggle (`ranking.visible`); **Show clip titles** and **Show previous titles** moved from Video to Ranking accordion (`StylePanel.vue`, `format.ts`, `drawOverlay.ts`, `types.ts`).
 - 2026-10-29 — Launcher: `launcher/nuget.config` for NuGet.org (fixes NU1100 when no global feed); TFM `net8.0` console app.
 - 2026-10-29 — Remove browser desktop notifications for render-ready; in-app header notifications only (`renderNotifications.ts`, `project.ts`, `screensaver.ts`).
 - 2026-10-29 — Replace Node SEA launcher with native C# `Video Factory.exe` (`launcher/`, `npm run build:launcher`).

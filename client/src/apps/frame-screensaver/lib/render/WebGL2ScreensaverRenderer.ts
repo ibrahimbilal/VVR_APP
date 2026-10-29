@@ -153,7 +153,34 @@ export class WebGL2ScreensaverRenderer implements ScreensaverImageRenderer {
       return { bakeMs: null, compositeMs: null }
     }
 
+    const pw = canvas.width
+    const ph = canvas.height
     const compStart = performance.now()
+    const hasSource = Boolean(input.source && input.sourceWidth > 0 && input.sourceHeight > 0)
+
+    if (!hasSource) {
+      gl.bindFramebuffer(gl.FRAMEBUFFER, null)
+      gl.viewport(0, 0, pw, ph)
+      gl.clearColor(0, 0, 0, 0)
+      gl.clear(gl.COLOR_BUFFER_BIT)
+      gl.disable(gl.DEPTH_TEST)
+      gl.enable(gl.BLEND)
+      gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA)
+      const composition = input.composition
+      const flat = flattenBackground(composition.background)
+      if (composition.background.mode === 'transparent' && !flat.blur) {
+        this.drawChecker(gl, pw, ph, input.view)
+      } else {
+        this.drawSolid(gl, flat.color, pw, ph, input.view)
+      }
+      if (input.frame && this.frameTex) {
+        gl.bindTexture(gl.TEXTURE_2D, this.frameTex)
+        gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, input.frame as TexImageSource)
+        this.drawTexturedRect(gl, 0, 0, pw, ph, this.frameTex, 1, pw, ph, input.view)
+      }
+      return { bakeMs: null, compositeMs: performance.now() - compStart }
+    }
+
     this.uploadGeneration += 1
     const gen = this.uploadGeneration
 
@@ -168,8 +195,6 @@ export class WebGL2ScreensaverRenderer implements ScreensaverImageRenderer {
       if (gen !== this.uploadGeneration) return { bakeMs: null, compositeMs: null }
     }
 
-    const pw = canvas.width
-    const ph = canvas.height
     gl.viewport(0, 0, pw, ph)
     gl.disable(gl.DEPTH_TEST)
     gl.enable(gl.BLEND)

@@ -25,11 +25,9 @@ import { computed, ref, toRaw, watch } from 'vue'
 import * as api from '../../../lib/api'
 import * as idb from '../../../lib/idb'
 import { readImageFile, readVideoFile, validateAudioFile, validateImageFile, validateScreensaverVideoFile } from '../../../lib/media'
-import { beginTrackedRender, endTrackedRender, syncTrackedRender } from '../../../lib/renderJobTracking'
+import { useManagedExportJobs } from '../../../lib/managedExportJobs'
 import { pageWasReloaded } from '../../../lib/pageNavigation'
-import { notifyRenderReady } from '../../../lib/renderNotifications'
 import { usePlatformStore } from '../../../stores/platform'
-import type { ExportState } from '../../../types'
 import { composeExportPng } from '../lib/exportComposeWorker'
 import {
   readPreviewRendererMode,
@@ -38,7 +36,7 @@ import {
 } from '../lib/previewRendererPreference'
 import type { ScreensaverRendererBackend } from '../lib/render/types'
 import { ensureServerUploadCleanupOnClose } from '../../../lib/serverUploadCleanup'
-import { runScreensaverExport } from '../lib/screensaverExport'
+import { submitScreensaverExport } from '../lib/screensaverExport'
 import type { SavedScreensaverProject } from '../types'
 
 function loadHtmlImage(url: string): Promise<HTMLImageElement> {
@@ -57,27 +55,17 @@ async function fileIsPng(file: File): Promise<boolean> {
 
 let sourceFile: File | null = null
 let audioFile: File | null = null
-let exportAbort: AbortController | null = null
 let metaTimer = 0
 
-function idleExport(): ExportState {
-  return {
-    phase: 'idle',
-    progress: 0,
-    message: '',
-    error: null,
-    warning: null,
-    downloadUrl: null,
-    bytes: null,
-    jobId: null,
-    encoder: null,
-    hardware: null,
-    encodeFps: null,
-    encodeSpeed: null,
-    elapsedSec: null,
-    etaSec: null,
-    stage: null,
-  }
+type ScreensaverExportSnapshot = {
+  filename: string
+  mediaId: string
+  mediaKind: 'image' | 'video'
+  objectUrl: string | null
+  outputWidth: number
+  outputHeight: number
+  composition: ScreensaverComposition
+  frameId: ScreensaverComposition['frameId']
 }
 
 function defaultProject(): Omit<SavedScreensaverProject, 'version'> {
@@ -118,6 +106,7 @@ function cloneComposition(value: ScreensaverComposition): ScreensaverComposition
 export const useScreensaverStore = defineStore('screensaver', () => {
   const platform = usePlatformStore()
   const { serverOnline } = storeToRefs(platform)
+  const exportQueue = useManagedExportJobs()
 
   const hydrated = ref(false)
   const name = ref(defaultProject().name)
@@ -171,11 +160,9 @@ export const useScreensaverStore = defineStore('screensaver', () => {
   const audioUrl = ref<string | null>(null)
   const audioFileName = ref<string | null>(null)
 
-  const exportState = ref<ExportState>(idleExport())
-
-  const exporting = computed(() =>
-    ['uploading', 'queued', 'preparing', 'rendering', 'verifying'].includes(exportState.value.phase),
-  )
+  const exportState = exportQueue.exportState
+  const exporting = exportQueue.exporting
+  const activeExportCount = exportQueue.activeExportCount
 
   const durationLabel = computed(() => formatDurationLabel(durationSeconds.value))
 
@@ -192,7 +179,6 @@ export const useScreensaverStore = defineStore('screensaver', () => {
 
   const exportBlocker = computed(() => {
     if (!serverOnline.value) return 'The renderer is offline.'
-    if (exporting.value) return ''
     if (uploadState.value !== 'ready' || !serverId.value) return 'Upload an image or video first.'
     if (mode.value === 'loop' && mediaKind.value !== 'video') return 'Looping mode needs a video source.'
     if (mode.value === 'static' && mediaKind.value !== 'image') return 'Static art mode needs an image source.'
@@ -279,7 +265,7 @@ export const useScreensaverStore = defineStore('screensaver', () => {
 
   function invalidateCompletedExport() {
     if (!hydrated.value || exporting.value) return
-    if (exportState.value.phase === 'done') exportState.value = idleExport()
+    if (exportState.value.phase === 'done') exportQueue.clearFinished()
   }
 
   function resetPreviewAfterReload() {
@@ -312,9 +298,8 @@ export const useScreensaverStore = defineStore('screensaver', () => {
     if (hydrated.value) return
     const reload = pageWasReloaded()
     if (reload) {
-      exportAbort?.abort()
-      exportAbort = null
-      exportState.value = idleExport()
+      exportQueue.cancelAll()
+      exportQueue.clearFinished()
     }
     await platform.refreshServer()
     void loadEncoders()
@@ -643,7 +628,8 @@ export const useScreensaverStore = defineStore('screensaver', () => {
     historyIndex.value = 0
     uploadProgress.value = 0
     uploadError.value = null
-    exportState.value = idleExport()
+    exportQueue.cancelAll()
+    exportQueue.clearFinished()
     compareAdjustments.value = false
     cropEditing.value = false
     frameImage.value = null
@@ -654,7 +640,7 @@ export const useScreensaverStore = defineStore('screensaver', () => {
   async function newProject(): Promise<void> {
     const hasWork = mediaKind.value !== null || audioFileName.value !== null
     if (hasWork && !window.confirm('Start a new project? The current source and settings will be cleared.')) return
-    cancelExport()
+    exportQueue.cancelAll()
     const previousServerId = serverId.value
     removeSource()
     clearAudio()
@@ -900,17 +886,20 @@ export const useScreensaverStore = defineStore('screensaver', () => {
     }, 150)
   }
 
-  async function buildExportBlobs(): Promise<{ compositionBlob: Blob | null; frameBlob: Blob | null; maskBlob: Blob | null }> {
-    const frame = await loadFrameOverlay()
+  async function buildExportBlobsForSnapshot(
+    snapshot: ScreensaverExportSnapshot,
+  ): Promise<{ compositionBlob: Blob | null; frameBlob: Blob | null; maskBlob: Blob | null }> {
+    const frame =
+      snapshot.frameId !== 'none' ? await loadHtmlImage(api.screensaverFrameUrl(snapshot.frameId)) : null
     let compositionBlob: Blob | null = null
-    if (mediaKind.value === 'image' && objectUrl.value) {
-      const image = await loadHtmlImage(objectUrl.value)
+    if (snapshot.mediaKind === 'image' && snapshot.objectUrl) {
+      const image = await loadHtmlImage(snapshot.objectUrl)
       const bitmap = await createImageBitmap(image)
       compositionBlob = await composeExportPng({
         bitmap,
-        width: outputWidth.value,
-        height: outputHeight.value,
-        composition: composition.value,
+        width: snapshot.outputWidth,
+        height: snapshot.outputHeight,
+        composition: snapshot.composition,
         frame,
       })
     }
@@ -918,69 +907,78 @@ export const useScreensaverStore = defineStore('screensaver', () => {
   }
 
   async function startExport() {
-    if (exportBlocker.value || exporting.value) return
+    if (exportBlocker.value) return
     if (outputWidth.value >= 3840 && durationSeconds.value >= 2 * 3600) {
       toast('4K exports over two hours can produce very large files and long renders.', 'info')
     }
-    exportAbort = new AbortController()
-    const signal = exportAbort.signal
     const filename = name.value.trim() || 'screensaver'
-    const trackId = beginTrackedRender('screensaver', filename)
-    try {
-      exportState.value = { ...idleExport(), phase: 'preparing', progress: 0.02, message: 'Preparing composition', stage: 'Preparing composition' }
-      syncTrackedRender(trackId, exportState.value)
-      const blobs = await buildExportBlobs()
-      if (signal.aborted) return
-      await runScreensaverExport({
-        ...blobs,
-        projectJson: {
-          filename,
-          mediaId: serverId.value,
-          kind: mediaKind.value,
-          mode: mode.value,
-          width: outputWidth.value,
-          height: outputHeight.value,
-          fps: fps.value,
-          duration: durationSeconds.value,
-          fit: fit.value,
-          loopType: loopType.value,
-          crossfadeSeconds: crossfadeSeconds.value,
-          audioMode: audioMode.value,
-          audioVolume: audioVolume.value,
-          audioFadeIn: audioFadeIn.value,
-          audioFadeOut: audioFadeOut.value,
-          loopAudio: loopAudio.value,
-          backgroundColor: backgroundColor.value,
-          profile: profile.value,
-          encoder: encoder.value,
-          composition: cloneComposition(composition.value),
-        },
-        audioFile: audioMode.value === 'upload' ? audioFile : null,
-        signal,
-        onUpdate: (patch) => {
-          exportState.value = { ...exportState.value, ...patch }
-          syncTrackedRender(trackId, exportState.value)
-        },
-      })
-      if (exportState.value.phase === 'done' && exportState.value.downloadUrl) {
-        const base = name.value.trim() || 'screensaver'
-        notifyRenderReady('screensaver', base, exportState.value.downloadUrl, `${base}.mp4`)
-      }
-    } catch (error) {
-      if (signal.aborted || (error instanceof DOMException && error.name === 'AbortError')) {
-        exportState.value = idleExport()
-        toast('Export cancelled.', 'info')
-        return
-      }
-      const text = error instanceof Error ? error.message : 'Export failed.'
-      exportState.value = { ...exportState.value, phase: 'error', error: text, message: text }
-    } finally {
-      endTrackedRender(trackId)
+    const displayName = filename
+    const mediaId = serverId.value
+    const kind = mediaKind.value
+    if (!mediaId || !kind) return
+
+    const snapshot: ScreensaverExportSnapshot = {
+      filename,
+      mediaId,
+      mediaKind: kind,
+      objectUrl: objectUrl.value,
+      outputWidth: outputWidth.value,
+      outputHeight: outputHeight.value,
+      composition: cloneComposition(composition.value),
+      frameId: composition.value.frameId,
     }
+    const projectJson = {
+      filename,
+      mediaId,
+      kind,
+      mode: mode.value,
+      width: outputWidth.value,
+      height: outputHeight.value,
+      fps: fps.value,
+      duration: durationSeconds.value,
+      fit: fit.value,
+      loopType: loopType.value,
+      crossfadeSeconds: crossfadeSeconds.value,
+      audioMode: audioMode.value,
+      audioVolume: audioVolume.value,
+      audioFadeIn: audioFadeIn.value,
+      audioFadeOut: audioFadeOut.value,
+      loopAudio: loopAudio.value,
+      backgroundColor: backgroundColor.value,
+      profile: profile.value,
+      encoder: encoder.value,
+      composition: cloneComposition(composition.value),
+    }
+    const snapshotAudioFile = audioMode.value === 'upload' ? audioFile : null
+
+    exportQueue.enqueue({
+      app: 'screensaver',
+      displayName,
+      downloadFilename: `${filename}.mp4`,
+      toast,
+      onError: (text) => toast(text, 'error'),
+      submit: async (signal, onUpdate) => {
+        onUpdate({
+          phase: 'preparing',
+          progress: 0.02,
+          message: 'Preparing composition',
+          stage: 'Preparing composition',
+        })
+        const blobs = await buildExportBlobsForSnapshot(snapshot)
+        if (signal.aborted) throw new DOMException('The export was cancelled.', 'AbortError')
+        return submitScreensaverExport({
+          ...blobs,
+          projectJson,
+          audioFile: snapshotAudioFile,
+          signal,
+          onUpdate,
+        })
+      },
+    })
   }
 
   function cancelExport() {
-    exportAbort?.abort()
+    exportQueue.cancelFrontActive()
   }
 
   function exportWithCpu() {
@@ -1051,6 +1049,7 @@ export const useScreensaverStore = defineStore('screensaver', () => {
     audioFileName,
     exportState,
     exporting,
+    activeExportCount,
     exportBlocker,
     sizeEstimate,
     DURATION_PRESETS,

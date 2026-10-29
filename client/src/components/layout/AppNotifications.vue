@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Bell, Download, X } from '@lucide/vue'
+import { Bell, CircleX, Download, X } from '@lucide/vue'
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { renderAppLabel, type RenderAppId } from '../../lib/renderNotifications'
@@ -57,6 +57,10 @@ function openApp(app: RenderAppId, route: string): void {
 function download(item: RenderReadyNotification): void {
   triggerDownload(item.downloadUrl, item.filename)
   platform.dismissNotification(item.id)
+}
+
+function cancelRender(trackId: string): void {
+  platform.cancelActiveRenderJob(trackId)
 }
 
 onMounted(() => document.addEventListener('pointerdown', onDocumentPointerDown))
@@ -136,9 +140,19 @@ onBeforeUnmount(() => document.removeEventListener('pointerdown', onDocumentPoin
                 </div>
                 <span class="shrink-0 text-[11px] font-semibold tabular-nums text-zinc-400">{{ formatPercent(job.progress) }}</span>
               </div>
-              <button class="btn btn-ghost mt-2 cursor-pointer py-1 text-xs" type="button" @click="openApp(job.app, job.route)">
-                Open app
-              </button>
+              <div class="mt-2 flex flex-wrap gap-2">
+                <button class="btn btn-ghost cursor-pointer py-1 text-xs" type="button" @click="openApp(job.app, job.route)">
+                  Open app
+                </button>
+                <button
+                  class="btn btn-ghost cursor-pointer py-1 text-xs text-red-300/90 hover:text-red-200"
+                  type="button"
+                  @click="cancelRender(job.id)"
+                >
+                  <CircleX :size="14" />
+                  Cancel
+                </button>
+              </div>
             </li>
           </ul>
         </section>

@@ -86,6 +86,11 @@ function onResolution(event: Event) {
   const [width, height] = target.value.split('x').map(Number)
   if (width && height) store.setResolution(width, height)
 }
+
+function setTitleHideAfterEnabled(enabled: boolean) {
+  if (enabled && store.style.ranking.titleHideAfter <= 0) store.style.ranking.titleHideAfter = 3
+  if (!enabled) store.style.ranking.titleHideAfter = 0
+}
 </script>
 
 <template>
@@ -108,48 +113,50 @@ function onResolution(event: Event) {
             Custom
           </button>
         </div>
-        <div class="mt-3 grid grid-cols-2 gap-2">
-          <button
-            class="btn cursor-pointer"
-            :class="store.style.ranking.display !== 'page' ? 'btn-primary' : 'btn-ghost'"
-            type="button"
-            @click="store.style.ranking.display = 'stack'"
-          >
-            <ListOrdered :size="16" />
-            All numbers
-          </button>
-          <button
-            class="btn cursor-pointer"
-            :class="store.style.ranking.display === 'page' ? 'btn-primary' : 'btn-ghost'"
-            type="button"
-            @click="store.style.ranking.display = 'page'"
-          >
-            <Hash :size="16" />
-            Current number
-          </button>
-        </div>
-        <div v-if="store.style.ranking.display === 'page'" class="mt-2 grid grid-cols-2 gap-2">
-          <button
-            class="btn cursor-pointer"
-            :class="store.style.ranking.pageStyle !== 'number' ? 'btn-primary' : 'btn-ghost'"
-            type="button"
-            @click="store.style.ranking.pageStyle = 'fraction'"
-          >
-            {{ pageExample }}
-          </button>
-          <button
-            class="btn cursor-pointer"
-            :class="store.style.ranking.pageStyle === 'number' ? 'btn-primary' : 'btn-ghost'"
-            type="button"
-            @click="store.style.ranking.pageStyle = 'number'"
-          >
-            {{ numberExample }}
-          </button>
-        </div>
-        <p class="mt-2 text-[11px] leading-relaxed text-zinc-500">
-          <template v-if="store.style.ranking.display === 'page'">Pagination shows {{ pageExample }}. Current clip shows {{ numberExample }}.</template>
-          <template v-else>All numbers lists every clip.</template>
-        </p>
+        <template v-if="store.style.ranking.visible">
+          <div class="mt-3 grid grid-cols-2 gap-2">
+            <button
+              class="btn cursor-pointer"
+              :class="store.style.ranking.display !== 'page' ? 'btn-primary' : 'btn-ghost'"
+              type="button"
+              @click="store.style.ranking.display = 'stack'"
+            >
+              <ListOrdered :size="16" />
+              All numbers
+            </button>
+            <button
+              class="btn cursor-pointer"
+              :class="store.style.ranking.display === 'page' ? 'btn-primary' : 'btn-ghost'"
+              type="button"
+              @click="store.style.ranking.display = 'page'"
+            >
+              <Hash :size="16" />
+              Current number
+            </button>
+          </div>
+          <div v-if="store.style.ranking.display === 'page'" class="mt-2 grid grid-cols-2 gap-2">
+            <button
+              class="btn cursor-pointer"
+              :class="store.style.ranking.pageStyle !== 'number' ? 'btn-primary' : 'btn-ghost'"
+              type="button"
+              @click="store.style.ranking.pageStyle = 'fraction'"
+            >
+              {{ pageExample }}
+            </button>
+            <button
+              class="btn cursor-pointer"
+              :class="store.style.ranking.pageStyle === 'number' ? 'btn-primary' : 'btn-ghost'"
+              type="button"
+              @click="store.style.ranking.pageStyle = 'number'"
+            >
+              {{ numberExample }}
+            </button>
+          </div>
+          <p class="mt-2 text-[11px] leading-relaxed text-zinc-500">
+            <template v-if="store.style.ranking.display === 'page'">Pagination shows {{ pageExample }}. Current clip shows {{ numberExample }}.</template>
+            <template v-else>All numbers lists every clip.</template>
+          </p>
+        </template>
     </SettingsAccordion>
 
     <SettingsAccordion title="Color sets">
@@ -210,114 +217,163 @@ function onResolution(event: Event) {
           <ToggleSwitch v-model="store.style.banner.visible" aria-label="Show title" />
         </div>
         <p v-if="store.style.banner.visible === false" class="text-[11px] leading-relaxed text-zinc-500">The title banner is hidden and the video fills the frame.</p>
-        <textarea
-          class="field min-h-20 resize-y"
-          :value="store.titleText"
-          maxlength="180"
-          @input="store.setTitleText(($event.target as HTMLTextAreaElement).value)"
-        ></textarea>
-        <p class="text-[11px] text-zinc-500">Press Enter for a new line. Each word can have its own color.</p>
-        <div class="flex flex-wrap gap-2">
-          <template v-for="(span, index) in store.spans" :key="span.id">
-            <span v-if="span.breakBefore" class="basis-full"></span>
-            <div class="chip cursor-pointer" :class="activeWord?.id === span.id ? 'ring-2 ring-amber-300' : ''" @click="wordIndex = index">
-              <span>{{ span.text }}</span>
-              <input
-                type="color"
-                :value="span.color"
-                :aria-label="`Custom color for ${span.text}`"
-                @input="store.setSpanColor(index, ($event.target as HTMLInputElement).value)"
-              />
-            </div>
-          </template>
-        </div>
-        <div v-if="activeWord" class="space-y-2">
-          <p class="text-[11px] text-zinc-500">Color set for “{{ activeWord.text }}”</p>
-          <ColorSwatches :model-value="activeWord.color" @pick="onWordColor" />
-        </div>
-        <ColorField v-model="store.style.banner.background" label="Banner background" />
-        <label class="block text-xs text-zinc-400">
-          Font
-          <select v-model="store.style.banner.fontFamily" class="field mt-1">
-            <option v-for="font in FONT_OPTIONS" :key="font" :value="font">{{ font }}</option>
-          </select>
-        </label>
-        <label class="block text-xs text-zinc-400">
-          Weight
-          <select v-model.number="store.style.banner.fontWeight" class="field mt-1">
-            <option :value="400">Regular</option>
-            <option :value="500">Medium</option>
-            <option :value="700">Bold</option>
-            <option :value="800">Extra bold</option>
-          </select>
-        </label>
-        <div class="flex gap-2">
-          <button
-            v-for="align in aligns"
-            :key="align.id"
-            class="btn cursor-pointer flex-1"
-            :class="store.style.banner.align === align.id ? 'btn-primary' : 'btn-ghost'"
-            type="button"
-            :aria-label="align.label"
-            :title="align.label"
-            @click="store.style.banner.align = align.id"
-          >
-            <component :is="align.icon" :size="16" />
-          </button>
-        </div>
-        <SliderField v-model="store.style.banner.fontSize" label="Font size" :min="28" :max="140" suffix="px" />
-        <SliderField label="Banner height" :model-value="metrics.bannerHeight" :min="80" :max="bannerLimit" :step="2" suffix="px" @update:model-value="onBannerHeight" />
-        <SliderField v-model="store.style.banner.lineHeight" label="Line spacing" :min="0.9" :max="1.6" :step="0.01" />
-        <SliderField v-model="store.style.banner.outlineWidth" label="Text outline" :min="0" :max="12" suffix="px" />
-        <ColorField v-model="store.style.banner.outlineColor" label="Outline color" />
-        <div class="flex items-center justify-between text-xs text-zinc-300">
-          <span>Text shadow</span>
-          <ToggleSwitch v-model="store.style.banner.shadow" aria-label="Text shadow" />
-        </div>
+        <template v-if="store.style.banner.visible !== false">
+          <textarea
+            class="field min-h-20 resize-y"
+            :value="store.titleText"
+            maxlength="180"
+            @input="store.setTitleText(($event.target as HTMLTextAreaElement).value)"
+          ></textarea>
+          <p class="text-[11px] text-zinc-500">Press Enter for a new line. Each word can have its own color.</p>
+          <div class="flex flex-wrap gap-2">
+            <template v-for="(span, index) in store.spans" :key="span.id">
+              <span v-if="span.breakBefore" class="basis-full"></span>
+              <div class="chip cursor-pointer" :class="activeWord?.id === span.id ? 'ring-2 ring-amber-300' : ''" @click="wordIndex = index">
+                <span>{{ span.text }}</span>
+                <input
+                  type="color"
+                  :value="span.color"
+                  :aria-label="`Custom color for ${span.text}`"
+                  @input="store.setSpanColor(index, ($event.target as HTMLInputElement).value)"
+                />
+              </div>
+            </template>
+          </div>
+          <div v-if="activeWord" class="space-y-2">
+            <p class="text-[11px] text-zinc-500">Color set for “{{ activeWord.text }}”</p>
+            <ColorSwatches :model-value="activeWord.color" @pick="onWordColor" />
+          </div>
+          <ColorField v-model="store.style.banner.background" label="Banner background" />
+          <label class="block text-xs text-zinc-400">
+            Font
+            <select v-model="store.style.banner.fontFamily" class="field mt-1">
+              <option v-for="font in FONT_OPTIONS" :key="font" :value="font">{{ font }}</option>
+            </select>
+          </label>
+          <label class="block text-xs text-zinc-400">
+            Weight
+            <select v-model.number="store.style.banner.fontWeight" class="field mt-1">
+              <option :value="400">Regular</option>
+              <option :value="500">Medium</option>
+              <option :value="700">Bold</option>
+              <option :value="800">Extra bold</option>
+            </select>
+          </label>
+          <div class="flex gap-2">
+            <button
+              v-for="align in aligns"
+              :key="align.id"
+              class="btn cursor-pointer flex-1"
+              :class="store.style.banner.align === align.id ? 'btn-primary' : 'btn-ghost'"
+              type="button"
+              :aria-label="align.label"
+              :title="align.label"
+              @click="store.style.banner.align = align.id"
+            >
+              <component :is="align.icon" :size="16" />
+            </button>
+          </div>
+          <SliderField v-model="store.style.banner.fontSize" label="Font size" :min="28" :max="140" suffix="px" />
+          <SliderField label="Banner height" :model-value="metrics.bannerHeight" :min="80" :max="bannerLimit" :step="2" suffix="px" @update:model-value="onBannerHeight" />
+          <SliderField v-model="store.style.banner.lineHeight" label="Line spacing" :min="0.9" :max="1.6" :step="0.01" />
+          <SliderField v-model="store.style.banner.outlineWidth" label="Text outline" :min="0" :max="12" suffix="px" />
+          <ColorField v-model="store.style.banner.outlineColor" label="Outline color" />
+          <div class="flex items-center justify-between text-xs text-zinc-300">
+            <span>Text shadow</span>
+            <ToggleSwitch v-model="store.style.banner.shadow" aria-label="Text shadow" />
+          </div>
+        </template>
     </SettingsAccordion>
 
     <SettingsAccordion title="Ranking">
-        <ColorField v-model="store.style.ranking.color" label="Number color" />
-        <button class="btn cursor-pointer btn-ghost px-2 py-1" type="button" @click="store.cycleRankColors">
-          <Palette :size="16" />
-          Cycle across clips
-        </button>
-        <label class="block text-xs text-zinc-400">
-          Font
-          <select v-model="store.style.ranking.fontFamily" class="field mt-1">
-            <option v-for="font in FONT_OPTIONS" :key="font" :value="font">{{ font }}</option>
-          </select>
-        </label>
-        <label class="block text-xs text-zinc-400">
-          Sort ranking
-          <select v-model="store.style.ranking.sort" class="field mt-1">
-            <option value="list">As listed</option>
-            <option value="reverse">Reverse</option>
-            <option value="title">Title A–Z</option>
-            <option value="titleDesc">Title Z–A</option>
-          </select>
-        </label>
-        <p class="text-[11px] leading-relaxed text-zinc-500">Reorders the numbers on the video. Rank numbers stay with each clip. Play at the end only changes playback order, not this list.</p>
-        <label class="block text-xs text-zinc-400">
-          Format
-          <select v-model="store.style.ranking.format" class="field mt-1">
-            <option value="dot">1.</option>
-            <option value="plain">1</option>
-            <option value="hash">#1</option>
-            <option value="pad">01</option>
-          </select>
-        </label>
-        <SliderField v-model="store.style.ranking.fontSize" label="Number size" :min="36" :max="360" suffix="px" />
-        <SliderField v-model="store.style.ranking.itemSpacing" label="Item spacing" :min="0" :max="100" suffix="%" />
-        <SliderField v-model="store.style.ranking.positionX" label="Left position" :min="0" :max="Math.round(store.style.video.width * 0.7)" suffix="px" />
-        <SliderField v-model="store.style.ranking.positionY" label="Top position" :min="0" :max="Math.round(layoutMetrics.videoHeight * 0.95)" suffix="px" />
-        <SliderField v-model="store.style.ranking.outlineWidth" label="Outline" :min="0" :max="28" suffix="px" />
-        <ColorField v-model="store.style.ranking.outlineColor" label="Outline color" />
-        <SliderField v-model="store.style.ranking.opacity" label="Opacity" :min="0.2" :max="1" :step="0.05" />
         <div class="flex items-center justify-between text-xs text-zinc-300">
-          <span>Number shadow</span>
-          <ToggleSwitch v-model="store.style.ranking.shadow" aria-label="Number shadow" />
+          <span>Show ranking numbers</span>
+          <ToggleSwitch v-model="store.style.ranking.visible" aria-label="Show ranking numbers" />
         </div>
+        <div class="flex items-center justify-between text-xs text-zinc-300">
+          <span>Show clip titles</span>
+          <ToggleSwitch v-model="store.style.caption.enabled" aria-label="Show clip titles" />
+        </div>
+        <div v-if="store.style.caption.enabled" class="flex items-center justify-between text-xs text-zinc-300">
+          <span>Show previous titles</span>
+          <ToggleSwitch v-model="store.style.ranking.showPreviousTitles" aria-label="Show previous titles" />
+        </div>
+        <p v-if="store.style.caption.enabled" class="text-[11px] leading-relaxed text-zinc-500">On the full ranking list, a clip title stays visible after that clip has played.</p>
+        <div v-if="store.style.caption.enabled" class="flex items-center justify-between text-xs text-zinc-300">
+          <span>Hide clip title after a while</span>
+          <ToggleSwitch
+            :model-value="store.style.ranking.titleHideAfter > 0"
+            aria-label="Hide clip title after a while"
+            @update:model-value="setTitleHideAfterEnabled"
+          />
+        </div>
+        <SliderField
+          v-if="store.style.caption.enabled && store.style.ranking.titleHideAfter > 0"
+          v-model="store.style.ranking.titleHideAfter"
+          label="Hide after"
+          :min="0.5"
+          :max="30"
+          :step="0.5"
+          suffix="s"
+        />
+        <p v-if="store.style.caption.enabled && store.style.ranking.titleHideAfter > 0" class="text-[11px] leading-relaxed text-zinc-500">
+          The active clip title disappears after this many seconds. Previous titles are not affected.
+        </p>
+        <p
+          v-if="!store.style.ranking.visible && !store.style.caption.enabled"
+          class="text-[11px] leading-relaxed text-zinc-500"
+        >
+          Ranking numbers and clip titles are hidden on the video.
+        </p>
+        <template v-if="store.style.ranking.visible">
+          <ColorField v-model="store.style.ranking.color" label="Number color" />
+          <button class="btn cursor-pointer btn-ghost px-2 py-1" type="button" @click="store.cycleRankColors">
+            <Palette :size="16" />
+            Cycle across clips
+          </button>
+          <label class="block text-xs text-zinc-400">
+            Font
+            <select v-model="store.style.ranking.fontFamily" class="field mt-1">
+              <option v-for="font in FONT_OPTIONS" :key="font" :value="font">{{ font }}</option>
+            </select>
+          </label>
+          <label class="block text-xs text-zinc-400">
+            Format
+            <select v-model="store.style.ranking.format" class="field mt-1">
+              <option value="dot">1.</option>
+              <option value="plain">1</option>
+              <option value="hash">#1</option>
+              <option value="pad">01</option>
+            </select>
+          </label>
+          <SliderField v-model="store.style.ranking.fontSize" label="Number size" :min="36" :max="360" suffix="px" />
+          <SliderField v-model="store.style.ranking.outlineWidth" label="Outline" :min="0" :max="28" suffix="px" />
+          <ColorField v-model="store.style.ranking.outlineColor" label="Outline color" />
+          <SliderField v-model="store.style.ranking.opacity" label="Opacity" :min="0.2" :max="1" :step="0.05" />
+          <div class="flex items-center justify-between text-xs text-zinc-300">
+            <span>Number shadow</span>
+            <ToggleSwitch v-model="store.style.ranking.shadow" aria-label="Number shadow" />
+          </div>
+        </template>
+        <template v-if="store.style.ranking.visible || store.style.caption.enabled">
+          <label class="block text-xs text-zinc-400">
+            Sort ranking
+            <select v-model="store.style.ranking.sort" class="field mt-1">
+              <option value="list">As listed</option>
+              <option value="reverse">Reverse</option>
+              <option value="title">Title A–Z</option>
+              <option value="titleDesc">Title Z–A</option>
+            </select>
+          </label>
+          <p class="text-[11px] leading-relaxed text-zinc-500">Reorders the list on the video. Rank numbers stay with each clip. Play at the end only changes playback order, not this list.</p>
+          <SliderField v-model="store.style.ranking.itemSpacing" label="Item spacing" :min="0" :max="100" suffix="%" />
+          <SliderField v-model="store.style.ranking.positionX" label="Left position" :min="0" :max="Math.round(store.style.video.width * 0.7)" suffix="px" />
+          <SliderField v-model="store.style.ranking.positionY" label="Top position" :min="0" :max="Math.round(layoutMetrics.videoHeight * 0.95)" suffix="px" />
+        </template>
+        <template v-if="store.style.caption.enabled">
+          <SliderField v-model="store.style.caption.fontSize" label="Clip title size" :min="18" :max="90" suffix="px" />
+          <p class="text-[11px] leading-relaxed text-zinc-500">Each clip has its own title color in the selected clip column.</p>
+        </template>
     </SettingsAccordion>
 
     <SettingsAccordion title="Video">
@@ -367,17 +423,6 @@ function onResolution(event: Event) {
           :step="0.05"
           suffix="s"
         />
-        <div class="flex items-center justify-between text-xs text-zinc-300">
-          <span>Show clip titles</span>
-          <ToggleSwitch v-model="store.style.caption.enabled" aria-label="Show clip titles" />
-        </div>
-        <div v-if="store.style.caption.enabled" class="flex items-center justify-between text-xs text-zinc-300">
-          <span>Show previous titles</span>
-          <ToggleSwitch v-model="store.style.ranking.showPreviousTitles" aria-label="Show previous titles" />
-        </div>
-        <p v-if="store.style.caption.enabled" class="text-[11px] leading-relaxed text-zinc-500">On the full ranking list, a clip title stays visible after that clip has played.</p>
-        <SliderField v-if="store.style.caption.enabled" v-model="store.style.caption.fontSize" label="Clip title size" :min="18" :max="90" suffix="px" />
-        <p v-if="store.style.caption.enabled" class="text-[11px] leading-relaxed text-zinc-500">Each clip has its own title color in the selected clip column.</p>
     </SettingsAccordion>
 
     <SettingsAccordion title="Audio">

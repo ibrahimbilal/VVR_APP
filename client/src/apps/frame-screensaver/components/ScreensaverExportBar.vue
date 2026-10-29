@@ -1,16 +1,23 @@
 <script setup lang="ts">
 import { CircleX, Download } from '@lucide/vue'
 import { computed } from 'vue'
+import { isLocalPrepPhase, resolveExportButtonMode } from '../../../lib/exportButtonMode'
 import { formatBytes } from '../../../lib/format'
 import { useScreensaverStore } from '../stores/screensaver'
 
 const store = useScreensaverStore()
 
-const mode = computed(() => {
-  if (store.exporting) return 'busy'
-  if (store.exportState.phase === 'done' && store.exportState.downloadUrl) return 'download'
-  return 'export'
-})
+const mode = computed(() =>
+  resolveExportButtonMode({
+    phase: store.exportState.phase,
+    hasDownload: Boolean(store.exportState.downloadUrl),
+    activeExportCount: store.activeExportCount,
+  }),
+)
+
+const queueHint = computed(() =>
+  store.activeExportCount > 1 ? `${store.activeExportCount} exports queued` : '',
+)
 
 const progress = computed(() => Math.min(100, Math.max(0, Math.round(store.exportState.progress * 100))))
 
@@ -25,7 +32,7 @@ const busyLabel = computed(() => {
 })
 
 function onClick() {
-  if (mode.value === 'busy') {
+  if (mode.value === 'busy' && isLocalPrepPhase(store.exportState.phase)) {
     store.cancelExport()
     return
   }
@@ -51,7 +58,7 @@ function onClick() {
     @click="onClick"
   >
     <span class="export-action__layer export-action__layer--default flex items-center gap-1">
-      <template v-if="mode === 'export'">Export MP4</template>
+      <template v-if="mode === 'export'">{{ store.activeExportCount > 0 ? 'Queue export' : 'Export MP4' }}</template>
       <template v-else-if="mode === 'busy'">{{ busyLabel }}</template>
       <template v-else>
         <Download :size="16" />
@@ -63,6 +70,7 @@ function onClick() {
       Cancel export
     </span>
   </button>
+  <p v-if="queueHint" class="mt-1 text-center text-[10px] text-zinc-500">{{ queueHint }}</p>
   <p v-if="store.exportBlocker && mode === 'export'" class="mt-2 text-xs text-zinc-500">{{ store.exportBlocker }}</p>
   <p v-if="store.exportState.error" class="mt-2 text-xs text-red-300">{{ store.exportState.error }}</p>
   <button

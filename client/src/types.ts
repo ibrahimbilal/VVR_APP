@@ -33,6 +33,7 @@ export interface BannerStyle {
 }
 
 export interface RankingStyle {
+  visible: boolean
   fontFamily: string
   fontSize: number
   fontWeight: number
@@ -48,6 +49,8 @@ export interface RankingStyle {
   display: RankDisplay
   pageStyle: RankPageStyle
   showPreviousTitles: boolean
+  /** Seconds from clip start before the current clip title is hidden (0 = off). */
+  titleHideAfter: number
   sort: RankSort
 }
 

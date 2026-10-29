@@ -55,18 +55,23 @@ export function overlayRanks(
   pageStyle: RankPageStyle = 'fraction',
   showPreviousTitles = false,
   sort: RankSort = 'list',
+  showNumbers = true,
+  titleHideAfter = 0,
+  clipLocalTime = 0,
 ): OverlayRank[] {
   const rows = rankingRows(clips, sort)
   const active = rows.find((row) => row.listIndex === activeIndex) ?? rows.find((row) => row.playbackIndex === 0) ?? rows[0]
   if (!active) return []
+  const hideCurrentTitle = titleHideAfter > 0 && clipLocalTime >= titleHideAfter
   const painted = rows.map((row) => {
     const title = row.title.trim()
     const current = row.listIndex === active.listIndex
     const previous = showPreviousTitles && row.playbackIndex < active.playbackIndex
+    const showRowTitle = showTitle && title && (previous || (current && !hideCurrentTitle))
     return {
-      label: formatRank(row.listIndex, format),
+      label: showNumbers ? formatRank(row.listIndex, format) : '',
       color: row.rankColor || fallbackColor,
-      title: showTitle && title && (current || previous) ? title : null,
+      title: showRowTitle ? title : null,
       titleColor: row.titleColor || fallbackTitleColor,
     }
   })
@@ -74,8 +79,12 @@ export function overlayRanks(
   const row = painted.find((item, index) => rows[index]?.listIndex === active.listIndex)
   if (!row) return []
   const title = active.title.trim()
-  const label = pageStyle === 'number' ? formatRank(active.listIndex, format) : pageLabel(active.listIndex, clips.length)
-  return [{ ...row, label, title: showTitle && title ? title : null }]
+  const label = showNumbers
+    ? pageStyle === 'number'
+      ? formatRank(active.listIndex, format)
+      : pageLabel(active.listIndex, clips.length)
+    : ''
+  return [{ ...row, label, title: showTitle && title && !hideCurrentTitle ? title : null }]
 }
 
 export function pageLabel(index: number, total: number): string {

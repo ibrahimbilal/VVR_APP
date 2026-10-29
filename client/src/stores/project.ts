@@ -8,10 +8,9 @@ import { computed, ref, watch } from 'vue'
 import { usePlatformStore } from './platform'
 import { OUTPUTS } from '@shared/frame'
 import * as api from '../lib/api'
-import { runExport } from '../lib/exportJob'
-import { beginTrackedRender, endTrackedRender, syncTrackedRender } from '../lib/renderJobTracking'
+import { submitRankingExport } from '../lib/exportJob'
+import { useManagedExportJobs } from '../lib/managedExportJobs'
 import { pageWasReloaded } from '../lib/pageNavigation'
-import { notifyRenderReady } from '../lib/renderNotifications'
 import { triggerDownload } from '../lib/triggerDownload'
 import { ensureServerUploadCleanupOnClose } from '../lib/serverUploadCleanup'
 import { formatRank, sourceLabel, titleFromFileName } from '../lib/format'
@@ -21,27 +20,13 @@ import { defaultColorSets, loadColorSets, saveColorSets, type ColorSet } from '.
 import { playbackOrder } from '../lib/order'
 import { RANK_COLORS, createDefaultVideo, materializePreset } from '../lib/presets'
 import { retokenize } from '../lib/title'
-import type { Clip, ExportState, PersistedClip, PresetId, ProjectStyle, Source, TitleSpan } from '../types'
+import type { Clip, PersistedClip, PresetId, ProjectStyle, Source, TitleSpan } from '../types'
 
 const initial = materializePreset('classic', createDefaultVideo())
 const fileMap = new Map<string, File>()
 let musicFile: File | null = null
 let applying = false
-let exportAbort: AbortController | null = null
 let metaTimer = 0
-
-function idleExport(): ExportState {
-  return {
-    phase: 'idle',
-    progress: 0,
-    message: '',
-    error: null,
-    warning: null,
-    downloadUrl: null,
-    bytes: null,
-    jobId: null,
-  }
-}
 
 function blankClip(partial: Partial<Clip>): Clip {
   return {
@@ -73,6 +58,7 @@ function blankClip(partial: Partial<Clip>): Clip {
 export const useProjectStore = defineStore('project', () => {
   const platform = usePlatformStore()
   const { serverOnline } = storeToRefs(platform)
+  const exportQueue = useManagedExportJobs()
   const name = ref('Untitled ranking')
   const titleText = ref(initial.titleText)
   const spans = ref<TitleSpan[]>(initial.spans)
@@ -87,7 +73,6 @@ export const useProjectStore = defineStore('project', () => {
   const musicUrl = ref<string | null>(null)
   const musicName = ref<string | null>(null)
   const hydrated = ref(false)
-  const exportState = ref<ExportState>(idleExport())
   const urlNotice = ref('')
   const encoderOptions = ref<Awaited<ReturnType<typeof api.fetchEncoders>>['encoders']>([])
   const encoderAutoStill = ref<string | null>(null)
@@ -96,13 +81,12 @@ export const useProjectStore = defineStore('project', () => {
   const selectedClip = computed(() => clips.value.find((clip) => clip.id === selectedClipId.value) ?? null)
   const activeColorSet = computed(() => colorSets.value.find((set) => set.id === activeColorSetId.value) ?? colorSets.value[0] ?? null)
   const activeColors = computed(() => activeColorSet.value?.colors ?? [])
-  const exporting = computed(() =>
-    ['overlays', 'uploading', 'queued', 'preparing', 'rendering', 'verifying'].includes(exportState.value.phase),
-  )
+  const exportState = exportQueue.exportState
+  const exporting = exportQueue.exporting
+  const activeExportCount = exportQueue.activeExportCount
   const exportBlocker = computed(() => {
     if (!serverOnline.value) return 'The renderer is offline.'
-    if (exporting.value) return ''
-    if (clips.value.length < 2) return 'Add at least two clips.'
+    if (clips.value.length < 1) return 'Add at least one clip.'
     if (clips.value.some((clip) => clip.uploadState === 'uploading')) return 'Wait for uploads to finish.'
     if (clips.value.some((clip) => clip.uploadState === 'empty')) return 'Upload a video file for each linked clip.'
     if (clips.value.some((clip) => clip.uploadState === 'error')) return 'Retry or remove clips that failed.'
@@ -170,7 +154,7 @@ export const useProjectStore = defineStore('project', () => {
 
   function invalidateCompletedExport() {
     if (!hydrated.value || exporting.value) return
-    if (exportState.value.phase === 'done') exportState.value = idleExport()
+    if (exportState.value.phase === 'done') exportQueue.clearFinished()
   }
 
   async function loadEncoders() {
@@ -188,9 +172,8 @@ export const useProjectStore = defineStore('project', () => {
   async function init() {
     if (hydrated.value) return
     if (pageWasReloaded()) {
-      exportAbort?.abort()
-      exportAbort = null
-      exportState.value = idleExport()
+      exportQueue.cancelAll()
+      exportQueue.clearFinished()
     }
     applying = true
     try {
@@ -576,7 +559,8 @@ export const useProjectStore = defineStore('project', () => {
     clips.value = []
     selectedClipId.value = null
     selectedPanelOpen.value = false
-    exportState.value = idleExport()
+    exportQueue.cancelAll()
+    exportQueue.clearFinished()
     urlNotice.value = ''
     applying = false
     await idb.clearRankingProject().catch(() => undefined)
@@ -591,7 +575,7 @@ export const useProjectStore = defineStore('project', () => {
   }
 
   async function startExport() {
-    if (exportBlocker.value || exporting.value) return
+    if (exportBlocker.value) return
     const metrics = frameMetrics(
       style.value.video.width,
       style.value.video.height,
@@ -603,49 +587,42 @@ export const useProjectStore = defineStore('project', () => {
       resolveFade(durations, style.value.video.transition, style.value.video.fadeDuration),
     )
     if (total > 5 * 60) toast('This compilation is long. Rendering may take several minutes.', 'info')
-    exportAbort = new AbortController()
-    const signal = exportAbort.signal
     const filename = name.value.trim() && name.value !== 'Untitled ranking' ? name.value : titleText.value.replace(/\s+/g, ' ').trim()
     const displayName =
       name.value.trim() && name.value !== 'Untitled ranking'
         ? name.value
         : titleText.value.replace(/\s+/g, ' ').trim() || 'Untitled ranking'
-    const trackId = beginTrackedRender('ranking', displayName)
-    try {
-      await runExport({
-        filename: filename || 'ranking',
-        clips: clips.value.map((clip) => ({ ...clip })),
-        style: {
-          ...style.value,
-          banner: { ...style.value.banner, height: metrics.bannerHeight },
-          video: { ...style.value.video, width: metrics.width, height: metrics.height },
-        },
-        spans: spans.value.map((span) => ({ ...span })),
-        musicFile,
-        signal,
-        onUpdate: (patch) => {
-          exportState.value = { ...exportState.value, ...patch }
-          syncTrackedRender(trackId, exportState.value)
-        },
-      })
-      if (exportState.value.phase === 'done' && exportState.value.downloadUrl) {
-        notifyRenderReady('ranking', displayName, exportState.value.downloadUrl, downloadName())
-      }
-    } catch (error) {
-      if (signal.aborted || (error instanceof DOMException && error.name === 'AbortError')) {
-        exportState.value = idleExport()
-        toast('Export cancelled.', 'info')
-        return
-      }
-      const text = error instanceof Error ? error.message : 'Export failed.'
-      exportState.value = { ...exportState.value, phase: 'error', error: text, message: text }
-    } finally {
-      endTrackedRender(trackId)
+    const snapshotClips = clips.value.map((clip) => ({ ...clip }))
+    const snapshotStyle = {
+      ...style.value,
+      banner: { ...style.value.banner, height: metrics.bannerHeight },
+      video: { ...style.value.video, width: metrics.width, height: metrics.height },
     }
+    const snapshotSpans = spans.value.map((span) => ({ ...span }))
+    const snapshotMusic = musicFile
+    const downloadFilename = `${filename || 'ranking'}.mp4`
+
+    exportQueue.enqueue({
+      app: 'ranking',
+      displayName,
+      downloadFilename,
+      toast,
+      onError: (text) => toast(text, 'error'),
+      submit: (signal, onUpdate) =>
+        submitRankingExport({
+          filename: filename || 'ranking',
+          clips: snapshotClips,
+          style: snapshotStyle,
+          spans: snapshotSpans,
+          musicFile: snapshotMusic,
+          signal,
+          onUpdate,
+        }),
+    })
   }
 
   function cancelExport() {
-    exportAbort?.abort()
+    exportQueue.cancelFrontActive()
   }
 
   function downloadExport() {
@@ -765,6 +742,7 @@ export const useProjectStore = defineStore('project', () => {
     hydrated,
     exportState,
     exporting,
+    activeExportCount,
     exportBlocker,
     encoderOptions,
     encoderAutoStill,
@@ -859,7 +837,12 @@ function normalizeStyle(value: ProjectStyle) {
   if (!Number.isFinite(value.video.musicFadeOut)) value.video.musicFadeOut = 0.3
   value.video.musicFadeIn = Math.max(0, Math.min(30, value.video.musicFadeIn))
   value.video.musicFadeOut = Math.max(0, Math.min(30, value.video.musicFadeOut))
+  value.ranking.visible = value.ranking.visible !== false
   value.ranking.showPreviousTitles = value.ranking.showPreviousTitles === true
+  if (!Number.isFinite(value.ranking.titleHideAfter) || value.ranking.titleHideAfter < 0) {
+    value.ranking.titleHideAfter = 0
+  }
+  value.ranking.titleHideAfter = Math.min(30, Math.round(value.ranking.titleHideAfter * 10) / 10)
   if (value.ranking.sort !== 'reverse' && value.ranking.sort !== 'title' && value.ranking.sort !== 'titleDesc') {
     value.ranking.sort = 'list'
   }

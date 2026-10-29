@@ -90,7 +90,7 @@ function drawTitle(ctx: CanvasRenderingContext2D, input: DrawInput): void {
 }
 
 function drawRanks(ctx: CanvasRenderingContext2D, input: DrawInput): void {
-  const rows = input.ranks
+  const rows = input.ranks.filter((row) => row.label || row.title)
   if (rows.length === 0) return
   const ranking = input.ranking
   const pad = Math.round(28 * (input.width / 1080))
@@ -105,10 +105,12 @@ function drawRanks(ctx: CanvasRenderingContext2D, input: DrawInput): void {
   rows.forEach((row, index) => {
     const y = top + index * fitted.lineGap
     ctx.font = font(ranking.fontWeight, fitted.size, ranking.fontFamily)
-    paintText(ctx, row.label, x, y, row.color, fitted.outline, ranking.outlineColor, ranking.shadow)
+    if (row.label) {
+      paintText(ctx, row.label, x, y, row.color, fitted.outline, ranking.outlineColor, ranking.shadow)
+    }
     if (!row.title) return
     const gap = Math.max(12, Math.round(fitted.size * 0.22))
-    const titleX = x + ctx.measureText(row.label).width + gap
+    const titleX = row.label ? x + ctx.measureText(row.label).width + gap : x
     const titleMax = input.width - pad - titleX
     if (titleMax < 24) return
     const titleSize = Math.max(16, Math.min(input.caption.fontSize, Math.round(fitted.size * 0.72)))

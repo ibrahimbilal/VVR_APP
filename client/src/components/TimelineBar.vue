@@ -73,7 +73,10 @@ function selectBlock(id: string, index: number) {
     </div>
     <div class="flex items-center justify-between gap-3 text-xs text-zinc-400">
       <p class="truncate">
-        <template v-if="store.exporting">{{ store.exportState.message }}</template>
+        <template v-if="store.exporting">
+          {{ store.exportState.message }}
+          <template v-if="store.activeExportCount > 1"> · {{ store.activeExportCount }} in queue</template>
+        </template>
         <template v-else-if="store.exportState.phase === 'error'">{{ store.exportState.error }}</template>
         <template v-else-if="store.exportState.phase === 'done'">
           Export ready{{ store.exportState.warning ? `. ${store.exportState.warning}` : '.' }} Tap download when you are ready.

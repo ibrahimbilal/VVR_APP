@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia'
 import { computed, ref } from 'vue'
 import * as api from '../lib/api'
+import { cancelTrackedRender } from '../lib/renderJobTracking'
 import type { RenderAppId } from '../lib/renderNotifications'
 
 export type RenderReadyNotification = {
@@ -95,6 +96,10 @@ export const usePlatformStore = defineStore('platform', () => {
     activeRenderJobs.value = activeRenderJobs.value.filter((item) => item.id !== id)
   }
 
+  function cancelActiveRenderJob(trackId: string): void {
+    cancelTrackedRender(trackId)
+  }
+
   function addRenderReadyNotification(input: {
     app: RenderAppId
     projectName: string
@@ -178,6 +183,7 @@ export const usePlatformStore = defineStore('platform', () => {
     addActiveRenderJob,
     updateActiveRenderJob,
     removeActiveRenderJob,
+    cancelActiveRenderJob,
     addRenderReadyNotification,
     markAllNotificationsRead,
     dismissNotification,

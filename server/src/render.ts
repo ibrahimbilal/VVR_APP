@@ -26,6 +26,8 @@ export interface RenderClip {
 export interface RenderRequest {
   clips: RenderClip[]
   overlays: string[]
+  overlaysLate?: string[]
+  titleHideAfter?: number
   musicPath: string | null
   width: number
   height: number
@@ -216,6 +218,9 @@ async function runFfmpeg(
   ]
   for (const clip of job.clips) args.push('-fflags', '+genpts', '-i', clip.path)
   for (const overlay of job.overlays) args.push('-i', overlay)
+  if (job.titleHideAfter && job.titleHideAfter > 0 && job.overlaysLate) {
+    for (const overlay of job.overlaysLate) args.push('-i', overlay)
+  }
   if (job.musicPath) args.push('-stream_loop', '-1', '-i', job.musicPath)
   args.push('-filter_complex_script', scriptPath, '-map', `[${graph.videoLabel}]`)
   if (graph.audioLabel) args.push('-map', `[${graph.audioLabel}]`)
@@ -288,9 +293,20 @@ function buildFilter(
     lines.push(
       `[fitted${index}]pad=${width}:${height}:0:${bannerHeight}:${ffColor(job.bannerColor)},format=yuv420p[framed${index}]`,
     )
-    lines.push(
-      `[framed${index}][${overlayIndex}:v]overlay=0:0:format=auto,setsar=1,settb=AVTB[v${index}]`,
-    )
+    const hideAfter = job.titleHideAfter && job.titleHideAfter > 0 ? job.titleHideAfter : 0
+    const lateOverlay = hideAfter > 0 ? job.overlaysLate?.[index] : undefined
+    if (lateOverlay) {
+      const lateOverlayIndex = job.clips.length + job.overlays.length + index
+      const hide = n(hideAfter)
+      lines.push(`[framed${index}][${overlayIndex}:v]overlay=0:0:enable='lt(t\\,${hide})':format=auto[vpre${index}]`)
+      lines.push(
+        `[vpre${index}][${lateOverlayIndex}:v]overlay=0:0:enable='gte(t\\,${hide})':format=auto,setsar=1,settb=AVTB[v${index}]`,
+      )
+    } else {
+      lines.push(
+        `[framed${index}][${overlayIndex}:v]overlay=0:0:format=auto,setsar=1,settb=AVTB[v${index}]`,
+      )
+    }
 
     if (useClipAudio) {
       if (clip.hasAudio) {
@@ -340,7 +356,8 @@ function buildFilter(
   }
 
   if (job.musicPath) {
-    const musicIndex = job.clips.length + job.overlays.length
+    const lateCount = job.titleHideAfter && job.titleHideAfter > 0 && job.overlaysLate ? job.overlaysLate.length : 0
+    const musicIndex = job.clips.length + job.overlays.length + lateCount
     const fadeIn = Math.max(0, Math.min(30, job.musicFadeIn ?? 0.25))
     const fadeOutSec = Math.max(0, Math.min(30, job.musicFadeOut ?? 0.3))
     const fadeOut =

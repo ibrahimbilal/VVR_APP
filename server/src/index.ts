@@ -154,21 +154,22 @@ app.post('/api/import-url', async (req, res) => {
   res.json(result)
 })
 
-app.post('/api/export', exportUpload.fields([{ name: 'overlays', maxCount: 30 }, { name: 'music', maxCount: 1 }]), async (req, res) => {
+app.post('/api/export', exportUpload.fields([{ name: 'overlays', maxCount: 60 }, { name: 'music', maxCount: 1 }]), async (req, res) => {
   const uploaded = collectUploads(req)
   try {
     if (!(await checkFfmpeg())) {
       throw new Error('FFmpeg is missing. Reinstall dependencies with npm install, then restart the server.')
     }
     const project = parseProject(req.body?.project)
-    const overlays = sortedOverlays(uploaded.overlays, project.clips.length)
+    const overlayUploads = resolveOverlayUploads(uploaded.overlays, project.clips.length, project.titleHideAfter)
     const prepared = prepareClips(project)
     const id = randomUUID()
     const dir = path.join(jobsDir, id)
     await mkdir(dir, { recursive: true })
     const overlayPaths: string[] = []
+    const overlayLatePaths: string[] = []
     try {
-      for (const overlay of overlays) {
+      for (const overlay of overlayUploads.main) {
         const destination = path.join(dir, `overlay-${overlay.index}.png`)
         await rename(overlay.file.path, destination)
         overlay.file.path = destination
@@ -177,6 +178,16 @@ app.post('/api/export', exportUpload.fields([{ name: 'overlays', maxCount: 30 },
           throw new Error('A title overlay did not match the output resolution. Try the export again.')
         }
         overlayPaths[overlay.index] = destination
+      }
+      for (const overlay of overlayUploads.late) {
+        const destination = path.join(dir, `overlay-${overlay.index}-late.png`)
+        await rename(overlay.file.path, destination)
+        overlay.file.path = destination
+        const still = await probeStill(destination)
+        if (still.width !== prepared.metrics.width || still.height !== prepared.metrics.height) {
+          throw new Error('A title overlay did not match the output resolution. Try the export again.')
+        }
+        overlayLatePaths[overlay.index] = destination
       }
       let musicPath: string | null = null
       const music = uploaded.music[0]
@@ -191,6 +202,8 @@ app.post('/api/export', exportUpload.fields([{ name: 'overlays', maxCount: 30 },
       const job = createJob(id, {
         clips: prepared.clips,
         overlays: overlayPaths,
+        overlaysLate: project.titleHideAfter > 0 ? overlayLatePaths : undefined,
+        titleHideAfter: project.titleHideAfter,
         musicPath,
         width: prepared.metrics.width,
         height: prepared.metrics.height,
@@ -586,6 +599,7 @@ interface ProjectClipInput {
 
 interface ProjectInput {
   filename: string
+  titleHideAfter: number
   clips: ProjectClipInput[]
   video: {
     width: number
@@ -615,8 +629,8 @@ function parseProject(raw: unknown): ProjectInput {
   } catch {
     throw new ClientError(400, 'The export settings could not be read.')
   }
-  if (!Array.isArray(data.clips) || data.clips.length < 2) {
-    throw new ClientError(400, 'Add at least two clips before exporting.')
+  if (!Array.isArray(data.clips) || data.clips.length < 1) {
+    throw new ClientError(400, 'Add at least one clip before exporting.')
   }
   if (data.clips.length > 30) throw new ClientError(400, 'A compilation can include up to 30 clips.')
   const video = data.video
@@ -644,8 +658,12 @@ function parseProject(raw: unknown): ProjectInput {
       trimEnd: Number(clip.trimEnd),
     }
   })
+  const titleHideAfterRaw = Number(data.titleHideAfter)
+  const titleHideAfter =
+    Number.isFinite(titleHideAfterRaw) && titleHideAfterRaw > 0 ? Math.min(30, titleHideAfterRaw) : 0
   return {
     filename: typeof data.filename === 'string' ? data.filename : 'ranking',
+    titleHideAfter,
     clips,
     video: {
       width: Number(video.width),
@@ -701,17 +719,36 @@ function prepareClips(project: ProjectInput) {
   return { clips, metrics, total }
 }
 
-function sortedOverlays(files: Express.Multer.File[], count: number): { index: number; file: Express.Multer.File }[] {
-  const overlays = files.map((file) => {
+function resolveOverlayUploads(
+  files: Express.Multer.File[],
+  count: number,
+  titleHideAfter: number,
+): { main: { index: number; file: Express.Multer.File }[]; late: { index: number; file: Express.Multer.File }[] } {
+  const main: { index: number; file: Express.Multer.File }[] = []
+  const late: { index: number; file: Express.Multer.File }[] = []
+  for (const file of files) {
+    const lateMatch = /^overlay-(\d+)-late\.png$/i.exec(file.originalname)
+    if (lateMatch) {
+      late.push({ index: Number(lateMatch[1]), file })
+      continue
+    }
     const match = /^overlay-(\d+)\.png$/i.exec(file.originalname)
     if (!match) throw new ClientError(400, 'Title overlays were missing or misnamed.')
-    return { index: Number(match[1]), file }
-  })
-  overlays.sort((a, b) => a.index - b.index)
-  if (overlays.length !== count || overlays.some((overlay, index) => overlay.index !== index)) {
+    main.push({ index: Number(match[1]), file })
+  }
+  main.sort((a, b) => a.index - b.index)
+  late.sort((a, b) => a.index - b.index)
+  if (main.length !== count || main.some((overlay, index) => overlay.index !== index)) {
     throw new ClientError(400, 'Each clip needs a title overlay. Try the export again.')
   }
-  return overlays
+  if (titleHideAfter > 0) {
+    if (late.length !== count || late.some((overlay, index) => overlay.index !== index)) {
+      throw new ClientError(400, 'Timed title hiding needs a second overlay for each clip. Try the export again.')
+    }
+  } else if (late.length > 0) {
+    throw new ClientError(400, 'Extra title overlays were uploaded. Try the export again.')
+  }
+  return { main, late }
 }
 
 function collectUploads(req: Request): { overlays: Express.Multer.File[]; music: Express.Multer.File[]; all: Express.Multer.File[] } {
