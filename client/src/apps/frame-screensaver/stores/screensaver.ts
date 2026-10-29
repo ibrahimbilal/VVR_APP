@@ -25,6 +25,9 @@ import { computed, ref, toRaw, watch } from 'vue'
 import * as api from '../../../lib/api'
 import * as idb from '../../../lib/idb'
 import { readImageFile, readVideoFile, validateAudioFile, validateImageFile, validateScreensaverVideoFile } from '../../../lib/media'
+import { beginTrackedRender, endTrackedRender, syncTrackedRender } from '../../../lib/renderJobTracking'
+import { pageWasReloaded } from '../../../lib/pageNavigation'
+import { ensureRenderNotificationPermission, notifyRenderReady } from '../../../lib/renderNotifications'
 import { usePlatformStore } from '../../../stores/platform'
 import type { ExportState } from '../../../types'
 import { composeExportPng } from '../lib/exportComposeWorker'
@@ -270,22 +273,13 @@ export const useScreensaverStore = defineStore('screensaver', () => {
     }
   })
 
-  function toast(text: string, tone: 'info' | 'error' = 'error') {
+  function toast(text: string, tone: 'info' | 'error' | 'success' = 'error') {
     platform.toast(text, tone)
   }
 
   function invalidateCompletedExport() {
     if (!hydrated.value || exporting.value) return
     if (exportState.value.phase === 'done') exportState.value = idleExport()
-  }
-
-  function pageWasReloaded(): boolean {
-    try {
-      const entry = performance.getEntriesByType('navigation')[0] as PerformanceNavigationTiming | undefined
-      return entry?.type === 'reload'
-    } catch {
-      return false
-    }
   }
 
   function resetPreviewAfterReload() {
@@ -316,9 +310,14 @@ export const useScreensaverStore = defineStore('screensaver', () => {
 
   async function init() {
     if (hydrated.value) return
+    const reload = pageWasReloaded()
+    if (reload) {
+      exportAbort?.abort()
+      exportAbort = null
+      exportState.value = idleExport()
+    }
     await platform.refreshServer()
     void loadEncoders()
-    const reload = pageWasReloaded()
     if (reload) {
       await idb.clearScreensaverPreviewCache().catch(() => undefined)
     }
@@ -923,11 +922,14 @@ export const useScreensaverStore = defineStore('screensaver', () => {
     if (outputWidth.value >= 3840 && durationSeconds.value >= 2 * 3600) {
       toast('4K exports over two hours can produce very large files and long renders.', 'info')
     }
+    ensureRenderNotificationPermission()
     exportAbort = new AbortController()
     const signal = exportAbort.signal
     const filename = name.value.trim() || 'screensaver'
+    const trackId = beginTrackedRender('screensaver', filename)
     try {
       exportState.value = { ...idleExport(), phase: 'preparing', progress: 0.02, message: 'Preparing composition', stage: 'Preparing composition' }
+      syncTrackedRender(trackId, exportState.value)
       const blobs = await buildExportBlobs()
       if (signal.aborted) return
       await runScreensaverExport({
@@ -958,8 +960,13 @@ export const useScreensaverStore = defineStore('screensaver', () => {
         signal,
         onUpdate: (patch) => {
           exportState.value = { ...exportState.value, ...patch }
+          syncTrackedRender(trackId, exportState.value)
         },
       })
+      if (exportState.value.phase === 'done' && exportState.value.downloadUrl) {
+        const base = name.value.trim() || 'screensaver'
+        notifyRenderReady('screensaver', base, exportState.value.downloadUrl, `${base}.mp4`)
+      }
     } catch (error) {
       if (signal.aborted || (error instanceof DOMException && error.name === 'AbortError')) {
         exportState.value = idleExport()
@@ -968,6 +975,8 @@ export const useScreensaverStore = defineStore('screensaver', () => {
       }
       const text = error instanceof Error ? error.message : 'Export failed.'
       exportState.value = { ...exportState.value, phase: 'error', error: text, message: text }
+    } finally {
+      endTrackedRender(trackId)
     }
   }
 

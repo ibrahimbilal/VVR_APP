@@ -33,8 +33,7 @@
     "build:launcher": "node scripts/build-launcher.mjs"
   },
   "devDependencies": {
-    "concurrently": "^10.0.6",
-    "postject": "^1.0.0-alpha.6"
+    "concurrently": "^10.0.6"
   },
   "overrides": {
     "body-parser": "2.4.0",

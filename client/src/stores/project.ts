@@ -9,6 +9,10 @@ import { usePlatformStore } from './platform'
 import { OUTPUTS } from '@shared/frame'
 import * as api from '../lib/api'
 import { runExport } from '../lib/exportJob'
+import { beginTrackedRender, endTrackedRender, syncTrackedRender } from '../lib/renderJobTracking'
+import { pageWasReloaded } from '../lib/pageNavigation'
+import { ensureRenderNotificationPermission, notifyRenderReady } from '../lib/renderNotifications'
+import { triggerDownload } from '../lib/triggerDownload'
 import { ensureServerUploadCleanupOnClose } from '../lib/serverUploadCleanup'
 import { formatRank, sourceLabel, titleFromFileName } from '../lib/format'
 import * as idb from '../lib/idb'
@@ -160,7 +164,7 @@ export const useProjectStore = defineStore('project', () => {
     { deep: true },
   )
 
-  function toast(text: string, tone: 'info' | 'error' = 'error') {
+  function toast(text: string, tone: 'info' | 'error' | 'success' = 'error') {
     platform.toast(text, tone)
   }
 
@@ -183,6 +187,11 @@ export const useProjectStore = defineStore('project', () => {
 
   async function init() {
     if (hydrated.value) return
+    if (pageWasReloaded()) {
+      exportAbort?.abort()
+      exportAbort = null
+      exportState.value = idleExport()
+    }
     applying = true
     try {
       const saved = await idb.loadRankingProject()
@@ -594,9 +603,15 @@ export const useProjectStore = defineStore('project', () => {
       resolveFade(durations, style.value.video.transition, style.value.video.fadeDuration),
     )
     if (total > 5 * 60) toast('This compilation is long. Rendering may take several minutes.', 'info')
+    ensureRenderNotificationPermission()
     exportAbort = new AbortController()
     const signal = exportAbort.signal
     const filename = name.value.trim() && name.value !== 'Untitled ranking' ? name.value : titleText.value.replace(/\s+/g, ' ').trim()
+    const displayName =
+      name.value.trim() && name.value !== 'Untitled ranking'
+        ? name.value
+        : titleText.value.replace(/\s+/g, ' ').trim() || 'Untitled ranking'
+    const trackId = beginTrackedRender('ranking', displayName)
     try {
       await runExport({
         filename: filename || 'ranking',
@@ -611,8 +626,12 @@ export const useProjectStore = defineStore('project', () => {
         signal,
         onUpdate: (patch) => {
           exportState.value = { ...exportState.value, ...patch }
+          syncTrackedRender(trackId, exportState.value)
         },
       })
+      if (exportState.value.phase === 'done' && exportState.value.downloadUrl) {
+        notifyRenderReady('ranking', displayName, exportState.value.downloadUrl, downloadName())
+      }
     } catch (error) {
       if (signal.aborted || (error instanceof DOMException && error.name === 'AbortError')) {
         exportState.value = idleExport()
@@ -621,6 +640,8 @@ export const useProjectStore = defineStore('project', () => {
       }
       const text = error instanceof Error ? error.message : 'Export failed.'
       exportState.value = { ...exportState.value, phase: 'error', error: text, message: text }
+    } finally {
+      endTrackedRender(trackId)
     }
   }
 
@@ -847,16 +868,6 @@ function normalizeStyle(value: ProjectStyle) {
 
 function paletteFrom(colors: string[]): string[] {
   return colors.length > 0 ? colors : RANK_COLORS
-}
-
-function triggerDownload(url: string, filename: string) {
-  const link = document.createElement('a')
-  link.href = url
-  link.download = filename
-  link.hidden = true
-  document.body.appendChild(link)
-  link.click()
-  link.remove()
 }
 
 function clamp(value: number, min: number, max: number): number {

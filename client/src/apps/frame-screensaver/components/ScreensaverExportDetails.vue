@@ -5,7 +5,7 @@ import { useScreensaverStore } from '../stores/screensaver'
 
 const store = useScreensaverStore()
 
-const open = ref(true)
+const open = ref(false)
 
 const visible = computed(
   () => store.exporting || Boolean(store.exportState.encoder) || store.exportState.phase === 'done',
@@ -30,7 +30,7 @@ function formatSeconds(value: number | null | undefined): string {
 <template>
   <aside
     v-if="visible"
-    class="flex max-h-[40vh] shrink-0 flex-col border-t border-zinc-800 bg-[#0c0d10] transition-[width] duration-200 ease-out lg:max-h-none lg:border-l lg:border-t-0"
+    class="flex max-h-[32vh] shrink-0 flex-col border-t border-zinc-800 bg-[#0c0d10] transition-[width] duration-200 ease-out lg:max-h-none lg:border-l lg:border-t-0"
     :class="open ? 'w-full lg:w-[320px] xl:w-[360px]' : 'w-14'"
   >
     <div v-show="open" class="min-h-0 flex-1 overflow-y-auto p-4">

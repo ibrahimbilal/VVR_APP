@@ -4,7 +4,7 @@ import { computed, ref, watch } from 'vue'
 import { useProjectStore } from '../stores/project'
 
 const store = useProjectStore()
-const open = ref(true)
+const open = ref(false)
 
 const visible = computed(
   () => store.exporting || Boolean(store.exportState.encoder) || store.exportState.phase === 'done',

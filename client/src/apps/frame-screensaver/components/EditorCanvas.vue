@@ -37,7 +37,7 @@ function syncDesktopPreview(): void {
 }
 
 function previewPixelSize(boxW: number, boxH: number): { width: number; height: number } {
-  const widthCap = Math.max(320, boxW)
+  const widthCap = Math.max(240, boxW)
   if (!desktopPreview.value || boxH < 120) {
     const height = Math.round((widthCap * 9) / 16)
     return { width: widthCap, height }
@@ -696,12 +696,12 @@ onBeforeUnmount(() => {
 
 <template>
   <div class="flex min-h-0 w-full flex-1 flex-col">
-    <div class="mb-3 flex flex-wrap items-center gap-2">
+    <div class="mb-3 flex max-w-full flex-wrap items-center gap-1.5 sm:gap-2">
       <span class="text-xs text-zinc-500">{{ viewLabel }}</span>
       <button class="btn btn-ghost cursor-pointer px-2 py-1" type="button" aria-label="Zoom out" title="Zoom out" @click="zoom = clamp(zoom - 0.1, 0.25, 4); draw()">
         <ZoomOut :size="16" />
       </button>
-      <input v-model.number="zoom" class="w-28 cursor-pointer" type="range" min="0.25" max="4" step="0.05" aria-label="View zoom" @input="draw" />
+      <input v-model.number="zoom" class="w-24 min-w-24 flex-1 cursor-pointer sm:w-28 sm:flex-none" type="range" min="0.25" max="4" step="0.05" aria-label="View zoom" @input="draw" />
       <button class="btn btn-ghost cursor-pointer px-2 py-1" type="button" aria-label="Zoom in" title="Zoom in" @click="zoom = clamp(zoom + 0.1, 0.25, 4); draw()">
         <ZoomIn :size="16" />
       </button>
@@ -763,8 +763,8 @@ onBeforeUnmount(() => {
     </div>
     <div
       ref="shell"
-      class="relative flex w-full min-h-[180px] items-center justify-center overflow-hidden rounded-lg border border-zinc-800 max-lg:shrink-0 lg:min-h-0 lg:flex-1"
-      :style="desktopPreview ? { touchAction: 'none' } : { height: `${shellHeight}px`, touchAction: 'none' }"
+      class="relative flex w-full max-w-full min-w-0 items-center justify-center overflow-hidden rounded-lg border border-zinc-800 max-lg:aspect-video max-lg:max-h-[min(52vh,56vw)] max-lg:shrink-0 max-lg:min-h-[160px] lg:min-h-[180px] lg:min-h-0 lg:flex-1"
+      style="touch-action: none"
       tabindex="0"
       @pointerdown="onPointerDown"
       @pointermove="onPointerMove"

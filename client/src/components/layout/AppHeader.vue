@@ -2,6 +2,7 @@
 import { CircleAlert, CircleCheck, FilePlus, Menu } from '@lucide/vue'
 import { computed } from 'vue'
 import { useRoute } from 'vue-router'
+import AppNotifications from './AppNotifications.vue'
 import { useScreensaverStore } from '../../apps/frame-screensaver/stores/screensaver'
 import { useThumbnailStore } from '../../apps/thumbnail-studio/stores/thumbnail'
 import { usePlatformStore } from '../../stores/platform'
@@ -47,17 +48,20 @@ const emit = defineEmits<{ openNav: [trigger: HTMLElement] }>()
       <FilePlus :size="16" />
       <span class="hidden sm:inline">New project</span>
     </button>
-    <button
-      class="ml-auto inline-flex cursor-pointer items-center gap-2 text-xs font-semibold"
-      type="button"
-      aria-label="Refresh renderer status"
-      @click="platform.refreshServer()"
-    >
-      <CircleCheck v-if="platform.serverOnline" class="text-emerald-400" :size="16" />
-      <CircleAlert v-else class="text-red-300" :size="16" />
-      <span :class="platform.serverOnline ? 'text-emerald-400' : 'text-red-300'">
-        {{ platform.serverOnline ? 'Renderer ready' : 'Renderer offline' }}
-      </span>
-    </button>
+    <div class="ml-auto flex items-center gap-1 sm:gap-2">
+      <AppNotifications />
+      <button
+        class="inline-flex cursor-pointer items-center gap-2 text-xs font-semibold"
+        type="button"
+        aria-label="Refresh renderer status"
+        @click="platform.refreshServer()"
+      >
+        <CircleCheck v-if="platform.serverOnline" class="text-emerald-400" :size="16" />
+        <CircleAlert v-else class="text-red-300" :size="16" />
+        <span class="hidden sm:inline" :class="platform.serverOnline ? 'text-emerald-400' : 'text-red-300'">
+          {{ platform.serverOnline ? 'Renderer ready' : 'Renderer offline' }}
+        </span>
+      </button>
+    </div>
   </header>
 </template>

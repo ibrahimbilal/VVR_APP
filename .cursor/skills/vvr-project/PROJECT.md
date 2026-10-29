@@ -16,7 +16,7 @@ Node `^20.19.0 || >=22.12.0`. From the repo root:
 
 - `npm install` — installs both workspaces. FFmpeg and ffprobe come from `ffmpeg-static` and `ffprobe-static`. No system FFmpeg.
 - `npm run dev` — renderer on `127.0.0.1:3001` (`tsx watch`) and editor on `127.0.0.1:5173` (Vite). Vite proxies `/api` to 3001 with no timeout.
-- **Windows shortcut:** `npm run launch` runs the same dev stack (`scripts/launch-dev.cjs`). After `npm install`, `npm run build:launcher` builds `dist/VVR-Dev.exe` (Node single-executable + `postject`; keep the exe under this repo so it can find `package.json`). Double-click opens the editor in your browser. Node/npm must still be on `PATH` for the dev servers; the exe replaces typing `npm run dev`.
+- **Windows shortcut:** `npm run launch` runs the same dev stack (`scripts/launch-dev.cjs`). **`Video Factory.exe`** in the repo root is a self-contained C# launcher (`launcher/`): runs `npm run dev`, waits for Vite’s Local URL, opens the browser once, kills the process tree on exit, single-instance mutex. Build with **`npm run build:launcher`** (.NET 8 SDK required on the build machine only). Icon: `launcher/icon.ico` (embedded at compile; defaults from `client/public/favicon.ico` when copied by the build). Node/npm must still be on `PATH`; the exe does not bundle the Vue app.
 - `npm run typecheck` — client `vue-tsc` via `client/scripts/typecheck.mjs`, then server `tsc --noEmit`.
 - `npm run test:screensaver` — short static screensaver render + ffprobe (`server/scripts/verify-screensaver.ts`).
 - `npm run test:screensaver-visual` — CPU vs FFmpeg adjustment SSIM (`server/scripts/visual-screensaver-adjust.ts`).
@@ -55,10 +55,10 @@ Stack: Vue 3, **vue-router**, Pinia, Tailwind 4, Lucide. Client aliases `@shared
 
 ## Platform shell
 
-`App.vue`: left sidebar (desktop), header with renderer status (`GET /api/health`), **New project** on Ranking Videos, Frame Screensaver, and Thumbnail Studio (`AppHeader.vue`), `router-view`, global toasts (`usePlatformStore`).
+`App.vue`: left sidebar (desktop), header with **notifications** (bell, left of renderer status), renderer status (`GET /api/health`), **New project** on Ranking Videos, Frame Screensaver, and Thumbnail Studio (`AppHeader.vue`, `AppNotifications.vue`), `router-view`, global toasts (`usePlatformStore`). Finished Ranking and Frame Screensaver renders are listed in the header notification panel and may also use the browser **desktop notification** API when allowed (`renderNotifications.ts`, `platform.ts`).
 
 - Routes: `/` dashboard, `/ranking-videos`, `/frame-screensaver`, `/thumbnail-studio`. SPA fallback in production.
-- Mobile: hamburger opens left drawer; ranking mobile tabs unchanged inside `RankingVideosView`.
+- Mobile: hamburger opens left drawer; ranking mobile tabs inside `RankingVideosView`; Frame Screensaver uses **Settings / Preview** tabs (`FrameScreensaverView.vue`).
 
 ## Ranking screen
 
@@ -254,7 +254,7 @@ Sweep every 10 minutes: outputs older than 2 hours, jobs and incoming older than
 
 | Task | Open |
 | --- | --- |
-| Layout, tabs, header, toasts | `client/src/App.vue`, `client/src/style.css` |
+| Layout, tabs, header, toasts, render-ready notifications | `client/src/App.vue`, `client/src/style.css`, `client/src/components/layout/AppNotifications.vue`, `client/src/lib/renderNotifications.ts` |
 | Shared file drop / browse upload | `client/src/components/FileDropZone.vue` |
 | Shared audio upload + advanced sliders | `client/src/components/audio/` (`AudioFileField.vue`, `AdvancedAudioControls.vue`, `SourceClipAudioControls.vue`) |
 | Clip list, URL add, drag reorder | `client/src/components/ClipSidebar.vue` |
@@ -374,6 +374,13 @@ Badge SVGs are committed under `client/src/assets/thumbnail-badges/` (catalog sl
 
 ## Changelog
 
+- 2026-10-29 — Launcher: `launcher/nuget.config` for NuGet.org (fixes NU1100 when no global feed); TFM `net8.0` console app.
+- 2026-10-29 — Replace Node SEA launcher with native C# `Video Factory.exe` (`launcher/`, `npm run build:launcher`).
+- 2026-10-29 — Full page reload clears header render queues and export-in-progress UI; bfcache restore clears queues too (`renderQueueBootstrap.ts`, `platform.ts`, ranking/screensaver `init`).
+- 2026-10-29 — Ranking and Frame Screensaver export status sidebars start collapsed (`RankingExportDetails.vue`, `ScreensaverExportDetails.vue`).
+- 2026-10-29 — Header notifications: in-progress renders with per-item progress, aggregate ring around operation count, ready downloads (`AppNotifications.vue`, `platform.ts`, `renderJobTracking.ts`).
+- 2026-10-29 — Header notification bell and panel (render-ready items with download/open) left of renderer status (`AppNotifications.vue`, `platform.ts`, `AppHeader.vue`).
+- 2026-10-29 — Render-ready in-app notifications and optional browser notifications for Ranking Videos and Frame Screensaver; launcher exe icon from favicon; Frame Screensaver mobile Settings/Preview tabs and preview layout (`renderNotifications.ts`, `build-launcher.mjs`, `FrameScreensaverView.vue`, `EditorCanvas.vue`).
 - 2026-10-29 — Thumbnail resolution badge defaults to top-left (`thumbnailProject.ts`).
 - 2026-10-29 — Frame Screensaver preview draws a dashed export-frame outline (dims outside when view zoom/pan changes) (`EditorCanvas.vue`).
 - 2026-10-29 — Frame Screensaver desktop preview fits the center column height (16:9 letterboxed) so export and **Create Thumbnail** stay visible without scrolling (`FrameScreensaverView.vue`, `EditorCanvas.vue`).
