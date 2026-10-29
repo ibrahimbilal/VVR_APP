@@ -20,7 +20,7 @@ Read [REFERENCE.md](REFERENCE.md) for fixed Hostinger targets and build settings
 ## Deploy checklist
 
 ```
-- [ ] Create vvr-app.zip (exclude node_modules, server/tmp, .git)
+- [ ] Create vvr-app.zip (exclude node_modules, server/tmp, .git, launcher, `*.exe`)
 - [ ] hosting_files_generate-upload-url → TUS upload vvr-app.zip to public_html
 - [ ] hosting_nodejs_start-build (archive vvr-app.zip, settings from REFERENCE.md)
 - [ ] Poll hosting_nodejs_build-logs until "Deployment completed"
@@ -37,6 +37,8 @@ tar -a -c -f vvr-app.zip `
   --exclude=server/node_modules `
   --exclude=server/tmp `
   --exclude=.git `
+  --exclude=launcher `
+  --exclude='*.exe' `
   --exclude=vvr-app.zip .
 ```
 

@@ -12,6 +12,8 @@ tar -a -c -f vvr-app.zip `
   --exclude=server/node_modules `
   --exclude=server/tmp `
   --exclude=.git `
+  --exclude=launcher `
+  --exclude='*.exe' `
   --exclude=vvr-app.zip .
 
 $bytes = (Get-Item vvr-app.zip).Length

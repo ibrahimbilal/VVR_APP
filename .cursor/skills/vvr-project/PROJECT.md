@@ -374,6 +374,7 @@ Badge SVGs are committed under `client/src/assets/thumbnail-badges/` (catalog sl
 
 ## Changelog
 
+- 2026-10-29 — Hostinger deploy archive excludes `launcher/` and all `*.exe` (e.g. root `Video Factory.exe`; Hostinger deploy skill).
 - 2026-10-29 — Launcher: `launcher/nuget.config` for NuGet.org (fixes NU1100 when no global feed); TFM `net8.0` console app.
 - 2026-10-29 — Remove browser desktop notifications for render-ready; in-app header notifications only (`renderNotifications.ts`, `project.ts`, `screensaver.ts`).
 - 2026-10-29 — Replace Node SEA launcher with native C# `Video Factory.exe` (`launcher/`, `npm run build:launcher`).
