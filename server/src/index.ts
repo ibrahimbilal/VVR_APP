@@ -445,11 +445,19 @@ app.post(
         const libraryFrameId = project.kind === 'video' ? project.composition?.frameId : null
         if (libraryFrameId && hasCustomFrame(libraryFrameId)) {
           const storedFrame = getFrame(libraryFrameId)
-          if (!storedFrame) throw new ClientError(400, 'That frame is no longer on the server. Upload it again.')
-          framePath = path.join(dir, 'frame.png')
-          await copyFile(storedFrame.path, framePath)
-          if (frameFile) await rm(frameFile.path, { force: true })
-          if (maskFile) await rm(maskFile.path, { force: true })
+          if (storedFrame) {
+            framePath = path.join(dir, 'frame.png')
+            await copyFile(storedFrame.path, framePath)
+            if (frameFile) await rm(frameFile.path, { force: true })
+            if (maskFile) await rm(maskFile.path, { force: true })
+          } else if (frameFile) {
+            framePath = path.join(dir, 'frame.png')
+            await rename(frameFile.path, framePath)
+            frameFile.path = framePath
+            if (maskFile) await rm(maskFile.path, { force: true })
+          } else {
+            throw new ClientError(400, 'That frame is no longer on the server. Upload it again.')
+          }
         } else {
           if (frameFile) {
             framePath = path.join(dir, 'frame.png')

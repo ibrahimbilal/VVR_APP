@@ -1,7 +1,7 @@
 import type { ScreensaverComposition } from '@shared/screensaverComposition'
-import { screensaverFrameUrl } from '../../../lib/api'
 import { usePlatformStore } from '../../../stores/platform'
 import { stageThumbnailTransfer } from '../../thumbnail-studio/lib/stageTransfer'
+import { frameImageUrl } from './frameImageUrl'
 import { useScreensaverStore } from '../stores/screensaver'
 
 export async function createThumbnailFromScreensaver(linkMode: 'snapshot' | 'linked'): Promise<void> {
@@ -22,7 +22,7 @@ export async function createThumbnailFromScreensaver(linkMode: 'snapshot' | 'lin
     let frame: Blob | null = null
     const frameId = store.composition.frameId
     if (frameId && frameId !== 'none') {
-      const response = await fetch(screensaverFrameUrl(frameId))
+      const response = await fetch(frameImageUrl(frameId))
       if (response.ok) frame = await response.blob()
       else platform.toast('The decorative frame was not available, so the thumbnail continues without it.', 'info')
     }

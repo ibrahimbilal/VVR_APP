@@ -20,7 +20,7 @@ function isActive(path: string): boolean {
   >
     <div class="flex h-14 items-center gap-2 border-b border-zinc-800 px-3">
       <span class="grid h-8 w-8 shrink-0 place-items-center rounded-sm bg-amber-300 text-black">
-        <Film :size="16" />
+        <Film :size="30" />
       </span>
       <span v-if="!platform.sidebarCollapsed" class="min-w-0 truncate text-sm font-black tracking-[0.06em]">Video's Factory</span>
     </div>

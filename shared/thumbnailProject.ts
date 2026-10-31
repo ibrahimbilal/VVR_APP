@@ -119,7 +119,7 @@ export interface ThumbnailDocument {
   updatedAt: number
 }
 
-export function badgeAppearance(styleId: BadgeStyleId, scale = 0.5): BadgeAppearance {
+export function badgeAppearance(styleId: BadgeStyleId, scale = 0.7): BadgeAppearance {
   return { styleId, scale: clampBadgeScale(scale) }
 }
 

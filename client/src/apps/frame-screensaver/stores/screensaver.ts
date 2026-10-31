@@ -1,5 +1,5 @@
 import { aspectRatio, clampComposition, compositionForFit, cropForAspect, defaultComposition, placementForFit, type CropAspect, type ScreensaverComposition } from '@shared/screensaverComposition'
-import { FRAME_FILE_LIMIT } from '@shared/screensaverFrames'
+import { FRAME_FILE_LIMIT, isBuiltinFrameId } from '@shared/screensaverFrames'
 import {
   DEFAULT_DURATION_SECONDS,
   DURATION_PRESETS,
@@ -29,6 +29,8 @@ import { useManagedExportJobs } from '../../../lib/managedExportJobs'
 import { pageWasReloaded } from '../../../lib/pageNavigation'
 import { usePlatformStore } from '../../../stores/platform'
 import { composeExportPng } from '../lib/exportComposeWorker'
+import { resolveBuiltinFrameUrl } from '../lib/defaultFrames'
+import { frameImageUrl } from '../lib/frameImageUrl'
 import {
   readPreviewRendererMode,
   writePreviewRendererMode,
@@ -192,6 +194,7 @@ export const useScreensaverStore = defineStore('screensaver', () => {
     if (
       composition.value.frameId !== 'none' &&
       framesLoaded.value &&
+      !isBuiltinFrameId(composition.value.frameId) &&
       !frames.value.some((frame) => frame.id === composition.value.frameId)
     ) {
       return 'That frame is no longer on the server. Choose another frame.'
@@ -339,7 +342,11 @@ export const useScreensaverStore = defineStore('screensaver', () => {
       const saved = await api.listScreensaverFrames()
       frames.value = saved
       framesLoaded.value = true
-      if (composition.value.frameId !== 'none' && !saved.some((frame) => frame.id === composition.value.frameId)) {
+      if (
+        composition.value.frameId !== 'none' &&
+        !isBuiltinFrameId(composition.value.frameId) &&
+        !saved.some((frame) => frame.id === composition.value.frameId)
+      ) {
         replaceComposition({ ...composition.value, frameId: 'none' })
         commitComposition()
       }
@@ -356,7 +363,7 @@ export const useScreensaverStore = defineStore('screensaver', () => {
       return
     }
     try {
-      const image = await loadHtmlImage(api.screensaverFrameUrl(id))
+      const image = await loadHtmlImage(frameImageUrl(id))
       if (token !== frameImageToken) return
       frameImage.value = image
     } catch {
@@ -855,7 +862,7 @@ export const useScreensaverStore = defineStore('screensaver', () => {
     const id = composition.value.frameId
     if (id === 'none') return null
     if (frameImage.value) return frameImage.value
-    return loadHtmlImage(api.screensaverFrameUrl(id))
+    return loadHtmlImage(frameImageUrl(id))
   }
 
   function setPreviewRenderer(mode: PreviewRendererMode): void {
@@ -890,7 +897,7 @@ export const useScreensaverStore = defineStore('screensaver', () => {
     snapshot: ScreensaverExportSnapshot,
   ): Promise<{ compositionBlob: Blob | null; frameBlob: Blob | null; maskBlob: Blob | null }> {
     const frame =
-      snapshot.frameId !== 'none' ? await loadHtmlImage(api.screensaverFrameUrl(snapshot.frameId)) : null
+      snapshot.frameId !== 'none' ? await loadHtmlImage(frameImageUrl(snapshot.frameId)) : null
     let compositionBlob: Blob | null = null
     if (snapshot.mediaKind === 'image' && snapshot.objectUrl) {
       const image = await loadHtmlImage(snapshot.objectUrl)
@@ -903,7 +910,15 @@ export const useScreensaverStore = defineStore('screensaver', () => {
         frame,
       })
     }
-    return { compositionBlob, frameBlob: null, maskBlob: null }
+    let frameBlob: Blob | null = null
+    if (snapshot.mediaKind === 'video' && snapshot.frameId !== 'none' && isBuiltinFrameId(snapshot.frameId)) {
+      const url = resolveBuiltinFrameUrl(snapshot.frameId)
+      if (url) {
+        const response = await fetch(url)
+        if (response.ok) frameBlob = await response.blob()
+      }
+    }
+    return { compositionBlob, frameBlob, maskBlob: null }
   }
 
   async function startExport() {

@@ -8,6 +8,7 @@
     "build:prod": "vite build",
     "build": "vite build",
     "typecheck": "node ./scripts/typecheck.mjs",
+    "frames:thumbs": "node ./scripts/generate-frame-thumbs.mjs",
     "preview": "vite preview"
   },
   "dependencies": {
@@ -28,6 +29,7 @@
     "@vitejs/plugin-vue": "^6.0.10",
     "tailwindcss": "^4.3.3",
     "typescript": "^7.0.2",
+    "sharp": "^0.34.5",
     "vite": "^8.3.4",
     "vue-tsc": "^3.3.13"
   }

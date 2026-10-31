@@ -12,6 +12,7 @@ import SliderField from '../../../components/SliderField.vue'
 import { webGl2Available } from '../lib/render/createScreensaverRenderer'
 import type { PreviewRendererMode } from '../lib/previewRendererPreference'
 import { useScreensaverStore } from '../stores/screensaver'
+import { DEFAULT_FRAMES } from '../lib/defaultFrames'
 
 const store = useScreensaverStore()
 
@@ -84,7 +85,29 @@ function onCustomMinutes() {
 <template>
   <div class="space-y-4">
     <SettingsAccordion title="Frames" :open="true">
+      <div v-if="DEFAULT_FRAMES.length > 0" class="grid grid-cols-2 gap-2">
+        <button
+          v-for="frame in DEFAULT_FRAMES"
+          :key="frame.id"
+          class="block w-full cursor-pointer overflow-hidden rounded-md border bg-[#101114]"
+          :class="store.composition.frameId === frame.id ? 'border-amber-300 ring-1 ring-amber-300' : 'border-zinc-700 hover:border-zinc-500'"
+          type="button"
+          :aria-pressed="store.composition.frameId === frame.id"
+          :title="frame.name"
+          @click="store.selectFrame(frame.id)"
+        >
+          <img
+            :src="frame.thumbUrl"
+            :alt="frame.name"
+            width="150"
+            loading="lazy"
+            decoding="async"
+            class="aspect-video w-full object-contain"
+          />
+        </button>
+      </div>
       <FileDropZone
+        class="mt-3"
         compact
         accept="image/png,.png"
         multiple
@@ -95,10 +118,10 @@ function onCustomMinutes() {
         :hint="`PNG only, up to ${frameLimitMb} MB`"
         @files="onFrameFiles"
       />
-      <p v-if="store.frames.length === 0" class="text-xs text-zinc-500">
-        Uploaded frames show up here. Click one to place it over the picture. Click it again to clear it.
+      <p v-if="store.frames.length === 0" class="mt-2 text-xs text-zinc-500">
+        Choose a frame above or upload your own PNG. Click a frame to place it over the picture. Click it again to clear it.
       </p>
-      <div v-else class="grid grid-cols-2 gap-2">
+      <div v-else class="mt-3 grid grid-cols-2 gap-2">
         <div v-for="frame in store.frames" :key="frame.id" class="relative">
           <button
             class="block w-full cursor-pointer overflow-hidden rounded-md border bg-[#101114]"
