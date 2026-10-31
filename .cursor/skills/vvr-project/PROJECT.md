@@ -374,6 +374,7 @@ Badge SVGs are committed under `client/src/assets/thumbnail-badges/` (catalog sl
 
 ## Changelog
 
+- 2026-10-31 — Root `README.md` documents three apps, bundled frames, Thumbnail Studio, production URLs, launcher, and `frames:thumbs` script.
 - 2026-10-29 — Frame Screensaver **New project** and source removal clear the preview canvas (WebGL empty-source path, stale media load guard, `EditorCanvas.vue`).
 - 2026-10-29 — Per-job **Cancel** on in-progress render notifications (`AppNotifications.vue`, `renderJobTracking.ts`, `platform.ts`).
 - 2026-10-29 — Queued multi-export for Ranking Videos and Frame Screensaver: snapshot on each click, shared prep queue, up to 12 jobs per app, header notifications per job (`exportQueueRunner.ts`, `managedExportJobs.ts`, ranking/screensaver stores, export buttons).
