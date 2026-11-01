@@ -5,14 +5,14 @@ import { RouterLink } from 'vue-router'
 const apps = [
   {
     path: '/ranking-videos',
-    title: 'Ranking Videos',
+    title: 'Shorts',
     description:
       'Create vertical ranking and compilation videos with customizable titles, numbered clips, transitions, and audio.',
     icon: ListVideo,
   },
   {
     path: '/frame-screensaver',
-    title: 'Frame Screensaver',
+    title: 'Screensaver',
     description:
       'Create long-form 16:9 ambient videos, digital art displays, and TV screensavers from images and videos.',
     icon: MonitorPlay,
@@ -20,7 +20,7 @@ const apps = [
   {
     path: '/thumbnail-studio',
     title: 'Thumbnail Studio',
-    description: 'Design YouTube thumbnails from your own images or from a Ranking or Frame Screensaver project.',
+    description: 'Design YouTube thumbnails from your own images or from a Shorts or Screensaver project.',
     icon: ThumbnailIcon,
   },
 ]
@@ -39,7 +39,7 @@ const apps = [
           :key="app.path"
           class="flex flex-col rounded-xl border border-zinc-800 bg-[#14161c] p-5 transition-colors hover:border-zinc-700"
         >
-          <div class="mb-4 grid h-11 w-11 place-items-center rounded-lg bg-amber-300/15 text-amber-300">
+          <div class="mb-4 grid h-11 w-11 place-items-center rounded-lg bg-brand/15 text-brand">
             <component :is="app.icon" :size="22" />
           </div>
           <h3 class="text-lg font-bold text-zinc-100">{{ app.title }}</h3>

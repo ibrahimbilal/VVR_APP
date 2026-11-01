@@ -2,13 +2,13 @@
 
 Local **Video's Factory** platform with three apps:
 
-1. **Ranking Videos** (legacy VVR) — 9:16 ranking compilation editor.
-2. **Frame Screensaver** — long-form 16:9 ambient video from one image or looping video.
-3. **Thumbnail Studio** — browser-only YouTube thumbnail tool. Upload an image or take one from Frame Screensaver / Ranking Videos, then place a resolution badge and a duration badge. It does not call FFmpeg.
+1. **Shorts** (legacy VVR) — 9:16 ranking compilation editor.
+2. **Screensaver** — long-form 16:9 ambient video from one image or looping video.
+3. **Thumbnail Studio** — browser-only YouTube thumbnail tool. Upload an image or take one from Screensaver / Shorts, then place a resolution badge and a duration badge. It does not call FFmpeg.
 
 Ranking behavior is unchanged in substance: upload clips (or link titles only), order, style banner and ranks, preview, export MP4.
 
-There are no accounts and no cloud project storage. The editor is a Vue app. The renderer is Express with bundled FFmpeg. **Production** runs on Hostinger Node.js at `https://videos.ibrahimbilal.com` (same app also deployed at `https://vvr.ibrahimbilal.com`; deploy steps: `.cursor/skills/hostinger-vvr-deploy/SKILL.md`). Local dev still uses separate Vite (5173) and API (3001) processes.
+There are no accounts and no cloud project storage. The editor is a Vue app. The renderer is Express with bundled FFmpeg. **Production** runs on Hostinger Node.js at `https://videos.ibrahimbilal.com` (deploy steps: `.cursor/skills/hostinger-vvr-deploy/SKILL.md`). Local dev still uses separate Vite (5173) and API (3001) processes.
 
 ## Run
 
@@ -16,7 +16,7 @@ Node `^20.19.0 || >=22.12.0`. From the repo root:
 
 - `npm install` — installs both workspaces. FFmpeg and ffprobe come from `ffmpeg-static` and `ffprobe-static`. No system FFmpeg.
 - `npm run dev` — renderer on `127.0.0.1:3001` (`tsx watch`) and editor on `127.0.0.1:5173` (Vite). Vite proxies `/api` to 3001 with no timeout.
-- **Windows shortcut:** `npm run launch` runs the same dev stack (`scripts/launch-dev.cjs`). **`Video Factory.exe`** in the repo root is a self-contained C# launcher (`launcher/`): runs `npm run dev`, waits for Vite’s Local URL, opens the browser once, kills the process tree on exit, single-instance mutex. Build with **`npm run build:launcher`** (.NET 8 SDK required on the build machine only). Icon: `launcher/icon.ico` (embedded at compile; defaults from `client/public/favicon.ico` when copied by the build). Node/npm must still be on `PATH`; the exe does not bundle the Vue app.
+- **Windows shortcut:** `npm run launch` runs the same dev stack (`scripts/launch-dev.cjs`). **`Video Factory.exe`** in the repo root is a self-contained C# launcher (`launcher/`): runs `npm run dev`, waits for Vite’s Local URL, opens the browser once, kills the process tree on exit, single-instance mutex. Build with **`npm run build:launcher`** (.NET 8 SDK required on the build machine only). Favicon pack lives in **`client/public/`**; each launcher build syncs `favicon.ico` → `launcher/icon.ico` when it changed, then embeds it in the exe. Node/npm must still be on `PATH`; the exe does not bundle the Vue app.
 - `npm run typecheck` — client `vue-tsc` via `client/scripts/typecheck.mjs`, then server `tsc --noEmit`.
 - `npm run test:screensaver` — short static screensaver render + ffprobe (`server/scripts/verify-screensaver.ts`).
 - `npm run test:screensaver-visual` — CPU vs FFmpeg adjustment SSIM (`server/scripts/visual-screensaver-adjust.ts`).
@@ -26,7 +26,7 @@ Node `^20.19.0 || >=22.12.0`. From the repo root:
 - `npm run build:dev` / `npm run start:dev` — Vite development build, then the renderer serves `client/dist` and the API on port 3001.
 - `npm run build:prod` / `npm run start:prod` — production client build plus esbuild server bundle (`server/dist/index.js`). Listens on `PORT` or 3001. Host is `0.0.0.0` when `PORT` is set, otherwise `127.0.0.1`.
 
-Workspaces: root `vvr-app`, `client` (`vvr-client`), `server` (`vvr-server`). Shared TypeScript is imported by path, not as a package.
+Workspaces: root `vvr-app` **1.1.0**, `client` (`vvr-client`), `server` (`vvr-server`). Shared TypeScript is imported by path, not as a package.
 
 ## Layout
 
@@ -55,12 +55,12 @@ Stack: Vue 3, **vue-router**, Pinia, Tailwind 4, Lucide. Client aliases `@shared
 
 ## Platform shell
 
-`App.vue`: left sidebar (desktop), header with **notifications** (bell, left of renderer status), renderer status (`GET /api/health`), **New project** on Ranking Videos, Frame Screensaver, and Thumbnail Studio (`AppHeader.vue`, `AppNotifications.vue`), `router-view`, global toasts (`usePlatformStore`). Finished Ranking and Frame Screensaver renders are listed in the header notification panel (`renderNotifications.ts`, `platform.ts`). In-progress rows have **Cancel** (per export: client abort + server `POST /api/jobs/:id/cancel` when submitted; `renderJobTracking.ts`).
+`App.vue`: left sidebar (desktop), header with **notifications** (bell, left of renderer status), renderer status (`GET /api/health`), **New project** on Shorts, Screensaver, and Thumbnail Studio (`AppHeader.vue`, `AppNotifications.vue`), `router-view`, global toasts (`usePlatformStore`). Finished Shorts and Screensaver renders are listed in the header notification panel (`renderNotifications.ts`, `platform.ts`). In-progress rows have **Cancel** (per export: client abort + server `POST /api/jobs/:id/cancel` when submitted; `renderJobTracking.ts`).
 
 - Routes: `/` dashboard, `/ranking-videos`, `/frame-screensaver`, `/thumbnail-studio`. SPA fallback in production.
-- Mobile: hamburger opens left drawer; ranking mobile tabs inside `RankingVideosView`; Frame Screensaver uses **Settings / Preview** tabs (`FrameScreensaverView.vue`).
+- Mobile: hamburger opens left drawer; ranking mobile tabs inside `RankingVideosView`; Screensaver uses **Settings / Preview** tabs (`FrameScreensaverView.vue`).
 
-## Ranking screen
+## Shorts screen
 
 `RankingVideosView.vue`: optional mobile tabs, editor grid, `TimelineBar`. New project lives in the platform header.
 
@@ -110,7 +110,7 @@ Defined in `client/src/types.ts`.
 - Banner: visible (off = no banner, video fills the frame), background, height, font, size, weight, align, lineHeight, outline, shadow.
 - Ranking: **visible** (off = hide rank numbers on the overlay; clip titles can still show), font, size, weight, color, itemSpacing (0–100, treated as a percent of font size), positionX/Y, outline, shadow, opacity, format (`dot | plain | hash | pad` → `1.` / `1` / `#1` / `01`), display (`stack` = all numbers, `page` = current only), pageStyle (`fraction` = `1 / N`, `number` = the format), showPreviousTitles, **titleHideAfter** (seconds; 0 = off — hides only the **current** clip title after that time in preview and export), sort (`list | reverse | title | titleDesc`). Style panel: master toggles stay visible; dependent controls hide when off (**Title** banner, **Ranking** numbers/titles, **Presets** number display, **Video** crossfade — same pattern as **Audio** keep-original). Export with **titleHideAfter** sends a second PNG per clip (`overlay-N-late.png`); FFmpeg switches overlays at that timestamp (`render.ts`).
 - Caption styles the clip title drawn beside the rank number. `caption.bottom` is stored and scaled on resolution change. The canvas does not read it.
-- Video: width, height, fps, scaleMode (`crop | fit | blur`), backgroundColor, transition (`cut | fade`), fadeDuration, keepAudio, normalize, originalVolume, musicVolume (0–1), encoder (`auto` default, same choices as Frame Screensaver).
+- Video: width, height, fps, scaleMode (`crop | fit | blur`), backgroundColor, transition (`cut | fade`), fadeDuration, keepAudio, normalize, originalVolume, musicVolume (0–1), encoder (`auto` default, same choices as Screensaver).
 - Presets: `classic | tier | minimal | custom`. Definitions and default video (1080×1920, 30 fps, crop, cut, fade 0.35, keep audio, normalize, music 0.35) are in `client/src/lib/presets.ts`. Fonts: Oswald, Anton, Bebas Neue, Montserrat, Inter.
 - Rank number colors default to the active color set. `null` on a clip means "use the ranking color". Title color `null` means "use the caption color".
 
@@ -194,12 +194,12 @@ Server `parseProject` requires 1–30 clips, UUID ids, 1080×1920 or 720×1280, 
 - Hard cut: `concat`. Crossfade: chained `xfade` / `acrossfade`. Fade offsets follow `shared/timeline.ts`.
 - Clip audio (when `keepAudio` and volume > 0): 48 kHz stereo, optional `loudnorm=I=-16:TP=-1.5:LRA=11`. Silent clips get `anullsrc` so concat stays aligned.
 - Music is trimmed to the sequence, faded in/out, then `amix` with clip audio.
-- Output is H.264 + AAC when any audio is present, `+faststart`, yuv420p. Encoder choice matches Frame Screensaver: Auto (default), CPU, or a verified hardware encoder via shared `server/src/encoders.ts` (`ranking_motion` benchmark workload). Auto retries on CPU with a job `warning` when hardware fails; an explicit unavailable encoder stops the job.
+- Output is H.264 + AAC when any audio is present, `+faststart`, yuv420p. Encoder choice matches Screensaver: Auto (default), CPU, or a verified hardware encoder via shared `server/src/encoders.ts` (`ranking_motion` benchmark workload). Auto retries on CPU with a job `warning` when hardware fails; an explicit unavailable encoder stops the job.
 - FFmpeg threading is adaptive (`server/src/ffmpegThreading.ts`): global/filter threads scale with CPU count (conservative under 8 GB RAM). Overrides: `VVR_FFMPEG_THREADS`, `VVR_FFMPEG_FILTER_THREADS`, `VVR_X264_THREADS`.
 - If normalize fails, retry without it. If a crossfade fails, retry as hard cuts. The job `warning` explains the fallback.
 - Verify with ffprobe: dimensions, duration near the expected length, and an audio stream when audio was requested. Download is refused until status is `done`.
 
-Progress on the client: overlays/upload are local; queued/preparing/rendering/verifying come from the job. Rendering maps ffmpeg time onto 20–95%. Ranking export shows the same encoder/speed/ETA fields as Frame Screensaver (`RankingExportDetails.vue`, job poll).
+Progress on the client: overlays/upload are local; queued/preparing/rendering/verifying come from the job. Rendering maps ffmpeg time onto 20–95%. Ranking export shows the same encoder/speed/ETA fields as Screensaver (`RankingExportDetails.vue`, job poll).
 
 ## HTTP
 
@@ -233,7 +233,7 @@ Unknown `/api` routes return 404 JSON. If `client/dist/index.html` exists, Expre
 
 `server/tmp/` (created on boot):
 
-- `clips/` and `registry.json` — uploaded sources for **both** Ranking and Frame Screensaver (same folder). Registry rows whose files are missing are dropped on load. Screensaver cleanup removes non-`ranking` clips and then deletes orphan files in `clips/` that are not in the registry.
+- `clips/` and `registry.json` — uploaded sources for **both** Ranking and Screensaver (same folder). Registry rows whose files are missing are dropped on load. Screensaver cleanup removes non-`ranking` clips and then deletes orphan files in `clips/` that are not in the registry.
 - `frames/` and `frames.json` — screensaver frame PNGs. They stay until deleted. The sweep does not remove them.
 - `incoming/` — Multer landing pad.
 - `jobs/<id>/` — overlays, composition PNG, and music for the active render. Removed when the job ends, on tab/window close, and on server boot. Leftovers from a crashed or restarted render do not wait for the 6-hour sweep.
@@ -298,9 +298,9 @@ Sweep every 10 minutes: outputs older than 2 hours, jobs and incoming older than
 - Do not download social video. `canDownload` is always false.
 - Do not write secrets into source. This app has no API keys.
 
-## Frame Screensaver
+## Screensaver
 
-Editor state is `useScreensaverStore` (`client/src/apps/frame-screensaver/stores/screensaver.ts`). Ranking state is untouched. Export uses the same queued multi-export pipeline as Ranking Videos (snapshot per click, shared `exportQueueRunner.ts`).
+Editor state is `useScreensaverStore` (`client/src/apps/frame-screensaver/stores/screensaver.ts`). Ranking state is untouched. Export uses the same queued multi-export pipeline as Shorts (snapshot per click, shared `exportQueueRunner.ts`). Defaults for new projects: **3840×2160 (4K)** output and **2 hours** duration (`DEFAULT_SCREENSAVER_OUTPUT`, `DEFAULT_DURATION_SECONDS` in `shared/screensaver.ts`).
 
 Saved projects are IndexedDB `screensaver/project` version 2. Version 1 loads with the old fit (contain, cover, blur) turned into a composition, profile `balanced`, encoder `auto`, and the saved frame rate left as it was. The original media blob is not rewritten. `clearRankingProject()` does not clear this store.
 
@@ -314,7 +314,7 @@ Adjustments (brightness, contrast, saturation, exposure, temperature, tint, high
 
 Profiles: Static Art (default 1 fps for a new image), Balanced (24 fps), High quality (CRF 16 or the matching hardware CQ), Animated (30 fps). The user can still pick 1, 24, 30, or 60 fps afterwards. CPU quality for Balanced and Static Art stays CRF 20, preset veryfast, the same band as the original screensaver encode. High uses CRF 16 and preset medium. Hardware maps are in `encoderArgs` (`server/src/encoders.ts`): NVENC VBR CQ, Quick Sync `global_quality`, AMF CQP, VideoToolbox `-q:v`, Media Foundation quality mode. `-hw_encoding true` is not set for Media Foundation; that flag failed format negotiation on the test machine.
 
-Encoder choice is Auto, CPU, or one listed hardware encoder (Ranking and Frame Screensaver). Auto runs timed encodes per workload (`still_*`, `motion_30fps`, `compose_motion`, `ranking_motion`), caches in `server/tmp/encoder-cache.json`, and picks hardware only when more than 8% faster than libx264. Set `VVR_ENCODER_BENCH=0` to skip cold benchmarks (Auto uses CPU). An explicit encoder that fails init or the real encode stops the job; Auto retries on CPU with a warning.
+Encoder choice is Auto, CPU, or one listed hardware encoder (Ranking and Screensaver). Auto runs timed encodes per workload (`still_*`, `motion_30fps`, `compose_motion`, `ranking_motion`), caches in `server/tmp/encoder-cache.json`, and picks hardware only when more than 8% faster than libx264. Set `VVR_ENCODER_BENCH=0` to skip cold benchmarks (Auto uses CPU). An explicit encoder that fails init or the real encode stops the job; Auto retries on CPU with a warning.
 
 Static images: the browser draws one full-resolution PNG and FFmpeg loops it at the chosen frame rate with no scale or color filters. Audio is a second input in that same process (loop, volume, fades). New image projects use Static Art at 1 fps. Saved version-1 projects keep 24 or 30.
 
@@ -365,7 +365,7 @@ The screen is a 16:9 preview plus Image, Resolution Badge, Duration Badge, and o
 
 Positions are nine presets, edge distance in export pixels, and X/Y offsets; anchor math converts to normalized coordinates so export matches the preview. Dragging a badge sets a free position and leaves it there. Choosing the same preset corner for both badges nudges the one just changed, unless the other badge was dragged there on purpose.
 
-Uploads are PNG, JPEG, or WebP. Cover, contain, zoom, and pan apply only when the image has no screensaver composition. A Frame Screensaver transfer copies the current image (or the existing still for a video), composition, frame PNG, output size, and duration. Ranking still opens the clip-image picker and can capture the current preview frame. Either transfer fills the resolution badge from the video's short side (snapped to a catalog resolution) and the duration badge to the nearest catalog duration (`30 MIN`, `1 HOUR`, `2 HOURS`, `8 HOURS`). An uploaded image does not imply a video resolution. If a picture is already open, the transfer asks Keep or Replace.
+Uploads are PNG, JPEG, or WebP. Cover, contain, zoom, and pan apply only when the image has no screensaver composition. A Screensaver transfer copies the current image (or the existing still for a video), composition, frame PNG, output size, and duration. Ranking still opens the clip-image picker and can capture the current preview frame. Either transfer fills the resolution badge from the video's short side (snapped to a catalog resolution) and the duration badge to the nearest catalog duration (`30 MIN`, `1 HOUR`, `2 HOURS`, `8 HOURS`). An uploaded image does not imply a video resolution. If a picture is already open, the transfer asks Keep or Replace.
 
 Export is 16:9 PNG or JPEG at 1280×720 (default), 1920×1080, or 3840×2160. JPEG has a quality slider. Download does not use FFmpeg.
 
@@ -374,10 +374,16 @@ Badge SVGs are committed under `client/src/assets/thumbnail-badges/` (catalog sl
 
 ## Changelog
 
+- 2026-11-01 — Release **v1.1.0** (`package.json`): Shorts/Screensaver naming, brand colors, favicon/launcher sync, Screensaver 4K + 2 h defaults.
+- 2026-11-01 — User-facing app name **Shorts** (was Ranking Videos); routes and code paths stay `ranking-videos` (`navigation.ts`, `router.ts`, `renderNotifications.ts`, docs).
+- 2026-11-01 — User-facing app name **Screensaver** (was Frame Screensaver); routes and code paths stay `frame-screensaver` (`navigation.ts`, `router.ts`, `renderNotifications.ts`, docs).
+- 2026-11-01 — Screensaver defaults: 3840×2160 output and 2 h duration (`DEFAULT_SCREENSAVER_OUTPUT`, `DEFAULT_DURATION_*`, `stores/screensaver.ts`).
+- 2026-11-01 — Brand accent `#0078f8` sampled from `client/public/logo.png`; replaces gold UI accent via Tailwind `brand` tokens and `client/src/lib/brand.ts` (`style.css`, layout, buttons, timeline, notifications, canvas guides).
+- 2026-11-01 — Favicon pack in `client/public/` (PNG sizes, `site.webmanifest`, `index.html` links); launcher build always syncs `favicon.ico` → `launcher/icon.ico` when content differs (`launcher/build.mjs`, `client/index.html`).
 - 2026-10-31 — Root `README.md` documents three apps, bundled frames, Thumbnail Studio, production URLs, launcher, and `frames:thumbs` script.
-- 2026-10-29 — Frame Screensaver **New project** and source removal clear the preview canvas (WebGL empty-source path, stale media load guard, `EditorCanvas.vue`).
+- 2026-10-29 — Screensaver **New project** and source removal clear the preview canvas (WebGL empty-source path, stale media load guard, `EditorCanvas.vue`).
 - 2026-10-29 — Per-job **Cancel** on in-progress render notifications (`AppNotifications.vue`, `renderJobTracking.ts`, `platform.ts`).
-- 2026-10-29 — Queued multi-export for Ranking Videos and Frame Screensaver: snapshot on each click, shared prep queue, up to 12 jobs per app, header notifications per job (`exportQueueRunner.ts`, `managedExportJobs.ts`, ranking/screensaver stores, export buttons).
+- 2026-10-29 — Queued multi-export for Shorts and Screensaver: snapshot on each click, shared prep queue, up to 12 jobs per app, header notifications per job (`exportQueueRunner.ts`, `managedExportJobs.ts`, ranking/screensaver stores, export buttons).
 - 2026-10-29 — Hostinger deploy archive excludes `launcher/` and all `*.exe` (e.g. root `Video Factory.exe`; Hostinger deploy skill).
 - 2026-10-29 — Live deploy to `videos.ibrahimbilal.com` via SSH `scp` + Hostinger archive Node.js build (commit `87c3d98`).
 - 2026-10-29 — Ranking **Hide clip title after a while** (`ranking.titleHideAfter`); dual export overlays + FFmpeg timed switch (`format.ts`, `exportJob.ts`, `render.ts`, `StylePanel.vue`).
@@ -388,14 +394,14 @@ Badge SVGs are committed under `client/src/assets/thumbnail-badges/` (catalog sl
 - 2026-10-29 — Remove browser desktop notifications for render-ready; in-app header notifications only (`renderNotifications.ts`, `project.ts`, `screensaver.ts`).
 - 2026-10-29 — Replace Node SEA launcher with native C# `Video Factory.exe` (`launcher/`, `npm run build:launcher`).
 - 2026-10-29 — Full page reload clears header render queues and export-in-progress UI; bfcache restore clears queues too (`renderQueueBootstrap.ts`, `platform.ts`, ranking/screensaver `init`).
-- 2026-10-29 — Ranking and Frame Screensaver export status sidebars start collapsed (`RankingExportDetails.vue`, `ScreensaverExportDetails.vue`).
+- 2026-10-29 — Ranking and Screensaver export status sidebars start collapsed (`RankingExportDetails.vue`, `ScreensaverExportDetails.vue`).
 - 2026-10-29 — Header notifications: in-progress renders with per-item progress, aggregate ring around operation count, ready downloads (`AppNotifications.vue`, `platform.ts`, `renderJobTracking.ts`).
 - 2026-10-29 — Header notification bell and panel (render-ready items with download/open) left of renderer status (`AppNotifications.vue`, `platform.ts`, `AppHeader.vue`).
-- 2026-10-29 — Render-ready in-app notifications and optional browser notifications for Ranking Videos and Frame Screensaver; launcher exe icon from favicon; Frame Screensaver mobile Settings/Preview tabs and preview layout (`renderNotifications.ts`, `build-launcher.mjs`, `FrameScreensaverView.vue`, `EditorCanvas.vue`).
+- 2026-10-29 — Render-ready in-app notifications and optional browser notifications for Shorts and Screensaver; launcher exe icon from favicon; Screensaver mobile Settings/Preview tabs and preview layout (`renderNotifications.ts`, `build-launcher.mjs`, `FrameScreensaverView.vue`, `EditorCanvas.vue`).
 - 2026-10-29 — Thumbnail resolution badge defaults to top-left (`thumbnailProject.ts`).
-- 2026-10-29 — Frame Screensaver preview draws a dashed export-frame outline (dims outside when view zoom/pan changes) (`EditorCanvas.vue`).
-- 2026-10-29 — Frame Screensaver desktop preview fits the center column height (16:9 letterboxed) so export and **Create Thumbnail** stay visible without scrolling (`FrameScreensaverView.vue`, `EditorCanvas.vue`).
-- 2026-10-29 — **New project** in the platform header for Ranking Videos, Frame Screensaver, and Thumbnail Studio (`AppHeader.vue`, `stores/screensaver.ts`, `stores/thumbnail.ts`, `idb.ts`).
+- 2026-10-29 — Screensaver preview draws a dashed export-frame outline (dims outside when view zoom/pan changes) (`EditorCanvas.vue`).
+- 2026-10-29 — Screensaver desktop preview fits the center column height (16:9 letterboxed) so export and **Create Thumbnail** stay visible without scrolling (`FrameScreensaverView.vue`, `EditorCanvas.vue`).
+- 2026-10-29 — **New project** in the platform header for Shorts, Screensaver, and Thumbnail Studio (`AppHeader.vue`, `stores/screensaver.ts`, `stores/thumbnail.ts`, `idb.ts`).
 - 2026-10-28 — Thumbnail Studio resets to a fresh document on full page load; persisted `document` is cleared and asset refs released (`stores/thumbnail.ts`).
 - 2026-10-28 — Thumbnail badge anchors align to the chip box using separate SVG padX/padY (`ThumbnailBadge.vue`, `rasterizeBadge.ts`, `renderThumbnail.ts`).
 - 2026-10-28 — Re-enable thumbnail badge drag on the preview (`ThumbnailBadge.vue`).
@@ -409,7 +415,7 @@ Badge SVGs are committed under `client/src/assets/thumbnail-badges/` (catalog sl
 - 2026-10-28 — Add a silver chip badge style (`badgeHtml.ts`, `thumbnailProject.ts`, `rasterizeBadge.ts`).
 - 2026-10-28 — Remove Mono and Line badge styles; six styles remain (`thumbnailProject.ts`, `badgeHtml.ts`).
 - 2026-10-31 — Bundled frame picker uses 150px thumbs in `assets/frames/thumbs/`; canvas and export keep full PNGs (`generate-frame-thumbs.mjs`, `defaultFrames.ts`, `ScreensaverSettingsPanel.vue`).
-- 2026-10-31 — Frame Screensaver shows bundled PNG frames from `client/src/assets/frames/` above upload; preview, thumbnail transfer, and video export resolve `default:*` ids (`defaultFrames.ts`, `screensaverFrames.ts`, `ScreensaverSettingsPanel.vue`, `stores/screensaver.ts`, `server/src/index.ts`).
+- 2026-10-31 — Screensaver shows bundled PNG frames from `client/src/assets/frames/` above upload; preview, thumbnail transfer, and video export resolve `default:*` ids (`defaultFrames.ts`, `screensaverFrames.ts`, `ScreensaverSettingsPanel.vue`, `stores/screensaver.ts`, `server/src/index.ts`).
 - 2026-10-28 — Chip badges show a number and one letter: `4K` for resolution and `8H` for duration (`badgeHtml.ts`, `thumbnailProject.ts`).
 - 2026-10-28 — Thumbnail badge markup is sized in pixels and resized with CSS scale (`badgeHtml.ts`).
 - 2026-10-27 — Thumbnail badges share a size slider from 40% to 200% (`ThumbnailControls.vue`, `thumbnailProject.ts`).
@@ -418,38 +424,38 @@ Badge SVGs are committed under `client/src/assets/thumbnail-badges/` (catalog sl
 - 2026-10-27 — Simplify Thumbnail Studio to one image and two badges: drop layers, templates, catalogs, and ZIP; keep screensaver and ranking transfer (`client/src/apps/thumbnail-studio/`, `shared/thumbnailProject.ts`, `shared/thumbnailTransfer.ts`, `shared/thumbnailLayout.ts`).
 - 2026-10-27 — Add Thumbnail Studio: route, editor, IndexedDB v3 assets, screensaver and ranking transfer, PNG/JPEG/WebP and ZIP export (`client/src/apps/thumbnail-studio/`, `shared/thumbnail*.ts`, `client/src/lib/idb.ts`).
 - 2026-10-27 — Boolean settings use shared toggle switches instead of checkboxes (`ToggleSwitch.vue`, `style.css`, ranking/style/audio/thumbnail/screensaver UI).
-- 2026-10-27 — Fix Frame Screensaver frame upload (`FileDropZone` import in `ScreensaverSettingsPanel.vue`).
+- 2026-10-27 — Fix Screensaver frame upload (`FileDropZone` import in `ScreensaverSettingsPanel.vue`).
 - 2026-10-27 — Shared advanced audio UI (`components/audio/`); ranking background music fade in/out on export (`VideoStyle`, `render.ts`).
-- 2026-10-27 — Frame Screensaver full page reload clears cached background audio and resets audio to No audio (`idb.ts`, `stores/screensaver.ts`).
+- 2026-10-27 — Screensaver full page reload clears cached background audio and resets audio to No audio (`idb.ts`, `stores/screensaver.ts`).
 - 2026-10-27 — Tab close and server boot purge leftover `jobs/` work dirs; only queued/encoding jobs are kept (`storage.ts`, `jobs.ts`, `index.ts`).
-- 2026-10-27 — Frame Screensaver export no longer stays blocked after a background audio file is chosen (`stores/screensaver.ts`).
+- 2026-10-27 — Screensaver export no longer stays blocked after a background audio file is chosen (`stores/screensaver.ts`).
 - 2026-10-27 — Shared `FileDropZone` for all file uploads (screensaver audio/media/frames, ranking clips/music/replace).
-- 2026-10-27 — Frame Screensaver duration floor temporarily 5 minutes for local export testing (`shared/screensaver.ts`, settings min, server parse).
+- 2026-10-27 — Screensaver duration floor temporarily 5 minutes for local export testing (`shared/screensaver.ts`, settings min, server parse).
 - 2026-10-25 — Ranking layout: New project beside app title in `AppHeader`; export status column right of the style sidebar (`RankingVideosView.vue`, `AppHeader.vue`).
 - 2026-10-25 — Shared render optimization: adaptive FFmpeg threading (`ffmpegThreading.ts`), ranking encoder Auto/CPU/HW via `encoders.ts`, `GET /api/encoders`, ranking Style panel + export diagnostics, bench/test scripts, `docs/render-benchmark-report.md` (`server/src/render.ts`, `client` ranking UI, `server/scripts/`).
 - 2026-10-27 — Windows launcher spawns dev via `cmd.exe /c npm run dev` (fixes Node 24 `spawn EINVAL` on `npm.cmd`) (`scripts/launch-dev.cjs`).
 - 2026-10-27 — Windows dev launcher script and optional `dist/VVR-Dev.exe` build (`scripts/launch-dev.cjs`, `npm run launch`, `npm run build:launcher`, root `package.json`).
 - 2026-10-25 — Upgrade `multer` to 2.5.0 (CVE-2026-113872); root `overrides` pin (`package.json`, `server/package.json`).
-- 2026-10-25 — Frame Screensaver export progress stats in a collapsible right sidebar (toggle rail, not accordion) (`ScreensaverExportDetails.vue`, `FrameScreensaverView.vue`).
-- 2026-10-25 — Frame Screensaver auto-applies the latest frame PNG after upload (`stores/screensaver.ts`).
-- 2026-10-25 — Frame Screensaver: full page reload clears IndexedDB main-media preview cache and selected frame; reverted active-frame IDB persistence (`client/src/lib/idb.ts`, `stores/screensaver.ts`).
-- 2026-10-25 — Frame Screensaver Output settings: preview rendering selector (Auto / GPU / CPU) with active backend label (`ScreensaverSettingsPanel.vue`, `previewRendererPreference.ts`, `stores/screensaver.ts`).
-- 2026-10-25 — Frame Screensaver export frame rate options include 60 fps (`shared/screensaver.ts`, `server/src/index.ts`).
-- 2026-10-25 — Frame Screensaver: WebGL context restore + Canvas2D fallback on failed restore; adjust pipeline doc; CPU/FFmpeg visual SSIM tests; richer encoder bench workloads; compose CPU bench script and performance report (`shared/screensaverAdjustPipeline.md`, `server/scripts/visual-screensaver-adjust.ts`, `server/scripts/bench-screensaver-compose.ts`, `docs/screensaver-performance-report.md`, `server/src/encoders.ts`).
-- 2026-10-25 — Frame Screensaver: WebGL2 preview renderer with Canvas 2D fallback, rAF draw scheduling, 4K export compose worker, developer diagnostics panel (`client/src/apps/frame-screensaver/`, `shared/screensaverAdjustUniforms.ts`, `docs/screensaver-performance-baseline.md`).
+- 2026-10-25 — Screensaver export progress stats in a collapsible right sidebar (toggle rail, not accordion) (`ScreensaverExportDetails.vue`, `FrameScreensaverView.vue`).
+- 2026-10-25 — Screensaver auto-applies the latest frame PNG after upload (`stores/screensaver.ts`).
+- 2026-10-25 — Screensaver: full page reload clears IndexedDB main-media preview cache and selected frame; reverted active-frame IDB persistence (`client/src/lib/idb.ts`, `stores/screensaver.ts`).
+- 2026-10-25 — Screensaver Output settings: preview rendering selector (Auto / GPU / CPU) with active backend label (`ScreensaverSettingsPanel.vue`, `previewRendererPreference.ts`, `stores/screensaver.ts`).
+- 2026-10-25 — Screensaver export frame rate options include 60 fps (`shared/screensaver.ts`, `server/src/index.ts`).
+- 2026-10-25 — Screensaver: WebGL context restore + Canvas2D fallback on failed restore; adjust pipeline doc; CPU/FFmpeg visual SSIM tests; richer encoder bench workloads; compose CPU bench script and performance report (`shared/screensaverAdjustPipeline.md`, `server/scripts/visual-screensaver-adjust.ts`, `server/scripts/bench-screensaver-compose.ts`, `docs/screensaver-performance-report.md`, `server/src/encoders.ts`).
+- 2026-10-25 — Screensaver: WebGL2 preview renderer with Canvas 2D fallback, rAF draw scheduling, 4K export compose worker, developer diagnostics panel (`client/src/apps/frame-screensaver/`, `shared/screensaverAdjustUniforms.ts`, `docs/screensaver-performance-baseline.md`).
 - 2026-10-24 — Server upload purge runs only on tab/window close, not when downloading an export (`client/src/stores/project.ts`, `client/src/apps/frame-screensaver/stores/screensaver.ts`).
 - 2026-10-24 — Root `overrides` pin `body-parser` 2.4.0 (Express transitive dep; Hostinger CVE advisory) (`package.json`, `package-lock.json`).
-- 2026-10-24 — Ranking export download and tab close use the same `POST /api/uploads/cleanup` purge as Frame Screensaver (`client/src/lib/serverUploadCleanup.ts`, `client/src/stores/project.ts`).
+- 2026-10-24 — Ranking export download and tab close use the same `POST /api/uploads/cleanup` purge as Screensaver (`client/src/lib/serverUploadCleanup.ts`, `client/src/stores/project.ts`).
 - 2026-10-24 — Screensaver upload cleanup also removes all non-busy clips, export MP4s in `outputs/`, and orphan clip files (`server/src/storage.ts`, `server/src/jobs.ts`, `server/src/index.ts`).
 - 2026-10-24 — Screensaver upload cleanup also deletes orphan files in `server/tmp/clips/` that are no longer in `registry.json` (`server/src/storage.ts`).
-- 2026-10-24 — Frame Screensaver server cleanup purges all frame PNGs and all non-ranking clips (including leftovers from earlier sessions); clips are tagged `origin` on upload (`server/src/storage.ts`, `server/src/frames.ts`, `server/src/index.ts`, `client/src/lib/api.ts`, `client/src/apps/frame-screensaver/stores/screensaver.ts`).
-- 2026-10-23 — Frame Screensaver Frames section uploads PNG files, stores them on the server, and previews them in a grid. The preset dropdown is gone.
+- 2026-10-24 — Screensaver server cleanup purges all frame PNGs and all non-ranking clips (including leftovers from earlier sessions); clips are tagged `origin` on upload (`server/src/storage.ts`, `server/src/frames.ts`, `server/src/index.ts`, `client/src/lib/api.ts`, `client/src/apps/frame-screensaver/stores/screensaver.ts`).
+- 2026-10-23 — Screensaver Frames section uploads PNG files, stores them on the server, and previews them in a grid. The preset dropdown is gone.
 - 2026-10-23 — Production also deployed at `videos.ibrahimbilal.com`; Hostinger deploy reference lists both domains.
-- 2026-10-22 — Frame Screensaver adjustment controls use icons for reset, reset all, and before/after. Names stay on the tooltips.
-- 2026-10-22 — Frame Screensaver canvas toolbar uses icons for zoom, fit, center, crop, undo, and playback. Names stay on the button tooltips.
-- 2026-10-22 — Frame Screensaver: canvas editor (crop, transform, adjustments, procedural frames), 1 fps stills, precomposed PNG encode, hardware-encoder probe with CPU fallback, stream-copy loops, export diagnostics. Ranking encode is unchanged.
-- 2026-10-22 — Frame Screensaver media panel matches Ranking drag-and-drop upload styling and behavior.
-- 2026-10-22 — Multi-app **Video's Factory**: vue-router shell, Dashboard, Frame Screensaver app, IDB v2 ranking migration, screensaver API/render, shared job queue.
+- 2026-10-22 — Screensaver adjustment controls use icons for reset, reset all, and before/after. Names stay on the tooltips.
+- 2026-10-22 — Screensaver canvas toolbar uses icons for zoom, fit, center, crop, undo, and playback. Names stay on the button tooltips.
+- 2026-10-22 — Screensaver: canvas editor (crop, transform, adjustments, procedural frames), 1 fps stills, precomposed PNG encode, hardware-encoder probe with CPU fallback, stream-copy loops, export diagnostics. Ranking encode is unchanged.
+- 2026-10-22 — Screensaver media panel matches Ranking drag-and-drop upload styling and behavior.
+- 2026-10-22 — Multi-app **Video's Factory**: vue-router shell, Dashboard, Screensaver app, IDB v2 ranking migration, screensaver API/render, shared job queue.
 - 2026-10-22 — Documented Hostinger production URL and added `hostinger-vvr-deploy` skill for archive-based redeploys.
 - 2026-10-22 — Timeline uses one export button (progress fill, hover-to-cancel, download when ready); project edits after export clear the ready state.
 - 2026-10-22 — Ranking overlay keeps list order when sort is “As listed”; `playAtEnd` affects playback only, not stack position.

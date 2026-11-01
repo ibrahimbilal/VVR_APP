@@ -228,7 +228,7 @@ function setTitleHideAfterEnabled(enabled: boolean) {
           <div class="flex flex-wrap gap-2">
             <template v-for="(span, index) in store.spans" :key="span.id">
               <span v-if="span.breakBefore" class="basis-full"></span>
-              <div class="chip cursor-pointer" :class="activeWord?.id === span.id ? 'ring-2 ring-amber-300' : ''" @click="wordIndex = index">
+              <div class="chip cursor-pointer" :class="activeWord?.id === span.id ? 'ring-2 ring-brand' : ''" @click="wordIndex = index">
                 <span>{{ span.text }}</span>
                 <input
                   type="color"

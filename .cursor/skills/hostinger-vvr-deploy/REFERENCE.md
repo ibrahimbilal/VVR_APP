@@ -2,7 +2,7 @@
 
 | Field | Value |
 | --- | --- |
-| Domains | `videos.ibrahimbilal.com` (current), `vvr.ibrahimbilal.com` (legacy) |
+| Domains | `videos.ibrahimbilal.com` (current) |
 | Hosting username | `u841849106` (same account; each domain has its own `public_html`) |
 | Site type | Node.js (`website_type: nodejs` after first deploy) |
 | Public URL | `https://videos.ibrahimbilal.com` |

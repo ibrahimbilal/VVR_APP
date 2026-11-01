@@ -1,4 +1,4 @@
-# Frame Screensaver preview performance baseline
+# Screensaver preview performance baseline
 
 Measurements use the in-app diagnostics panel (`?screensaver_diag=1` or `localStorage.vvr-screensaver-diagnostics=1`) for **browser preview FPS**. CPU placement bake times use `npm run bench:screensaver-compose` (Node, same math as Canvas 2D bake).
 

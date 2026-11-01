@@ -24,6 +24,7 @@ import { createCanvas2DScreensaverRenderer, createScreensaverRenderer } from '..
 import { createWebGL2ScreensaverRenderer } from '../lib/render/createWebGL2ScreensaverRenderer'
 import type { ScreensaverImageRenderer, ScreensaverRenderInput } from '../lib/render/types'
 import { useScreensaverStore } from '../stores/screensaver'
+import { BRAND } from '../../../lib/brand'
 
 const store = useScreensaverStore()
 const { previewRenderer } = storeToRefs(store)
@@ -320,14 +321,14 @@ function drawCrop(ctx: CanvasRenderingContext2D, element: HTMLCanvasElement) {
   ctx.clearRect(rect.x, rect.y, rect.w, rect.h)
   if (media.value) ctx.drawImage(media.value, box.x, box.y, box.w, box.h)
   ctx.restore()
-  ctx.strokeStyle = '#ffcc33'
+  ctx.strokeStyle = BRAND
   ctx.lineWidth = 2
   ctx.strokeRect(rect.x, rect.y, rect.w, rect.h)
 }
 
 function drawHandles(ctx: CanvasRenderingContext2D, element: HTMLCanvasElement) {
   const corners = imageCorners().map((point) => forward(point.x, point.y, element))
-  ctx.strokeStyle = '#ffcc33'
+  ctx.strokeStyle = BRAND
   ctx.lineWidth = 2
   ctx.beginPath()
   corners.forEach((point, index) => (index === 0 ? ctx.moveTo(point.x, point.y) : ctx.lineTo(point.x, point.y)))
@@ -335,7 +336,7 @@ function drawHandles(ctx: CanvasRenderingContext2D, element: HTMLCanvasElement) 
   ctx.stroke()
   for (const point of corners) {
     ctx.fillStyle = '#101114'
-    ctx.strokeStyle = '#ffcc33'
+    ctx.strokeStyle = BRAND
     ctx.fillRect(point.x - 6, point.y - 6, 12, 12)
     ctx.strokeRect(point.x - 6, point.y - 6, 12, 12)
   }
@@ -347,7 +348,7 @@ function drawHandles(ctx: CanvasRenderingContext2D, element: HTMLCanvasElement) 
   ctx.stroke()
   ctx.beginPath()
   ctx.arc(knob.x, knob.y, 7, 0, Math.PI * 2)
-  ctx.fillStyle = '#ffcc33'
+  ctx.fillStyle = BRAND
   ctx.fill()
 }
 

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Film, X } from '@lucide/vue'
+import { X } from '@lucide/vue'
 import { onMounted, onUnmounted, ref, watch } from 'vue'
 import { RouterLink, useRoute } from 'vue-router'
 import { navItems } from '../../app/navigation'
@@ -74,8 +74,8 @@ function onNavigate() {
       >
         <div class="flex h-14 items-center justify-between border-b border-zinc-800 px-4">
           <div class="flex items-center gap-2">
-            <span class="grid h-8 w-8 place-items-center rounded-sm bg-amber-300 text-black">
-              <Film :size="16" />
+            <span class="grid h-8 w-8 shrink-0 place-items-center rounded-sm">
+              <img src="/logo.png" alt="Video's Factory" class="h-8 w-8 object-contain" />
             </span>
             <span class="text-sm font-black tracking-[0.06em]">Video's Factory</span>
           </div>
@@ -91,7 +91,7 @@ function onNavigate() {
             class="flex items-center gap-3 rounded-md px-3 py-2.5 text-sm font-semibold transition-colors"
             :class="
               isActive(item.path)
-                ? 'bg-amber-300/15 text-amber-300'
+                ? 'bg-brand/15 text-brand'
                 : 'text-zinc-400 hover:bg-zinc-800/80 hover:text-zinc-100'
             "
             @click="onNavigate"

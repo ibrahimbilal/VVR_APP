@@ -89,7 +89,7 @@ function openPicker() {
     <button
       class="flex w-full cursor-pointer flex-col items-center gap-1 rounded-lg border border-dashed px-3 text-sm font-semibold transition-shadow disabled:cursor-wait disabled:opacity-60"
       :class="[
-        active ? 'border-amber-300 bg-amber-300/10 text-amber-100' : 'border-zinc-600 bg-[#101114] text-zinc-100',
+        active ? 'border-brand bg-brand/10 text-sky-100' : 'border-zinc-600 bg-[#101114] text-zinc-100',
         compact ? 'py-4' : 'py-8',
       ]"
       type="button"

@@ -1,4 +1,5 @@
 import { execFileSync, spawnSync } from 'node:child_process'
+import crypto from 'node:crypto'
 import fs from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -31,16 +32,24 @@ function findDotnet() {
   return null
 }
 
+function fileHash(filePath) {
+  return crypto.createHash('sha256').update(fs.readFileSync(filePath)).digest('hex')
+}
+
+/** `client/public/favicon.ico` is the source of truth for web + launcher exe icon. */
 function ensureIcon() {
-  if (fs.existsSync(iconPath)) return
   if (fs.existsSync(faviconIco)) {
-    fs.copyFileSync(faviconIco, iconPath)
-    console.log('[build:launcher] Copied client/public/favicon.ico → launcher/icon.ico')
+    const needsCopy = !fs.existsSync(iconPath) || fileHash(faviconIco) !== fileHash(iconPath)
+    if (needsCopy) {
+      fs.copyFileSync(faviconIco, iconPath)
+      console.log('[build:launcher] Synced client/public/favicon.ico → launcher/icon.ico')
+    }
     return
   }
+  if (fs.existsSync(iconPath)) return
   console.warn(
     '[build:launcher] No launcher/icon.ico — build without embedded icon.\n' +
-      '  Add launcher/icon.ico (or client/public/favicon.ico) and rebuild.',
+      '  Add client/public/favicon.ico (or launcher/icon.ico) and rebuild.',
   )
 }
 

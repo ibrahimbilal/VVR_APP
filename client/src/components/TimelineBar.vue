@@ -3,6 +3,7 @@ import { computed } from 'vue'
 import ExportActionButton from './ExportActionButton.vue'
 import { usePlayback } from '../composables/usePlayback'
 import { formatClock } from '../lib/format'
+import { BRAND_SURFACE } from '../lib/brand'
 import { useProjectStore } from '../stores/project'
 
 const store = useProjectStore()
@@ -57,7 +58,7 @@ function selectBlock(id: string, index: number) {
           :style="{
             left: `calc(${block.left}% + 2px)`,
             width: `calc(${Math.max(block.width, 0)}% - 4px)`,
-            background: block.selected ? '#3f3718' : '#262a31',
+            background: block.selected ? BRAND_SURFACE : '#262a31',
           }"
           type="button"
           @click.stop="selectBlock(block.id, block.index)"
@@ -65,7 +66,7 @@ function selectBlock(id: string, index: number) {
           <span class="truncate text-zinc-100">{{ block.index + 1 }}. {{ block.title }}</span>
           <span class="ml-auto hidden shrink-0 pl-2 tabular-nums text-zinc-400 sm:inline">{{ formatClock(block.duration) }}</span>
         </button>
-        <span class="pointer-events-none absolute inset-y-0 w-0.5 bg-amber-300" :style="{ left: `${playheadLeft}%` }"></span>
+        <span class="pointer-events-none absolute inset-y-0 w-0.5 bg-brand" :style="{ left: `${playheadLeft}%` }"></span>
       </div>
       <div class="w-44 shrink-0 sm:w-52">
         <ExportActionButton />

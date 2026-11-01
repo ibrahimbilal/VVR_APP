@@ -74,7 +74,7 @@ function onExportSize(event: Event): void {
           @files="onFiles"
         />
         <p v-if="store.hasComposition" class="text-xs leading-5 text-zinc-400">
-          Frame Screensaver crop, placement, and frame are already in this image.
+          Screensaver crop, placement, and frame are already in this image.
         </p>
         <template v-else>
           <div class="grid grid-cols-2 gap-2">
@@ -101,7 +101,7 @@ function onExportSize(event: Event): void {
           <button class="btn btn-ghost cursor-pointer" type="button" @click="store.resetCrop()">Reset image</button>
         </template>
         <button v-if="store.doc.source.app === 'frame-screensaver'" class="btn btn-ghost w-full cursor-pointer" type="button" @click="updateFromScreensaver">
-          Update from Frame Screensaver
+          Update from Screensaver
         </button>
       </section>
 
@@ -186,7 +186,7 @@ function onExportSize(event: Event): void {
             v-for="style in BADGE_STYLES"
             :key="style.id"
             class="flex cursor-pointer items-center justify-center rounded-md p-2"
-            :class="sharedStyle === style.id ? 'bg-zinc-800 ring-2 ring-amber-300' : 'hover:bg-zinc-900'"
+            :class="sharedStyle === style.id ? 'bg-zinc-800 ring-2 ring-brand' : 'hover:bg-zinc-900'"
             type="button"
             :aria-label="style.label"
             :aria-pressed="sharedStyle === style.id"

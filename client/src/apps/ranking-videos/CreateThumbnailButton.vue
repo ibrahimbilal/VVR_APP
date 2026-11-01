@@ -69,7 +69,7 @@ async function useBlob(blob: Blob): Promise<void> {
           <button
             v-for="clip in choices"
             :key="clip.id"
-            class="cursor-pointer rounded border border-zinc-800 p-2 text-left hover:border-amber-300"
+            class="cursor-pointer rounded border border-zinc-800 p-2 text-left hover:border-brand"
             type="button"
             :disabled="busy"
             @click="useClip(clip.thumbnail!)"

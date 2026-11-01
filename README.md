@@ -2,13 +2,13 @@
 
 A local web platform for video production. It hosts independent editor apps in one shell:
 
-- **Ranking Videos** — 9:16 ranking and compilation videos (the original VVR editor).
-- **Frame Screensaver** — long-form 16:9 ambient videos from a single image or looping video clip.
-- **Thumbnail Studio** — browser-only YouTube thumbnails: upload an image or pull one from Ranking Videos or Frame Screensaver, place resolution and duration badges, download PNG or JPEG (no FFmpeg).
+- **Shorts** — 9:16 ranking and compilation videos (the original VVR editor).
+- **Screensaver** — long-form 16:9 ambient videos from a single image or looping video clip.
+- **Thumbnail Studio** — browser-only YouTube thumbnails: upload an image or pull one from Shorts or Screensaver, place resolution and duration badges, download PNG or JPEG (no FFmpeg).
 
 There are no accounts and no cloud project storage. The Vue client talks to an Express renderer with bundled FFmpeg. Thumbnail Studio runs entirely in the browser.
 
-Production: [https://videos.ibrahimbilal.com](https://videos.ibrahimbilal.com) (also [https://vvr.ibrahimbilal.com](https://vvr.ibrahimbilal.com)). Deploy steps: `.cursor/skills/hostinger-vvr-deploy/SKILL.md`.
+Production: [https://videos.ibrahimbilal.com](https://videos.ibrahimbilal.com). Deploy steps: `.cursor/skills/hostinger-vvr-deploy/SKILL.md`.
 
 ## Requirements
 
@@ -41,7 +41,7 @@ On Windows, `npm run launch` starts the same dev stack and opens the browser onc
 | `npm run test:screensaver` | Short static-image screensaver render + ffprobe check |
 | `npm run test:ranking` | Two-clip ranking render + ffprobe check |
 | `npm run test:thumbnail` | Thumbnail document contract tests |
-| `npm run frames:thumbs -w client` | Regenerate 150px Frame Screensaver picker thumbs after editing `client/src/assets/frames/*.png` |
+| `npm run frames:thumbs -w client` | Regenerate 150px Screensaver picker thumbs after editing `client/src/assets/frames/*.png` |
 
 More scripts (benchmarks, visual tests) are listed in `.cursor/skills/vvr-project/PROJECT.md`.
 
@@ -52,7 +52,7 @@ client/src/
   App.vue                 Platform shell (sidebar, header, notifications, toasts)
   app/router.ts           Routes: /, /ranking-videos, /frame-screensaver, /thumbnail-studio
   apps/ranking-videos/    Ranking editor view + components
-  apps/frame-screensaver/ Frame Screensaver editor
+  apps/frame-screensaver/ Screensaver editor
   apps/thumbnail-studio/  Thumbnail editor (canvas + badge SVGs)
   stores/platform.ts      Renderer health, global toasts, navigation UI
   stores/project.ts       Ranking project state
@@ -70,7 +70,7 @@ shared/
 ### Routes
 
 - `/` — Dashboard with app cards
-- `/ranking-videos` — Ranking editor
+- `/ranking-videos` — Shorts editor
 - `/frame-screensaver` — Screensaver editor
 - `/thumbnail-studio` — Thumbnail editor
 
@@ -78,13 +78,13 @@ Direct URLs and refresh work in production; Express serves `client/dist` with SP
 
 ### Persistence
 
-- **Ranking** — IndexedDB `vvr` v2, key `meta/ranking-videos` (migrated from legacy `meta/current`). Clip files and music unchanged.
-- **Frame Screensaver** — IndexedDB `screensaver` store (`project`, `source`, `audio`). Ranking “New project” does not clear screensaver data.
+- **Shorts** — IndexedDB `vvr` v2, key `meta/ranking-videos` (migrated from legacy `meta/current`). Clip files and music unchanged.
+- **Screensaver** — IndexedDB `screensaver` store (`project`, `source`, `audio`). Shorts **New project** does not clear screensaver data.
 - **Thumbnail Studio** — In-memory while you navigate inside the app; a full page reload resets to defaults.
 
 ### Rendering
 
-One FFmpeg job runs at a time globally. Ranking and Frame Screensaver share `GET/POST /api/jobs/:id` for progress, cancel, and download. Each app can queue up to 12 exports; finished jobs also appear in the header notification panel.
+One FFmpeg job runs at a time globally. Shorts and Screensaver share `GET/POST /api/jobs/:id` for progress, cancel, and download. Each app can queue up to 12 exports; finished jobs also appear in the header notification panel.
 
 Screensaver limits (also enforced on the server):
 
@@ -92,11 +92,11 @@ Screensaver limits (also enforced on the server):
 - Duration: 30 minutes to 10 hours (presets or custom minutes in the UI)
 - Source: one image (static) or one video (loop); optional background audio
 
-## Ranking Videos
+## Shorts
 
 Upload clips (or link titles only), order and trim, style banner and ranks, preview, export MP4. Queue multiple exports from one project; the server encodes one job at a time. See `.cursor/skills/vvr-project/PROJECT.md` for file-level detail.
 
-## Frame Screensaver
+## Screensaver
 
 1. Upload a JPG, PNG, WebP, MP4, MOV, or WebM file.
 2. Place the image on the canvas: drag, scale from the corners, rotate, and crop. The original file is kept. Fit, fill, and center change the export. The zoom slider only changes the view.
@@ -112,7 +112,7 @@ Long 4K exports can still take a long time. The size estimate is an extrapolatio
 
 ## Thumbnail Studio
 
-1. Open an image (PNG, JPEG, or WebP) or use **Create Thumbnail** from Frame Screensaver or a still from Ranking Videos.
+1. Open an image (PNG, JPEG, or WebP) or use **Create Thumbnail** from Screensaver or a still from Shorts.
 2. Toggle resolution and duration badges, pick catalog labels, style, size, and position (drag or presets).
 3. **Download Thumbnail** as PNG or JPEG at 720p, 1080p, or 4K. No server render.
 

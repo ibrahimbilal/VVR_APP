@@ -17,13 +17,13 @@ export const router = createRouter({
       path: '/ranking-videos',
       name: 'ranking-videos',
       component: RankingVideosView,
-      meta: { title: 'Ranking Videos' },
+      meta: { title: 'Shorts' },
     },
     {
       path: '/frame-screensaver',
       name: 'frame-screensaver',
       component: FrameScreensaverView,
-      meta: { title: 'Frame Screensaver' },
+      meta: { title: 'Screensaver' },
     },
     {
       path: '/thumbnail-studio',

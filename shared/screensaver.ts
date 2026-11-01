@@ -4,6 +4,11 @@ export const SCREENSAVER_OUTPUTS = [
   { width: 3840, height: 2160, label: '3840 × 2160 (4K UHD)' },
 ] as const
 
+/** Default output for new / reset Screensaver projects. */
+export const DEFAULT_SCREENSAVER_OUTPUT =
+  SCREENSAVER_OUTPUTS.find((output) => output.width === 3840 && output.height === 2160) ??
+  SCREENSAVER_OUTPUTS[SCREENSAVER_OUTPUTS.length - 1]
+
 export const SCREENSAVER_FPS = [1, 24, 30, 60] as const
 
 export const SCREENSAVER_PROFILES = [
@@ -30,7 +35,9 @@ export const DURATION_PRESETS = [
   { label: '12 hours', seconds: 12 * 60 * 60 },
 ] as const
 
-export const DEFAULT_DURATION_SECONDS = 60 * 60
+export const DEFAULT_DURATION_SECONDS = 2 * 60 * 60
+/** Matches `String(DURATION_PRESETS[].seconds)` for the default duration preset button. */
+export const DEFAULT_DURATION_PRESET_KEY = String(DEFAULT_DURATION_SECONDS)
 export const MIN_DURATION_SECONDS = 5 * 60
 export const MAX_DURATION_SECONDS = 12 * 60 * 60
 

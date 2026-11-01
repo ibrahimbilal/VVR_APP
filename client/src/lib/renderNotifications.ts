@@ -3,8 +3,8 @@ import { usePlatformStore } from '../stores/platform'
 export type RenderAppId = 'ranking' | 'screensaver'
 
 const APP_LABELS: Record<RenderAppId, string> = {
-  ranking: 'Ranking Videos',
-  screensaver: 'Frame Screensaver',
+  ranking: 'Shorts',
+  screensaver: 'Screensaver',
 }
 
 export const RENDER_APP_ROUTES: Record<RenderAppId, string> = {

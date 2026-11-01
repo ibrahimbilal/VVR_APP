@@ -90,7 +90,7 @@ function onCustomMinutes() {
           v-for="frame in DEFAULT_FRAMES"
           :key="frame.id"
           class="block w-full cursor-pointer overflow-hidden rounded-md border bg-[#101114]"
-          :class="store.composition.frameId === frame.id ? 'border-amber-300 ring-1 ring-amber-300' : 'border-zinc-700 hover:border-zinc-500'"
+          :class="store.composition.frameId === frame.id ? 'border-brand ring-1 ring-brand' : 'border-zinc-700 hover:border-zinc-500'"
           type="button"
           :aria-pressed="store.composition.frameId === frame.id"
           :title="frame.name"
@@ -125,7 +125,7 @@ function onCustomMinutes() {
         <div v-for="frame in store.frames" :key="frame.id" class="relative">
           <button
             class="block w-full cursor-pointer overflow-hidden rounded-md border bg-[#101114]"
-            :class="store.composition.frameId === frame.id ? 'border-amber-300 ring-1 ring-amber-300' : 'border-zinc-700 hover:border-zinc-500'"
+            :class="store.composition.frameId === frame.id ? 'border-brand ring-1 ring-brand' : 'border-zinc-700 hover:border-zinc-500'"
             type="button"
             :aria-pressed="store.composition.frameId === frame.id"
             :title="frame.name"

@@ -94,9 +94,9 @@ function onClick() {
 }
 
 .export-action--busy {
-  border: 1px solid #b8921f;
-  background: #ffcc33;
-  color: #1c1500;
+  border: 1px solid var(--color-brand-deep);
+  background: var(--color-brand);
+  color: var(--color-brand-on);
   cursor: pointer;
 }
 
@@ -104,7 +104,7 @@ function onClick() {
   content: '';
   position: absolute;
   inset: 0;
-  background: rgba(28, 21, 0, 0.40);
+  background: rgb(0 0 0 / 0.28);
   pointer-events: none;
 }
 
@@ -115,7 +115,7 @@ function onClick() {
   top: 0;
   bottom: 0;
   width: var(--progress, 0%);
-  background: #ffcc33;
+  background: var(--color-brand-hover);
   pointer-events: none;
   transition: width 0.25s ease-out;
 }

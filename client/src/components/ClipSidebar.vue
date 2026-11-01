@@ -160,9 +160,9 @@ function kept(duration: number, start: number, end: number): string {
           </div>
           <div class="min-w-0 flex-1">
             <div class="mb-1 flex items-center gap-2 text-[11px] text-zinc-500">
-              <span class="font-semibold text-amber-300">{{ index + 1 }}</span>
+              <span class="font-semibold text-brand">{{ index + 1 }}</span>
               <span>{{ sourceLabel(clip.source) }}</span>
-              <span v-if="clip.playAtEnd" class="font-semibold text-amber-300">Plays last</span>
+              <span v-if="clip.playAtEnd" class="font-semibold text-brand">Plays last</span>
               <span v-if="clip.duration > 0" class="ml-auto tabular-nums">{{ kept(clip.duration, clip.trimStart, clip.trimEnd) }}</span>
             </div>
             <input
@@ -174,7 +174,7 @@ function kept(duration: number, start: number, end: number): string {
           </div>
         </div>
         <div v-if="clip.uploadState === 'uploading'" class="mt-2 h-1 overflow-hidden rounded bg-zinc-800">
-          <div class="h-full bg-amber-300" :style="{ width: `${Math.round(clip.uploadProgress * 100)}%` }"></div>
+          <div class="h-full bg-brand" :style="{ width: `${Math.round(clip.uploadProgress * 100)}%` }"></div>
         </div>
         <p v-if="clip.error" class="mt-2 text-xs text-red-300">{{ clip.error }}</p>
         <div class="mt-2 flex flex-wrap gap-2">

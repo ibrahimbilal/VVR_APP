@@ -1,4 +1,4 @@
-# Frame Screensaver — performance report (2026-10-25)
+# Screensaver — performance report (2026-10-25)
 
 ## Architecture changes
 

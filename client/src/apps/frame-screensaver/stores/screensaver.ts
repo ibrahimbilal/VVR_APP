@@ -1,7 +1,9 @@
 import { aspectRatio, clampComposition, compositionForFit, cropForAspect, defaultComposition, placementForFit, type CropAspect, type ScreensaverComposition } from '@shared/screensaverComposition'
 import { FRAME_FILE_LIMIT, isBuiltinFrameId } from '@shared/screensaverFrames'
 import {
+  DEFAULT_DURATION_PRESET_KEY,
   DEFAULT_DURATION_SECONDS,
+  DEFAULT_SCREENSAVER_OUTPUT,
   DURATION_PRESETS,
   estimateOutputBytes,
   formatDurationLabel,
@@ -71,7 +73,7 @@ type ScreensaverExportSnapshot = {
 }
 
 function defaultProject(): Omit<SavedScreensaverProject, 'version'> {
-  const output = SCREENSAVER_OUTPUTS[0]
+  const output = DEFAULT_SCREENSAVER_OUTPUT
   return {
     name: 'Untitled screensaver',
     mode: 'static',
@@ -87,7 +89,7 @@ function defaultProject(): Omit<SavedScreensaverProject, 'version'> {
     outputHeight: output.height,
     fps: 1,
     durationSeconds: DEFAULT_DURATION_SECONDS,
-    durationPresetKey: '3600',
+    durationPresetKey: DEFAULT_DURATION_PRESET_KEY,
     fit: 'contain',
     loopType: 'hard',
     crossfadeSeconds: 1,
@@ -126,8 +128,8 @@ export const useScreensaverStore = defineStore('screensaver', () => {
   const uploadProgress = ref(0)
   const uploadError = ref<string | null>(null)
 
-  const outputWidth = ref<number>(SCREENSAVER_OUTPUTS[0].width)
-  const outputHeight = ref<number>(SCREENSAVER_OUTPUTS[0].height)
+  const outputWidth = ref<number>(DEFAULT_SCREENSAVER_OUTPUT.width)
+  const outputHeight = ref<number>(DEFAULT_SCREENSAVER_OUTPUT.height)
   const fps = ref(1)
   const profile = ref<ScreensaverProfile>('static-fast')
   const encoder = ref<EncoderChoice>('auto')
@@ -149,7 +151,7 @@ export const useScreensaverStore = defineStore('screensaver', () => {
   const history = ref<ScreensaverComposition[]>([defaultComposition()])
   const historyIndex = ref(0)
   const durationSeconds = ref(DEFAULT_DURATION_SECONDS)
-  const durationPresetKey = ref('3600')
+  const durationPresetKey = ref(DEFAULT_DURATION_PRESET_KEY)
   const fit = ref<ScreensaverFit>('contain')
   const loopType = ref<ScreensaverLoop>('hard')
   const crossfadeSeconds = ref(1)

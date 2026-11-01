@@ -22,9 +22,9 @@ Output: `Video Factory.exe` in the repo root.
 
 ## Icon
 
-Place your icon at **`launcher/icon.ico`**. It is embedded at compile time.
+Put your favicon pack in **`client/public/`** (`favicon.ico`, PNG sizes, etc.). On each `npm run build:launcher`, the build syncs **`client/public/favicon.ico`** → **`launcher/icon.ico`** whenever the file changed, then embeds it in the `.exe`.
 
-If `launcher/icon.ico` is missing, the build copies `client/public/favicon.ico` when present. Otherwise the executable uses the default Windows application icon until you add `launcher/icon.ico` and rebuild.
+You can still commit a custom **`launcher/icon.ico`** only if you do not use `client/public/favicon.ico` as the source.
 
 ## Usage
 

@@ -3,6 +3,7 @@ import { Bell, CircleX, Download, X } from '@lucide/vue'
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { renderAppLabel, type RenderAppId } from '../../lib/renderNotifications'
+import { BRAND } from '../../lib/brand'
 import { triggerDownload } from '../../lib/triggerDownload'
 import { usePlatformStore, type RenderReadyNotification } from '../../stores/platform'
 
@@ -85,7 +86,7 @@ onBeforeUnmount(() => document.removeEventListener('pointerdown', onDocumentPoin
             cy="18"
             :r="RING_RADIUS"
             fill="none"
-            stroke="#ffcc33"
+            :stroke="BRAND"
             stroke-width="3"
             stroke-linecap="round"
             :stroke-dasharray="`${RING_CIRCUMFERENCE} ${RING_CIRCUMFERENCE}`"
@@ -134,7 +135,7 @@ onBeforeUnmount(() => document.removeEventListener('pointerdown', onDocumentPoin
               <div class="mt-2 flex items-center gap-2">
                 <div class="h-1.5 min-w-0 flex-1 overflow-hidden rounded-full bg-zinc-800">
                   <div
-                    class="h-full rounded-full bg-[#ffcc33] transition-[width] duration-300 ease-out"
+                    class="h-full rounded-full bg-brand transition-[width] duration-300 ease-out"
                     :style="{ width: `${Math.round(Math.min(1, Math.max(0, job.progress)) * 100)}%` }"
                   />
                 </div>

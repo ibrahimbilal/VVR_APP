@@ -1,5 +1,5 @@
 /**
- * Regenerate 150px-wide PNG previews for bundled Frame Screensaver frames.
+ * Regenerate 150px-wide PNG previews for bundled Screensaver frames.
  * Run from repo root: npm run frames:thumbs -w client
  */
 import { existsSync, mkdirSync, readdirSync } from 'node:fs'

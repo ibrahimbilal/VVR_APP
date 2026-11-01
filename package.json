@@ -1,12 +1,12 @@
 {
   "name": "vvr-app",
   "private": true,
-  "version": "1.0.0",
+  "version": "2.0.0",
   "workspaces": [
     "client",
     "server"
   ],
-  "description": "Vertical video ranking and compilation studio",
+  "description": "Video's Factory — Shorts, Screensaver, and Thumbnail Studio",
   "engines": {
     "node": "^20.19.0 || >=22.12.0"
   },
