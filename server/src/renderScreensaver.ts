@@ -1,11 +1,13 @@
 import { mkdir, rm, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import type { EncoderChoice, ScreensaverProfile } from '../../shared/screensaver'
+import type { SubscribeAnimationSettings } from '../../shared/screensaverSubscribeAnimation'
 import type { ScreensaverComposition } from '../../shared/screensaverComposition'
 import { EncoderRejected, selectEncoder, type EncoderId } from './encoders'
 import { n, RenderCancelled, spawnFfmpeg, verifyVideoOutput, type FfmpegStats } from './ffmpegUtil'
 import { probeSourceDetails } from './probe'
 import { audioFilterLine, canStreamCopy, compositionFilterLines, legacyScaleFilter, type GraphJob } from './screensaverGraph'
+import { renderScreensaverHybrid } from './renderScreensaverHybrid'
 import { jobsDir, outputsDir } from './storage'
 
 export interface ScreensaverRenderRequest {
@@ -39,6 +41,10 @@ export interface ScreensaverRenderRequest {
   sourceCodec?: string | null
   sourcePixFmt?: string | null
   sourceAudioCodec?: string | null
+  subscribeAnimation?: SubscribeAnimationSettings | null
+  animationDir?: string | null
+  animationOverlayX?: number
+  animationOverlayY?: number
 }
 
 export interface ScreensaverRenderHooks {
@@ -137,6 +143,38 @@ async function renderWithEncoder(
     } else {
       warning = joinWarning(warning, 'Smooth loop was not possible for this clip. Used a hard loop instead.')
     }
+  }
+
+  if (job.subscribeAnimation && job.animationDir && job.compositionPath && (job.mediaKind === 'image' || job.mode === 'static')) {
+    const hybridResult = await renderScreensaverHybrid(
+      {
+        id: job.id,
+        width: job.width,
+        height: job.height,
+        fps: job.fps,
+        duration: job.duration,
+        compositionPath: job.compositionPath,
+        musicPath: job.musicPath,
+        mediaPath: job.mediaPath,
+        mediaKind: job.mediaKind,
+        audioMode: job.audioMode,
+        audioVolume: job.audioVolume,
+        audioFadeIn: job.audioFadeIn,
+        audioFadeOut: job.audioFadeOut,
+        loopAudio: job.loopAudio,
+        sourceHasAudio: job.sourceHasAudio,
+        subscribeAnimation: job.subscribeAnimation,
+        animationDir: job.animationDir,
+        animationOverlayX: job.animationOverlayX ?? 0,
+        animationOverlayY: job.animationOverlayY ?? 0,
+      },
+      encoder,
+      outputPath,
+      workDir,
+      hooks,
+      warning,
+    )
+    return hybridResult
   }
 
   await encodeFiltered(job, encoder, outputPath, workDir, hooks)
@@ -401,6 +439,10 @@ function normalize(raw: ScreensaverRenderRequest & { id: string }): NormalizedJo
     sourceCodec: raw.sourceCodec ?? null,
     sourcePixFmt: raw.sourcePixFmt ?? null,
     sourceAudioCodec: raw.sourceAudioCodec ?? null,
+    subscribeAnimation: raw.subscribeAnimation ?? null,
+    animationDir: raw.animationDir ?? null,
+    animationOverlayX: raw.animationOverlayX ?? 0,
+    animationOverlayY: raw.animationOverlayY ?? 0,
   }
 }
 

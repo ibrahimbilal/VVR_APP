@@ -21,6 +21,13 @@ import {
   type ScreensaverMode,
   type ScreensaverProfile,
 } from '@shared/screensaver'
+import {
+  defaultSubscribeAnimation,
+  sanitizeSubscribeAnimation,
+  SUBSCRIBE_ANIMATION_UPLOAD_BUDGET_BYTES,
+  validateSubscribeAnimation,
+  type SubscribeAnimationSettings,
+} from '@shared/screensaverSubscribeAnimation'
 import { defineStore } from 'pinia'
 import { storeToRefs } from 'pinia'
 import { computed, ref, toRaw, watch } from 'vue'
@@ -41,6 +48,9 @@ import {
 import type { ScreensaverRendererBackend } from '../lib/render/types'
 import { ensureServerUploadCleanupOnClose } from '../../../lib/serverUploadCleanup'
 import { submitScreensaverExport } from '../lib/screensaverExport'
+import { subscribeAnimationOverlayOnOutput } from '../lib/subscribeAnimation/subscribeAnimationLayout'
+import { renderSubscribeAnimationFrames } from '../lib/subscribeAnimation/subscribeAnimationExportFrames'
+import { preloadSubscribeChannelAvatar } from '../lib/subscribeAnimation/subscribeAnimationChannelAvatar'
 import type { SavedScreensaverProject } from '../types'
 
 function loadHtmlImage(url: string): Promise<HTMLImageElement> {
@@ -163,6 +173,8 @@ export const useScreensaverStore = defineStore('screensaver', () => {
   const backgroundColor = ref('#000000')
   const audioUrl = ref<string | null>(null)
   const audioFileName = ref<string | null>(null)
+  const subscribeAnimation = ref<SubscribeAnimationSettings>(defaultSubscribeAnimation())
+  const subscribeChannelLookupLoading = ref(false)
 
   const exportState = exportQueue.exportState
   const exporting = exportQueue.exporting
@@ -201,6 +213,10 @@ export const useScreensaverStore = defineStore('screensaver', () => {
     ) {
       return 'That frame is no longer on the server. Choose another frame.'
     }
+    const animCheck = validateSubscribeAnimation(subscribeAnimation.value, durationSeconds.value, {
+      staticImage: mode.value === 'static' && mediaKind.value === 'image',
+    })
+    if (subscribeAnimation.value.enabled && !animCheck.ok) return animCheck.message ?? 'Invalid subscribe animation settings.'
     return ''
   })
 
@@ -229,6 +245,7 @@ export const useScreensaverStore = defineStore('screensaver', () => {
       profile,
       encoder,
       composition,
+      subscribeAnimation,
     ],
     () => {
       if (!hydrated.value) return
@@ -455,6 +472,7 @@ export const useScreensaverStore = defineStore('screensaver', () => {
       saved.version === 2 && saved.composition
         ? clampComposition(saved.composition)
         : compositionForFit(saved.fit, saved.width, saved.height, saved.outputWidth, saved.outputHeight, saved.backgroundColor)
+    subscribeAnimation.value = defaultSubscribeAnimation()
     history.value = [cloneComposition(composition.value)]
     historyIndex.value = 0
     uploadState.value = saved.serverId ? 'uploading' : saved.mediaKind ? 'error' : 'empty'
@@ -644,6 +662,7 @@ export const useScreensaverStore = defineStore('screensaver', () => {
     frameImage.value = null
     autoStill.value = null
     autoMotion.value = null
+    subscribeAnimation.value = defaultSubscribeAnimation()
   }
 
   async function newProject(): Promise<void> {
@@ -740,6 +759,41 @@ export const useScreensaverStore = defineStore('screensaver', () => {
   function replaceComposition(value: ScreensaverComposition) {
     composition.value = clampComposition({ ...composition.value, ...value, adjustments: { ...composition.value.adjustments, ...value.adjustments }, background: { ...composition.value.background, ...value.background }, crop: { ...composition.value.crop, ...value.crop } })
   }
+
+  function replaceSubscribeAnimation(value: Partial<SubscribeAnimationSettings>) {
+    subscribeAnimation.value = sanitizeSubscribeAnimation({ ...subscribeAnimation.value, ...value })
+  }
+
+  async function fetchSubscribeChannelFromUrl(rawUrl?: string) {
+    const target = (rawUrl ?? subscribeAnimation.value.channelUrl).trim()
+    if (!target) {
+      toast('Paste a YouTube channel or video link first.', 'info')
+      return
+    }
+    subscribeChannelLookupLoading.value = true
+    try {
+      const result = await api.lookupYoutubeChannel(target)
+      replaceSubscribeAnimation({
+        channelUrl: result.channelUrl ?? target,
+        channelName: result.channelName ?? subscribeAnimation.value.channelName,
+        channelAvatarUrl: result.avatarUrl,
+        channelSubscriberCount: result.subscriberCount,
+      })
+      await preloadSubscribeChannelAvatar(result.avatarUrl)
+      toast(result.channelName ? `Loaded ${result.channelName}.` : 'Channel info updated.', 'success')
+    } catch (error) {
+      toast(error instanceof Error ? error.message : 'Could not load channel info.')
+    } finally {
+      subscribeChannelLookupLoading.value = false
+    }
+  }
+
+  watch(
+    () => subscribeAnimation.value.channelAvatarUrl,
+    (url) => {
+      void preloadSubscribeChannelAvatar(url)
+    },
+  )
 
   function commitComposition() {
     const next = cloneComposition(composition.value)
@@ -944,7 +998,12 @@ export const useScreensaverStore = defineStore('screensaver', () => {
       composition: cloneComposition(composition.value),
       frameId: composition.value.frameId,
     }
-    const projectJson = {
+    const animSettings = structuredClone(toRaw(subscribeAnimation.value))
+    const overlay =
+      animSettings.enabled
+        ? subscribeAnimationOverlayOnOutput(outputWidth.value, outputHeight.value, animSettings)
+        : null
+    const projectJson: Record<string, unknown> = {
       filename,
       mediaId,
       kind,
@@ -965,7 +1024,11 @@ export const useScreensaverStore = defineStore('screensaver', () => {
       profile: profile.value,
       encoder: encoder.value,
       composition: cloneComposition(composition.value),
+      subscribeAnimation: overlay
+        ? { ...animSettings, overlayX: overlay.x, overlayY: overlay.y }
+        : animSettings,
     }
+    const snapshotAnimSettings = animSettings
     const snapshotAudioFile = audioMode.value === 'upload' ? audioFile : null
 
     exportQueue.enqueue({
@@ -983,8 +1046,25 @@ export const useScreensaverStore = defineStore('screensaver', () => {
         })
         const blobs = await buildExportBlobsForSnapshot(snapshot)
         if (signal.aborted) throw new DOMException('The export was cancelled.', 'AbortError')
+        let animationFrameBlobs: Blob[] | null = null
+        if (snapshotAnimSettings.enabled && kind === 'image') {
+          await preloadSubscribeChannelAvatar(snapshotAnimSettings.channelAvatarUrl)
+          animationFrameBlobs = await renderSubscribeAnimationFrames(snapshotAnimSettings, snapshot.outputWidth, (done, total) => {
+            onUpdate({
+              progress: 0.02 + (done / total) * 0.12,
+              message: `Rendering subscribe animation (${done}/${total}).`,
+              stage: 'Preparing animation',
+            })
+          })
+          if (signal.aborted) throw new DOMException('The export was cancelled.', 'AbortError')
+          const animBytes = animationFrameBlobs.reduce((sum, blob) => sum + blob.size, 0)
+          if (animBytes > SUBSCRIBE_ANIMATION_UPLOAD_BUDGET_BYTES) {
+            throw new Error('Subscribe animation frames are too large. Lower the size and try again.')
+          }
+        }
         return submitScreensaverExport({
           ...blobs,
+          animationFrameBlobs,
           projectJson,
           audioFile: snapshotAudioFile,
           signal,
@@ -1064,6 +1144,8 @@ export const useScreensaverStore = defineStore('screensaver', () => {
     backgroundColor,
     audioUrl,
     audioFileName,
+    subscribeAnimation,
+    subscribeChannelLookupLoading,
     exportState,
     exporting,
     activeExportCount,
@@ -1081,6 +1163,8 @@ export const useScreensaverStore = defineStore('screensaver', () => {
     setProfile,
     setFit,
     replaceComposition,
+    replaceSubscribeAnimation,
+    fetchSubscribeChannelFromUrl,
     commitComposition,
     uploadFrames,
     selectFrame,

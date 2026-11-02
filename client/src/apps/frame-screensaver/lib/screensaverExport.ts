@@ -10,6 +10,7 @@ interface ScreensaverExportInput {
   compositionBlob: Blob | null
   frameBlob: Blob | null
   maskBlob: Blob | null
+  animationFrameBlobs: Blob[] | null
   signal: AbortSignal
   onUpdate: (patch: ScreensaverExportUpdate) => void
 }
@@ -21,6 +22,11 @@ export async function submitScreensaverExport(input: ScreensaverExportInput): Pr
   if (input.compositionBlob) body.append('composition', input.compositionBlob, 'composition.png')
   if (input.frameBlob) body.append('frame', input.frameBlob, 'frame.png')
   if (input.maskBlob) body.append('mask', input.maskBlob, 'mask.png')
+  if (input.animationFrameBlobs?.length) {
+    input.animationFrameBlobs.forEach((blob, index) => {
+      body.append('animationFrames', blob, `frame-${String(index).padStart(4, '0')}.png`)
+    })
+  }
 
   input.onUpdate({ phase: 'uploading', progress: 0.05, message: 'Sending export settings.', error: null, warning: null, downloadUrl: null })
   const started = await startScreensaverExport(

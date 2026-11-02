@@ -20,10 +20,17 @@ import {
   type EncoderChoice,
   type ScreensaverProfile,
 } from '../../shared/screensaver'
+import {
+  sanitizeSubscribeAnimation,
+  subscribeAnimationFrameCount,
+  validateSubscribeAnimation,
+  type SubscribeAnimationSettings,
+} from '../../shared/screensaverSubscribeAnimation'
 import { resolveFade, sequenceDuration } from '../../shared/timeline'
 import { checkFfmpeg, logEncodeCheck } from './binaries'
 import { cancelJob, createJob, createScreensaverJob, dropJobOutput, getJob, jobIdsInUse, jobOutput, outputPathsInUse } from './jobs'
 import { lookupUrl } from './oembed'
+import { lookupYoutubeChannel } from './youtubeChannel'
 import { encoderCatalog } from './encoders'
 import { addFrame, ensureFrames, getFrame, listFrames, removeAllFrames, removeFrame } from './frames'
 import { probeAudioFile, probeImage, probeMedia, probeSourceDetails, probeStill, sniffMediaKind } from './probe'
@@ -68,7 +75,7 @@ const screensaverMediaUpload = multer({
 
 const screensaverExportUpload = multer({
   dest: incomingDir,
-  limits: { fileSize: 80 * 1024 * 1024, files: 4 },
+  limits: { fileSize: 80 * 1024 * 1024, files: 214 },
 })
 
 const screensaverFrameUpload = multer({
@@ -147,6 +154,15 @@ app.delete('/api/clips/:id', async (req, res) => {
 
 app.post('/api/import-url', async (req, res) => {
   const result = await lookupUrl(String(req.body?.url ?? ''))
+  if (!result.ok) {
+    res.status(400).json({ error: result.error })
+    return
+  }
+  res.json(result)
+})
+
+app.post('/api/youtube-channel-lookup', async (req, res) => {
+  const result = await lookupYoutubeChannel(String(req.body?.url ?? ''))
   if (!result.ok) {
     res.status(400).json({ error: result.error })
     return
@@ -400,16 +416,26 @@ app.post(
     { name: 'composition', maxCount: 1 },
     { name: 'frame', maxCount: 1 },
     { name: 'mask', maxCount: 1 },
+    { name: 'animationFrames', maxCount: 210 },
   ]),
   async (req, res) => {
     const files = req.files as
-      | { audio?: Express.Multer.File[]; composition?: Express.Multer.File[]; frame?: Express.Multer.File[]; mask?: Express.Multer.File[] }
+      | {
+          audio?: Express.Multer.File[]
+          composition?: Express.Multer.File[]
+          frame?: Express.Multer.File[]
+          mask?: Express.Multer.File[]
+          animationFrames?: Express.Multer.File[]
+        }
       | undefined
     const audioFile = files?.audio?.[0]
     const compositionFile = files?.composition?.[0]
     const frameFile = files?.frame?.[0]
     const maskFile = files?.mask?.[0]
-    const uploaded = [audioFile, compositionFile, frameFile, maskFile].filter((file): file is Express.Multer.File => Boolean(file))
+    const animationFrameFiles = files?.animationFrames ?? []
+    const uploaded = [audioFile, compositionFile, frameFile, maskFile, ...animationFrameFiles].filter(
+      (file): file is Express.Multer.File => Boolean(file),
+    )
     try {
       if (!(await checkFfmpeg())) {
         throw new Error('FFmpeg is missing. Reinstall dependencies with npm install, then restart the server.')
@@ -470,6 +496,43 @@ app.post(
             maskFile.path = maskPath
           }
         }
+        let animationDir: string | null = null
+        let animationOverlayX = 0
+        let animationOverlayY = 0
+        if (project.subscribeAnimation.enabled) {
+          if (project.kind !== 'image' || project.mode !== 'static') {
+            throw new ClientError(400, 'Subscribe animation is only supported for static image exports.')
+          }
+          if (!compositionPath) {
+            throw new ClientError(400, 'Upload the composed image again before exporting with subscribe animation.')
+          }
+          const expectedFrames = subscribeAnimationFrameCount(project.subscribeAnimation.durationSec)
+          if (animationFrameFiles.length !== expectedFrames) {
+            throw new ClientError(400, `Expected ${expectedFrames} animation frames, received ${animationFrameFiles.length}.`)
+          }
+          animationDir = path.join(dir, 'anim')
+          await mkdir(animationDir, { recursive: true })
+          animationFrameFiles.sort((a, b) => a.originalname.localeCompare(b.originalname, undefined, { numeric: true }))
+          let animWidth = 0
+          let animHeight = 0
+          for (let index = 0; index < animationFrameFiles.length; index += 1) {
+            const file = animationFrameFiles[index]!
+            const dest = path.join(animationDir, `${String(index + 1).padStart(4, '0')}.png`)
+            await rename(file.path, dest)
+            file.path = dest
+            const still = await probeStill(dest)
+            if (index === 0) {
+              animWidth = still.width
+              animHeight = still.height
+            } else if (still.width !== animWidth || still.height !== animHeight) {
+              throw new ClientError(400, 'Animation frames must share the same size.')
+            }
+          }
+          animationOverlayX = project.subscribeAnimation.overlayX
+          animationOverlayY = project.subscribeAnimation.overlayY
+        } else if (animationFrameFiles.length) {
+          throw new ClientError(400, 'Animation frames were sent but subscribe animation is disabled.')
+        }
         const details = await probeSourceDetails(stored.path)
         const job = createScreensaverJob(id, {
           mediaId: stored.id,
@@ -504,6 +567,10 @@ app.post(
           sourceCodec: details.codec,
           sourcePixFmt: details.pixFmt,
           sourceAudioCodec: details.audioCodec,
+          subscribeAnimation: project.subscribeAnimation.enabled ? project.subscribeAnimation : null,
+          animationDir,
+          animationOverlayX,
+          animationOverlayY,
         })
         res.json({ jobId: job.id })
       } catch (error) {
@@ -800,6 +867,7 @@ interface ScreensaverProjectInput {
   profile: ScreensaverProfile
   encoder: EncoderChoice
   composition: ReturnType<typeof sanitizeComposition>
+  subscribeAnimation: SubscribeAnimationSettings & { overlayX: number; overlayY: number }
 }
 
 function parseScreensaverProject(raw: unknown): ScreensaverProjectInput {
@@ -835,6 +903,17 @@ function parseScreensaverProject(raw: unknown): ScreensaverProjectInput {
   if (mode === 'loop' && kind !== 'video') {
     throw new ClientError(400, 'Looping mode requires a video source.')
   }
+  const subscribeAnimation = sanitizeSubscribeAnimation(data.subscribeAnimation)
+  const validation = validateSubscribeAnimation(subscribeAnimation, duration, {
+    staticImage: kind === 'image' && mode === 'static',
+  })
+  if (!validation.ok) throw new ClientError(400, validation.message ?? 'Invalid subscribe animation settings.')
+  const overlayX = Number(data.subscribeAnimation && typeof data.subscribeAnimation === 'object' ? (data.subscribeAnimation as { overlayX?: number }).overlayX : NaN)
+  const overlayY = Number(data.subscribeAnimation && typeof data.subscribeAnimation === 'object' ? (data.subscribeAnimation as { overlayY?: number }).overlayY : NaN)
+  const overlay = {
+    overlayX: Number.isFinite(overlayX) ? Math.max(0, Math.round(overlayX)) : 0,
+    overlayY: Number.isFinite(overlayY) ? Math.max(0, Math.round(overlayY)) : 0,
+  }
   return {
     filename: typeof data.filename === 'string' ? data.filename : 'screensaver',
     mediaId: String(data.mediaId),
@@ -856,6 +935,7 @@ function parseScreensaverProject(raw: unknown): ScreensaverProjectInput {
     profile: isScreensaverProfile(data.profile) ? data.profile : 'balanced',
     encoder: isEncoderChoice(data.encoder) ? data.encoder : 'auto',
     composition: sanitizeComposition(data.composition),
+    subscribeAnimation: { ...subscribeAnimation, ...overlay },
   }
 }
 

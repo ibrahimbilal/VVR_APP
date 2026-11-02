@@ -19,10 +19,12 @@ Node `^20.19.0 || >=22.12.0`. From the repo root:
 - **Windows shortcut:** `npm run launch` runs the same dev stack (`scripts/launch-dev.cjs`). **`Video Factory.exe`** in the repo root is a self-contained C# launcher (`launcher/`): runs `npm run dev`, waits for Vite’s Local URL, opens the browser once, kills the process tree on exit, single-instance mutex. Build with **`npm run build:launcher`** (.NET 8 SDK required on the build machine only). Favicon pack lives in **`client/public/`**; each launcher build syncs `favicon.ico` → `launcher/icon.ico` when it changed, then embeds it in the exe. Node/npm must still be on `PATH`; the exe does not bundle the Vue app.
 - `npm run typecheck` — client `vue-tsc` via `client/scripts/typecheck.mjs`, then server `tsc --noEmit`.
 - `npm run test:screensaver` — short static screensaver render + ffprobe (`server/scripts/verify-screensaver.ts`).
+- `npm run test:screensaver-subscribe` — hybrid subscribe animation render + ffprobe frame budget (`server/scripts/verify-screensaver-subscribe.ts`; use `VVR_SCREENSAVER_TEST=1` for short duration).
 - `npm run test:screensaver-visual` — CPU vs FFmpeg adjustment SSIM (`server/scripts/visual-screensaver-adjust.ts`).
 - `npm run test:ranking` — two-clip ranking render (cut + fade) + ffprobe (`server/scripts/verify-ranking.ts`).
 - `npm run bench:screensaver-compose` — Node timing for CPU placement bake (`server/scripts/bench-screensaver-compose.ts`).
 - `npm run bench:ranking` / `npm run bench:screensaver` — end-to-end export timings (`baseline` / `after` argv); `npm run bench:render-report` writes `docs/render-benchmark-report.md`.
+- `npm run bench:screensaver-subscribe` — baseline vs hybrid vs full 30 fps subscribe overlay (`server/scripts/bench-screensaver-subscribe.ts`).
 - `npm run build:dev` / `npm run start:dev` — Vite development build, then the renderer serves `client/dist` and the API on port 3001.
 - `npm run build:prod` / `npm run start:prod` — production client build plus esbuild server bundle (`server/dist/index.js`). Listens on `PORT` or 3001. Host is `0.0.0.0` when `PORT` is set, otherwise `127.0.0.1`.
 
@@ -221,7 +223,7 @@ Progress on the client: overlays/upload are local; queued/preparing/rendering/ve
 | GET | `/api/screensaver/frames/:id` | that PNG |
 | DELETE | `/api/screensaver/frames/:id` | remove a saved frame |
 | POST | `/api/uploads/cleanup` | JSON `{ purgeAll?: true, jobId? }` (default) — remove all frame PNGs, leftover `jobs/` work dirs, every clip not held by a render, and export MP4s in `outputs/` (optional `jobId` for the just-downloaded file; skips outputs and job dirs for jobs still encoding). Same handler at `/api/screensaver/uploads/cleanup`. Legacy `{ mediaId, frameIds }` when `purgeAll: false` |
-| POST | `/api/screensaver/export` | screensaver JSON, optional `audio`, optional `composition` PNG. Video frames come from the saved PNG, not an upload |
+| POST | `/api/screensaver/export` | screensaver JSON, optional `audio`, optional `composition` PNG, optional `animationFrames` PNGs (max 120). Video frames come from the saved PNG, not an upload |
 
 Jobs queue handles `kind: 'ranking' | 'screensaver'` (`server/src/jobs.ts`).
 
@@ -284,9 +286,9 @@ Sweep every 10 minutes: outputs older than 2 hours, jobs and incoming older than
 | Disk and expiry | `server/src/storage.ts` |
 | Probe | `server/src/probe.ts` |
 | oEmbed | `server/src/oembed.ts` |
-| Screensaver editor, export, frames | `client/src/apps/frame-screensaver/`, `shared/screensaver.ts`, `shared/screensaverComposition.ts`, `shared/screensaverFrames.ts`, `shared/screensaverAdjust.ts`, `server/src/frames.ts` |
+| Screensaver editor, export, frames, subscribe overlay | `client/src/apps/frame-screensaver/`, `shared/screensaver.ts`, `shared/screensaverComposition.ts`, `shared/screensaverFrames.ts`, `shared/screensaverAdjust.ts`, `shared/screensaverSubscribeAnimation.ts`, `server/src/frames.ts`, `server/src/youtubeChannel.ts` |
 | Thumbnail editor, transfer, export | `client/src/apps/thumbnail-studio/`, `shared/thumbnailProject.ts`, `shared/thumbnailTransfer.ts`, `shared/thumbnailLayout.ts`, `client/src/lib/idb.ts` |
-| Screensaver encode and encoder probe | `server/src/renderScreensaver.ts`, `server/src/screensaverGraph.ts`, `server/src/encoders.ts` |
+| Screensaver encode and encoder probe | `server/src/renderScreensaver.ts`, `server/src/renderScreensaverHybrid.ts`, `server/src/screensaverGraph.ts`, `server/src/encoders.ts`, `shared/screensaverSubscribeAnimation.ts` |
 
 ## Invariants
 
@@ -317,6 +319,8 @@ Profiles: Static Art (default 1 fps for a new image), Balanced (24 fps), High qu
 Encoder choice is Auto, CPU, or one listed hardware encoder (Ranking and Screensaver). Auto runs timed encodes per workload (`still_*`, `motion_30fps`, `compose_motion`, `ranking_motion`), caches in `server/tmp/encoder-cache.json`, and picks hardware only when more than 8% faster than libx264. Set `VVR_ENCODER_BENCH=0` to skip cold benchmarks (Auto uses CPU). An explicit encoder that fails init or the real encode stops the job; Auto retries on CPU with a warning.
 
 Static images: the browser draws one full-resolution PNG and FFmpeg loops it at the chosen frame rate with no scale or color filters. Audio is a second input in that same process (loop, volume, fades). New image projects use Static Art at 1 fps. Saved version-1 projects keep 24 or 30.
+
+**Subscribe animation:** Optional static-image overlay in Settings (`shared/screensaverSubscribeAnimation.ts`, `EditorCanvas.vue` overlay). Styles: channel card (YouTube fetch for name/avatar/subscribers), subscribe-only, subscribe + alerts, like + subscribe + alerts; **size** as % of output width with per-style defaults; **edge distance** in export pixels (default 0). Disabled by default; **not** persisted in IndexedDB (resets on full page reload). **Main preview canvas** loops via `subscribeAnimationCanvasPreview.ts` (toggle “Show on preview canvas”). Preview and export share `renderSubscribeAnimationAt()`. Export uploads up to **210** cropped PNGs (`animationFrames`) plus `overlayX`/`overlayY` in project JSON. Server: three segments (1 fps / 30 fps / 1 fps) in [`renderScreensaverHybrid.ts`](server/src/renderScreensaverHybrid.ts), concat demuxer with stream copy (`+genpts`) or VFR re-encode fallback, then one full-length audio mux. Screensaver export multer: **214** files max, **80 MB** per file. Tests: `npm run test:screensaver-subscribe` (with `VVR_SCREENSAVER_TEST=1` for short duration). Bench: `npm run bench:screensaver-subscribe`. Details: [`docs/screensaver-subscribe-animation.md`](docs/screensaver-subscribe-animation.md).
 
 Video: stream copy (`-stream_loop -1 -c:v copy`) only when the source is H.264 yuv420p, already the output size, and the composition is a full-frame placement with no crop, rotation, flip, adjustment, or frame. Otherwise it re-encodes. A failed copy falls back to an encode and sets a warning. Smooth loops encode one crossfaded cycle, then copy that file for the full duration when the copy probe succeeds. The cycle file is in the job directory, which is deleted on finish, cancel, and error.
 
@@ -374,6 +378,12 @@ Badge SVGs are committed under `client/src/assets/thumbnail-badges/` (catalog sl
 
 ## Changelog
 
+- 2026-11-02 — Subscribe animation promoted from experimental to production Screensaver feature (UI label, `docs/screensaver-subscribe-animation.md`, PROJECT map).
+- 2026-11-02 — Subscribe animation per-style default size % and edge 0; pre-export PNG size blocker removed (check after render).
+- 2026-11-02 — YouTube channel lookup: parse subscriber count from modern `metadataParts` JSON when `subscriberCountText` is absent (`server/src/youtubeChannel.ts`).
+- 2026-11-01 — Subscribe animation alert click: **bell-ring** icon + continuous bell wiggle from click through hold (`subscribeAnimationLucideIcons.ts`, timeline/draw).
+- 2026-11-01 — Subscribe animation timeline: **1 s** between like → subscribe → alerts; channel card uses separate subscribe + bell buttons; clip length **7 s** (`subscribeAnimationTimeline.ts`).
+- 2026-11-01 — Screensaver experimental **Subscribe Animation** PoC: shared settings, canvas renderer, hybrid 1/30/1 fps segment export, tests/bench/docs (`shared/screensaverSubscribeAnimation.ts`, `renderScreensaverHybrid.ts`, `SubscribeAnimation.vue`, `docs/screensaver-subscribe-animation-poc.md`).
 - 2026-11-01 — Release **v1.1.0** (`package.json`): Shorts/Screensaver naming, brand colors, favicon/launcher sync, Screensaver 4K + 2 h defaults.
 - 2026-11-01 — User-facing app name **Shorts** (was Ranking Videos); routes and code paths stay `ranking-videos` (`navigation.ts`, `router.ts`, `renderNotifications.ts`, docs).
 - 2026-11-01 — User-facing app name **Screensaver** (was Frame Screensaver); routes and code paths stay `frame-screensaver` (`navigation.ts`, `router.ts`, `renderNotifications.ts`, docs).
