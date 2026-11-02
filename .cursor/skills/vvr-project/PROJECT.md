@@ -378,7 +378,10 @@ Badge SVGs are committed under `client/src/assets/thumbnail-badges/` (catalog sl
 
 ## Changelog
 
-- 2026-11-02 — Subscribe animation promoted from experimental to production Screensaver feature (UI label, `docs/screensaver-subscribe-animation.md`, PROJECT map).
+- 2026-11-02 — Subscribe animation mouse pointer smaller (20 vs 26 design px; `SUBSCRIBE_ANIMATION_MOUSE_POINTER_SIZE_DESIGN`, `subscribeAnimationDraw.ts`).
+- 2026-11-02 — Subscribe animation alert icon: removed continuous bell wiggle; bell-ring swap and click press unchanged (`subscribeAnimationTimeline.ts`, `subscribeAnimationDraw.ts`, `renderSubscribeAnimation.ts`).
+- 2026-11-02 — Root devDependency `archiver` ^8 + `minimatch` override ^11.0.1 clears Hostinger/npm moderate advisories (glob/minimatch); deploy script uses `ZipArchive`.
+- 2026-11-02 — Client devDependency `sharp` bumped to ^0.35.5 (GHSA-wq5f-xc86-pv6w / librsvg RCE advisory).
 - 2026-11-02 — Subscribe animation per-style default size % and edge 0; pre-export PNG size blocker removed (check after render).
 - 2026-11-02 — YouTube channel lookup: parse subscriber count from modern `metadataParts` JSON when `subscriberCountText` is absent (`server/src/youtubeChannel.ts`).
 - 2026-11-01 — Subscribe animation alert click: **bell-ring** icon + continuous bell wiggle from click through hold (`subscribeAnimationLucideIcons.ts`, timeline/draw).

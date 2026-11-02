@@ -26,22 +26,15 @@ Read [REFERENCE.md](REFERENCE.md) for fixed Hostinger targets and build settings
 - [ ] GET https://<domain>/api/health (see REFERENCE.md) → {"ok":true,"ffmpeg":true}
 ```
 
-## 1. Archive (Windows, repo root)
+## 1. Archive (repo root)
 
 ```powershell
-Remove-Item vvr-app.zip -ErrorAction SilentlyContinue
-tar -a -c -f vvr-app.zip `
-  --exclude=node_modules `
-  --exclude=client/node_modules `
-  --exclude=server/node_modules `
-  --exclude=server/tmp `
-  --exclude=.git `
-  --exclude=launcher `
-  --exclude='*.exe' `
-  --exclude=vvr-app.zip .
+npm run pack:hostinger
 ```
 
-Or run [scripts/make-archive.ps1](scripts/make-archive.ps1).
+Uses `archiver` (`scripts/make-deploy-archive.mjs`) so `vvr-app.zip` is a normal ZIP (Windows extract / Explorer). Excludes `node_modules`, `server/tmp`, `.git`, `launcher`, root `*.exe`, and `vvr-app.zip`.
+
+Or run [scripts/make-archive.ps1](scripts/make-archive.ps1) (same command).
 
 ## 2. Upload archive
 

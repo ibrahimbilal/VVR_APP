@@ -47,8 +47,6 @@ export interface SubscribeAnimationMotion {
   slideY: number
   buttonPressed: boolean
   subscribed: boolean
-  bellAngle: number
-  bellScale: number
   likeActive: boolean
   alertsActive: boolean
   alertsPressed: boolean
@@ -57,16 +55,10 @@ export interface SubscribeAnimationMotion {
   alertClickScale: number
 }
 
-function applyBellMotion(motion: SubscribeAnimationMotion, bellT: number): void {
-  motion.bellScale = 1 + 0.12 * Math.sin(bellT * Math.PI * 3)
-  motion.bellAngle = 14 * Math.sin(bellT * Math.PI * 4)
-}
-
 function applyAlertBellMotion(motion: SubscribeAnimationMotion, t: number, alertStart: number): void {
   if (t < alertStart) return
   if (subscribeInClickWindow(t, alertStart)) motion.alertsPressed = true
   if (t >= alertStart + SUBSCRIBE_CLICK_SEC) motion.alertsActive = true
-  applyBellMotion(motion, t - alertStart)
 }
 
 function clickScaleAt(t: number, clickStartSec: number): number {
@@ -124,8 +116,6 @@ export function subscribeAnimationMotionAt(
     slideY: 24,
     buttonPressed: false,
     subscribed: false,
-    bellAngle: 0,
-    bellScale: 1,
     likeActive: false,
     alertsActive: false,
     alertsPressed: false,

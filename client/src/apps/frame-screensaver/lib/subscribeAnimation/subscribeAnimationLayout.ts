@@ -7,6 +7,9 @@ export const SUBSCRIBE_ANIMATION_CANVAS_PADDING_DESIGN = 24
 /** Transparent strip below the UI for cursor approach (outside content box, inside export PNG). */
 export const SUBSCRIBE_ANIMATION_MOUSE_ENTRY_PADDING_DESIGN = 0
 
+/** Lucide mouse-pointer draw height at layout scale 1. */
+export const SUBSCRIBE_ANIMATION_MOUSE_POINTER_SIZE_DESIGN = 20
+
 export interface SubscribeAnimationLayout {
   /** Full bitmap size including transparent padding. */
   width: number

@@ -9,6 +9,7 @@ import {
 } from './subscribeAnimationLucideIcons'
 import type { SubscribeMousePointer } from './subscribeAnimationMouse'
 import type { SubscribeChannelCardThemeColors } from './subscribeAnimationChannelCardTheme'
+import { SUBSCRIBE_ANIMATION_MOUSE_POINTER_SIZE_DESIGN } from './subscribeAnimationLayout'
 
 export function roundRect(
   ctx: CanvasRenderingContext2D,
@@ -83,8 +84,6 @@ export function drawIconButton(
   scale: number,
   active: boolean,
   kind: 'bell' | 'like',
-  bellAngle = 0,
-  bellScale = 1,
   pressed = false,
   clicked = false,
   clickScale = 1,
@@ -120,8 +119,6 @@ export function drawIconButton(
       const iconColor = clicked ? (channelTheme?.buttonClickedIcon ?? '#000000') : defaultIcon
       strokeLucidePaths(ctx, paths, cx, cy, iconSize, iconColor, {
         strokeWidth: 2.25 * scale,
-        rotationDeg: bellAngle,
-        scale: bellScale,
       })
     } else {
       const iconColor = clicked || active ? likeColor : defaultIcon
@@ -171,13 +168,9 @@ export function drawLucideBell(
   centerY: number,
   pixelSize: number,
   scale: number,
-  bellAngle = 0,
-  bellScale = 1,
 ): void {
   strokeLucidePaths(ctx, LUCIDE_BELL_PATHS, centerX, centerY, pixelSize, '#ffffff', {
     strokeWidth: 2.25 * scale,
-    rotationDeg: bellAngle,
-    scale: bellScale,
   })
 }
 
@@ -187,7 +180,7 @@ export function drawMousePointer(
   layoutScale: number,
 ): void {
   if (!pointer.visible) return
-  const pixelSize = 26 * layoutScale
+  const pixelSize = SUBSCRIBE_ANIMATION_MOUSE_POINTER_SIZE_DESIGN * layoutScale
   const scale = (pixelSize / LUCIDE_ICON_VIEWBOX) * pointer.clickScale
   const strokeWidth = 1 * layoutScale
   ctx.save()
