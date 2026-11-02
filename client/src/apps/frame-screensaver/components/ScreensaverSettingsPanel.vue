@@ -1,20 +1,32 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import { Eye, RotateCcw, SquareSplitHorizontal, Trash2 } from '@lucide/vue'
 import { ADJUSTMENT_FIELDS } from '@shared/screensaverAdjust'
 import { FRAME_FILE_LIMIT } from '@shared/screensaverFrames'
 import { DURATION_PRESETS, SCREENSAVER_FPS, SCREENSAVER_OUTPUTS } from '@shared/screensaver'
+import { SUBSCRIBE_ANIMATION_DURATION_SEC, SUBSCRIBE_ANIMATION_POSITIONS, SUBSCRIBE_ANIMATION_STYLES, SUBSCRIBE_CHANNEL_CARD_THEMES, MAX_SUBSCRIBE_EDGE_DISTANCE, MIN_SUBSCRIBE_EDGE_DISTANCE, MIN_SUBSCRIBE_SIZE_PERCENT, MAX_SUBSCRIBE_SIZE_PERCENT, defaultSubscribeSizePercent, type SubscribeAnimationStyle } from '@shared/screensaverSubscribeAnimation'
 import AdvancedAudioControls from '../../../components/audio/AdvancedAudioControls.vue'
 import AudioFileField from '../../../components/audio/AudioFileField.vue'
 import FileDropZone from '../../../components/FileDropZone.vue'
 import SettingsAccordion from '../../../components/SettingsAccordion.vue'
 import SliderField from '../../../components/SliderField.vue'
+import ToggleSwitch from '../../../components/ToggleSwitch.vue'
 import { webGl2Available } from '../lib/render/createScreensaverRenderer'
 import type { PreviewRendererMode } from '../lib/previewRendererPreference'
 import { useScreensaverStore } from '../stores/screensaver'
 import { DEFAULT_FRAMES } from '../lib/defaultFrames'
+import { positionLabel } from '../lib/subscribeAnimation/subscribeAnimationLayout'
 
 const store = useScreensaverStore()
+const channelUrlDraft = ref(store.subscribeAnimation.channelUrl)
+function onSubscribeStyleChange(event: Event) {
+  const style = (event.target as HTMLSelectElement).value as SubscribeAnimationStyle
+  store.replaceSubscribeAnimation({
+    style,
+    sizePercent: defaultSubscribeSizePercent(style),
+    edgeDistance: 0,
+  })
+}
 
 const previewRendererActiveLabel = computed(() => {
   if (store.previewRendererActive === 'webgl2') return 'GPU (WebGL2)'
@@ -340,6 +352,110 @@ function onCustomMinutes() {
         <button class="btn cursor-pointer" :class="store.composition.flipH ? 'btn-primary' : 'btn-ghost'" type="button" @click="toggleFlip('flipH')">Flip horizontal</button>
         <button class="btn cursor-pointer" :class="store.composition.flipV ? 'btn-primary' : 'btn-ghost'" type="button" @click="toggleFlip('flipV')">Flip vertical</button>
       </div>
+    </SettingsAccordion>
+
+    <SettingsAccordion title="Subscribe Animation" :open="false">
+      <div class="flex items-center justify-between gap-3">
+        <span class="text-sm">Enable subscribe animation</span>
+        <ToggleSwitch
+          :model-value="store.subscribeAnimation.enabled"
+          aria-label="Enable subscribe animation"
+          @update:model-value="(value) => store.replaceSubscribeAnimation({ enabled: value })"
+        />
+      </div>
+      <p class="mt-1 text-xs text-zinc-500">Static image exports only. Adds a 30 fps overlay for {{ SUBSCRIBE_ANIMATION_DURATION_SEC }} seconds (1 s pause between each click).</p>
+      <template v-if="store.subscribeAnimation.enabled">
+        <label class="mt-3 block text-xs text-zinc-500">Style</label>
+        <select
+          class="field mt-1"
+          :value="store.subscribeAnimation.style"
+          @change="onSubscribeStyleChange"
+        >
+          <option v-for="item in SUBSCRIBE_ANIMATION_STYLES" :key="item.id" :value="item.id">{{ item.label }}</option>
+        </select>
+        <template v-if="store.subscribeAnimation.style === 'channel-card'">
+          <label class="mt-3 block text-xs text-zinc-500">Channel card theme</label>
+          <select
+            class="field mt-1"
+            :value="store.subscribeAnimation.channelCardTheme"
+            @change="store.replaceSubscribeAnimation({ channelCardTheme: ($event.target as HTMLSelectElement).value as never })"
+          >
+            <option v-for="item in SUBSCRIBE_CHANNEL_CARD_THEMES" :key="item" :value="item">{{ item === 'dark' ? 'Dark' : 'Light' }}</option>
+          </select>
+          <label class="mt-3 block text-xs text-zinc-500">YouTube channel or video URL</label>
+          <div class="mt-1 flex gap-2">
+            <input
+              v-model="channelUrlDraft"
+              class="field min-w-0 flex-1"
+              type="url"
+              placeholder="https://www.youtube.com/@…"
+              @change="store.replaceSubscribeAnimation({ channelUrl: channelUrlDraft.trim() })"
+            />
+            <button
+              class="btn btn-ghost shrink-0 cursor-pointer text-xs"
+              type="button"
+              :disabled="store.subscribeChannelLookupLoading"
+              @click="void store.fetchSubscribeChannelFromUrl(channelUrlDraft)"
+            >
+              {{ store.subscribeChannelLookupLoading ? 'Loading…' : 'Fetch' }}
+            </button>
+          </div>
+          <p class="mt-1 text-xs text-zinc-500">Fetch loads channel name, avatar, and subscriber count when YouTube returns them.</p>
+          <p
+            v-if="store.subscribeAnimation.channelName && store.subscribeAnimation.style === 'channel-card'"
+            class="mt-2 text-xs text-zinc-400"
+          >
+            {{ store.subscribeAnimation.channelName
+            }}<span v-if="store.subscribeAnimation.channelSubscriberCount"> · {{ store.subscribeAnimation.channelSubscriberCount }}</span>
+          </p>
+        </template>
+        <label class="mt-3 block text-xs text-zinc-500">Start time (seconds)</label>
+        <input
+          class="field mt-1"
+          type="number"
+          min="0"
+          :max="Math.max(0, store.durationSeconds - SUBSCRIBE_ANIMATION_DURATION_SEC)"
+          step="1"
+          :value="store.subscribeAnimation.startSec"
+          @change="store.replaceSubscribeAnimation({ startSec: Number(($event.target as HTMLInputElement).value) })"
+        />
+        <label class="mt-3 block text-xs text-zinc-500">Position</label>
+        <select
+          class="field mt-1"
+          :value="store.subscribeAnimation.position"
+          @change="store.replaceSubscribeAnimation({ position: ($event.target as HTMLSelectElement).value as never })"
+        >
+          <option v-for="item in SUBSCRIBE_ANIMATION_POSITIONS" :key="item" :value="item">{{ positionLabel(item) }}</option>
+        </select>
+        <SliderField
+          class="mt-3"
+          label="Size (% of output width)"
+          :min="MIN_SUBSCRIBE_SIZE_PERCENT"
+          :max="MAX_SUBSCRIBE_SIZE_PERCENT"
+          :step="1"
+          :model-value="store.subscribeAnimation.sizePercent"
+          @update:model-value="(v) => store.replaceSubscribeAnimation({ sizePercent: v })"
+        />
+        <SliderField
+          class="mt-3"
+          label="Distance from edges"
+          :min="MIN_SUBSCRIBE_EDGE_DISTANCE"
+          :max="MAX_SUBSCRIBE_EDGE_DISTANCE"
+          :step="4"
+          :model-value="store.subscribeAnimation.edgeDistance"
+          @update:model-value="(v) => store.replaceSubscribeAnimation({ edgeDistance: v })"
+        />
+        <p class="mt-1 text-xs text-zinc-500">In export pixels from the bottom and horizontal edges.</p>
+        <div class="mt-3 flex items-center justify-between gap-3">
+          <span class="text-sm">Show on preview canvas</span>
+          <ToggleSwitch
+            :model-value="store.subscribeAnimation.previewOnCanvas"
+            aria-label="Show subscribe animation on preview canvas"
+            @update:model-value="(value) => store.replaceSubscribeAnimation({ previewOnCanvas: value })"
+          />
+        </div>
+        <p class="mt-1 text-xs text-zinc-500">Loops on the main canvas so you can tune position, size, and edge distance while editing.</p>
+      </template>
     </SettingsAccordion>
 
     <SettingsAccordion title="Audio">

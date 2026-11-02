@@ -38,7 +38,7 @@ export const DURATION_PRESETS = [
 export const DEFAULT_DURATION_SECONDS = 2 * 60 * 60
 /** Matches `String(DURATION_PRESETS[].seconds)` for the default duration preset button. */
 export const DEFAULT_DURATION_PRESET_KEY = String(DEFAULT_DURATION_SECONDS)
-export const MIN_DURATION_SECONDS = 5 * 60
+export const MIN_DURATION_SECONDS = 60
 export const MAX_DURATION_SECONDS = 12 * 60 * 60
 
 /** Server test script only — not accepted from normal API clients unless env allows. */

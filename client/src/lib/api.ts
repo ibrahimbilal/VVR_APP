@@ -83,6 +83,25 @@ export async function importUrl(url: string): Promise<ImportResult> {
   return (await response.json()) as ImportResult
 }
 
+export interface YoutubeChannelLookupResult {
+  ok: true
+  channelName: string | null
+  channelUrl: string | null
+  avatarUrl: string | null
+  subscriberCount: string | null
+  source: 'video-oembed' | 'channel-page'
+}
+
+export async function lookupYoutubeChannel(url: string): Promise<YoutubeChannelLookupResult> {
+  const response = await fetch('/api/youtube-channel-lookup', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ url }),
+  })
+  if (!response.ok) throw new Error(await readError(response))
+  return (await response.json()) as YoutubeChannelLookupResult
+}
+
 export function startExport(body: FormData, onProgress: (fraction: number) => void, signal: AbortSignal): Promise<{ jobId: string }> {
   return sendForm('/api/export', body, onProgress, signal)
 }

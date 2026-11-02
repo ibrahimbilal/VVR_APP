@@ -7,6 +7,7 @@ import type {
   ScreensaverMode,
   ScreensaverProfile,
 } from '@shared/screensaver'
+import type { SubscribeAnimationSettings } from '@shared/screensaverSubscribeAnimation'
 
 export interface SavedScreensaverProject {
   version: 1 | 2
@@ -38,4 +39,6 @@ export interface SavedScreensaverProject {
   profile?: ScreensaverProfile
   encoder?: EncoderChoice
   composition?: ScreensaverComposition
+  /** @deprecated Ignored on load; subscribe animation resets each session. */
+  subscribeAnimation?: SubscribeAnimationSettings
 }

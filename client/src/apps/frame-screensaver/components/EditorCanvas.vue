@@ -25,6 +25,7 @@ import { createWebGL2ScreensaverRenderer } from '../lib/render/createWebGL2Scree
 import type { ScreensaverImageRenderer, ScreensaverRenderInput } from '../lib/render/types'
 import { useScreensaverStore } from '../stores/screensaver'
 import { BRAND } from '../../../lib/brand'
+import { drawSubscribeAnimationOnPreviewOverlay } from '../lib/subscribeAnimation/subscribeAnimationCanvasPreview'
 
 const store = useScreensaverStore()
 const { previewRenderer } = storeToRefs(store)
@@ -142,6 +143,74 @@ const cropAspects = [
 const viewLabel = computed(() => `${Math.round(zoom.value * 100)}%`)
 const playing = ref(false)
 const audioRef = ref<HTMLAudioElement | null>(null)
+const subscribePreviewTime = ref(0)
+let subscribePreviewRaf = 0
+let subscribePreviewStarted = 0
+
+function showSubscribeOnCanvas(): boolean {
+  return (
+    Boolean(store.subscribeAnimation.enabled && store.subscribeAnimation.previewOnCanvas) &&
+    store.mediaKind === 'image' &&
+    Boolean(store.objectUrl) &&
+    !store.cropEditing
+  )
+}
+
+function stopSubscribePreviewLoop() {
+  cancelAnimationFrame(subscribePreviewRaf)
+  subscribePreviewRaf = 0
+}
+
+function startSubscribePreviewLoop() {
+  stopSubscribePreviewLoop()
+  if (!showSubscribeOnCanvas()) return
+  subscribePreviewStarted = performance.now()
+  const tick = (now: number) => {
+    if (!showSubscribeOnCanvas()) {
+      stopSubscribePreviewLoop()
+      return
+    }
+    const duration = store.subscribeAnimation.durationSec
+    subscribePreviewTime.value = duration > 0 ? ((now - subscribePreviewStarted) / 1000) % duration : 0
+    redrawSubscribePreviewOverlayOnly()
+    subscribePreviewRaf = requestAnimationFrame(tick)
+  }
+  subscribePreviewRaf = requestAnimationFrame(tick)
+}
+
+function syncSubscribePreviewLoop() {
+  if (showSubscribeOnCanvas()) startSubscribePreviewLoop()
+  else stopSubscribePreviewLoop()
+}
+
+function drawSubscribeAnimationOverlay(ctx: CanvasRenderingContext2D, element: HTMLCanvasElement) {
+  if (!showSubscribeOnCanvas()) return
+  drawSubscribeAnimationOnPreviewOverlay({
+    ctx,
+    overlay: element,
+    outputWidth: store.outputWidth,
+    outputHeight: store.outputHeight,
+    settings: store.subscribeAnimation,
+    timeSec: subscribePreviewTime.value,
+    mapPoint: (nx, ny) => forward(nx, ny, element),
+  })
+}
+
+function drawPreviewOverlayContents(ctx: CanvasRenderingContext2D, element: HTMLCanvasElement) {
+  drawOutputFrameBorder(ctx, element)
+  drawSubscribeAnimationOverlay(ctx, element)
+  if (selected.value && media.value) drawHandles(ctx, element)
+}
+
+function redrawSubscribePreviewOverlayOnly() {
+  const overlay = overlayCanvas.value
+  if (!overlay || store.cropEditing) return
+  const ctx = overlay.getContext('2d')
+  if (!ctx) return
+  ctx.setTransform(1, 0, 0, 1, 0, 0)
+  ctx.clearRect(0, 0, overlay.width, overlay.height)
+  drawPreviewOverlayContents(ctx, overlay)
+}
 
 function togglePlay() {
   const video = media.value
@@ -260,8 +329,7 @@ function draw() {
   scheduler.scheduleDraw(() => buildRenderInput(), () => {
     const ctx = overlay.getContext('2d')
     if (!ctx) return
-    drawOutputFrameBorder(ctx, overlay)
-    if (selected.value && media.value) drawHandles(ctx, overlay)
+    drawPreviewOverlayContents(ctx, overlay)
   })
 }
 
@@ -686,6 +754,29 @@ watch(desktopPreview, () => {
 watch([zoom, panX, panY], () => {
   draw()
 })
+watch(
+  () =>
+    [
+      store.subscribeAnimation.enabled,
+      store.subscribeAnimation.previewOnCanvas,
+      store.subscribeAnimation.position,
+      store.subscribeAnimation.sizePercent,
+      store.subscribeAnimation.edgeDistance,
+      store.subscribeAnimation.style,
+      store.subscribeAnimation.channelName,
+      store.subscribeAnimation.channelSubscriberCount,
+      store.mediaKind,
+      store.objectUrl,
+      store.cropEditing,
+      store.outputWidth,
+      store.outputHeight,
+    ] as const,
+  () => {
+    syncSubscribePreviewLoop()
+    draw()
+  },
+  { deep: true },
+)
 
 let observer: ResizeObserver | null = null
 onMounted(() => {
@@ -693,12 +784,14 @@ onMounted(() => {
   syncDesktopPreview()
   desktopPreviewMq.addEventListener('change', syncDesktopPreview)
   void remountPreviewRenderer()
+  syncSubscribePreviewLoop()
   observer = new ResizeObserver(() => resize())
   if (shell.value) observer.observe(shell.value)
   shell.value?.addEventListener('wheel', onWheel, { passive: false })
   window.addEventListener('keydown', nudge)
 })
 onBeforeUnmount(() => {
+  stopSubscribePreviewLoop()
   desktopPreviewMq?.removeEventListener('change', syncDesktopPreview)
   desktopPreviewMq = null
   scheduler.cancel()
@@ -797,7 +890,10 @@ onBeforeUnmount(() => {
     </div>
     <audio ref="audioRef" class="hidden" />
     <p class="mt-2 text-xs text-zinc-500">
-      View zoom does not change the export. The dashed yellow outline is the export frame. Drag the image to place it. Corner handles scale it. The round handle rotates it.
+      View zoom does not change the export. The dashed outline is the export frame. Drag the image to place it. Corner handles scale it. The round handle rotates it.
+      <span v-if="store.subscribeAnimation.enabled && store.subscribeAnimation.previewOnCanvas && store.mediaKind === 'image'">
+        Subscribe animation loops on this canvas when enabled — adjust position, size, and edge distance in Settings.
+      </span>
     </p>
   </div>
 </template>
