@@ -78,7 +78,7 @@ Stack: Vue 3, **vue-router**, Pinia, Tailwind 4, Lucide. Client aliases `@shared
 3. Edit the banner sentence. Each word is a span with its own color. A newline in the title sets `breakBefore` on the first word of the next line.
 4. Pick a preset (Classic Ranking, Tier List, Minimal) or keep Custom. Style banner, ranking, video, and audio.
 5. Play the preview. Banner and ranks stay painted on a canvas while `<video>` elements play underneath.
-6. Export MP4. Queue multiple exports (each click snapshots the current project); the server encodes one at a time. Download starts only after the server verifies the file.
+6. Export MP4. Queue multiple exports (each click snapshots the current project); the server encodes one at a time. Download starts only after the server verifies the file. Shorts and Screensaver **Export MP4** / **Queue export** buttons only enqueue work; progress, cancel, and download live in the header notification panel (`AppNotifications.vue`). Thumbnail **Download Thumbnail** only runs the browser export (no progress on the button).
 
 A link stores a title and thumbnail when the platform allows it. It does not download the video. `uploadState: 'empty'` until the user attaches a file. Instagram never fetches a title (no Meta token).
 
@@ -90,7 +90,7 @@ Reactive: `name`, `titleText`, `spans`, `style`, `activePreset`, `clips`, `selec
 
 Module-level (not reactive): `fileMap` (clip id → File), `musicFile`, `applying` (suppresses the preset→custom watcher). Export jobs live in `useManagedExportJobs()` inside the store.
 
-Export is blocked (`exportBlocker`) when the renderer is offline, there are no clips, any clip is uploading / empty / error, or any kept span is under 0.3s. An export already running does not block another; up to 12 jobs can be queued per app (`managedExportJobs.ts`, `exportQueueRunner.ts`).
+Export is blocked (`exportBlocker`) when the renderer is offline, there are no clips, any clip is uploading / empty / error, any kept span is under 0.3s, or the export payload matches the last enqueued export with no edits since (`exportFingerprint.ts`). An export already running does not block another unless the project is unchanged; up to 12 jobs can be queued per app (`managedExportJobs.ts`, `exportQueueRunner.ts`).
 
 Changing `style` or `spans` after hydration sets `activePreset` to `custom`, unless `applying` is true (preset apply and resolution change set that flag).
 
@@ -127,7 +127,7 @@ IndexedDB database `vvr`, **version 3** (`client/src/lib/idb.ts`): `meta`, `file
 - `clearRankingProject()` clears ranking meta/files/music only (not screensaver).
 - Each clip file is stored by clip id. Music is one blob.
 - Refresh rebuilds object URLs from those blobs and re-uploads if the server no longer has `serverId`. A local clip whose file is gone becomes `error`. A link clip whose file is gone stays `empty`.
-- Color sets are localStorage, not IndexedDB. New project clears the IndexedDB project and music, not the color sets.
+- Color sets are localStorage, not IndexedDB. New project clears the IndexedDB project and music, not the color sets. **New project** (header, all three apps) only resets editor inputs and defaults in memory and IndexedDB; it does not cancel in-progress or queued exports and does not delete server uploads (`DELETE /api/clips`, frames, etc.). Those are purged on tab/window close via `POST /api/uploads/cleanup` (`serverUploadCleanup.ts`).
 - `assets` stores image blobs by id (sha256 index, ref list). `thumbnail` stores `document` (version 2, written while editing but **discarded on every full page load** so Thumbnail Studio always opens fresh) and `pending-transfer` (kept until consumed). A version-1 layer project is discarded on open and its asset refs are released. Ranking and screensaver cleanup do not delete these. An asset is removed only when no document or pending transfer still references it.
 - Clearing site data wipes the project. Server files expire on their own (below).
 
@@ -264,13 +264,13 @@ Sweep every 10 minutes: outputs older than 2 hours, jobs and incoming older than
 | Presets, banner, ranks, video, audio controls | `client/src/components/StylePanel.vue` |
 | Preview stage and controls | `client/src/components/PreviewStage.vue` |
 | Play, seek, crossfade, music | `client/src/composables/usePlayback.ts` |
-| Timeline and export button | `client/src/components/TimelineBar.vue` |
+| Timeline and export button | `client/src/components/TimelineBar.vue`, `client/src/components/ExportActionButton.vue` |
 | Add/remove/reorder/persist/export actions | `client/src/stores/project.ts` |
 | Types | `client/src/types.ts` |
 | Rank labels, sort, page vs stack | `client/src/lib/format.ts`, `client/src/lib/order.ts` |
 | Word colors | `client/src/lib/title.ts` |
 | Painted banner and numbers | `client/src/lib/drawOverlay.ts` |
-| PNG build, submit, and job polling | `client/src/lib/exportJob.ts`, `client/src/lib/exportQueueRunner.ts`, `client/src/lib/managedExportJobs.ts`, `client/src/lib/exportState.ts`, `client/src/lib/exportButtonMode.ts` |
+| PNG build, submit, and job polling | `client/src/lib/exportJob.ts`, `client/src/lib/exportQueueRunner.ts`, `client/src/lib/managedExportJobs.ts`, `client/src/lib/exportState.ts`, `client/src/lib/exportFingerprint.ts` |
 | Fetch wrappers | `client/src/lib/api.ts` |
 | Server upload purge (both apps) | `client/src/lib/serverUploadCleanup.ts` |
 | Browser save | `client/src/lib/idb.ts` |
@@ -378,6 +378,11 @@ Badge SVGs are committed under `client/src/assets/thumbnail-badges/` (catalog sl
 
 ## Changelog
 
+- 2026-11-03 — Screensaver Frames: selected frame shows hover overlay with remove icon (`ScreensaverSettingsPanel.vue`).
+- 2026-11-03 — Block duplicate export when project content is unchanged since the last enqueue/download (`exportFingerprint.ts`, ranking/screensaver/thumbnail stores).
+- 2026-11-03 — Notification **Cancel** shows a spinner until the active render row clears (`AppNotifications.vue`).
+- 2026-11-03 — Export buttons are export-only (no progress, cancel, or download on the button); removed `exportButtonMode.ts` (`ExportActionButton.vue`, `ScreensaverExportBar.vue`, `ThumbnailControls.vue`).
+- 2026-11-03 — **New project** no longer cancels exports or deletes server uploads; only resets editor state (`stores/project.ts`, `apps/frame-screensaver/stores/screensaver.ts`).
 - 2026-11-02 — Subscribe animation mouse pointer smaller (20 vs 26 design px; `SUBSCRIBE_ANIMATION_MOUSE_POINTER_SIZE_DESIGN`, `subscribeAnimationDraw.ts`).
 - 2026-11-02 — Subscribe animation alert icon: removed continuous bell wiggle; bell-ring swap and click press unchanged (`subscribeAnimationTimeline.ts`, `subscribeAnimationDraw.ts`, `renderSubscribeAnimation.ts`).
 - 2026-11-02 — Root devDependency `archiver` ^8 + `minimatch` override ^11.0.1 clears Hostinger/npm moderate advisories (glob/minimatch); deploy script uses `ZipArchive`.

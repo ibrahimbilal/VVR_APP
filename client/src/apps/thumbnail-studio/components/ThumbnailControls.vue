@@ -218,9 +218,15 @@ function onExportSize(event: Event): void {
         suffix="%"
         @update:model-value="store.setJpegQuality($event / 100)"
       />
-      <button class="btn btn-primary w-full cursor-pointer" type="button" :disabled="store.exporting" @click="store.download()">
+      <button
+        class="btn btn-primary w-full cursor-pointer"
+        type="button"
+        :disabled="Boolean(store.exportDuplicateBlocker)"
+        @click="store.download()"
+      >
         Download Thumbnail
       </button>
+      <p v-if="store.exportDuplicateBlocker" class="text-xs text-zinc-500">{{ store.exportDuplicateBlocker }}</p>
     </div>
   </aside>
 </template>

@@ -47,6 +47,7 @@ import {
 } from '../lib/previewRendererPreference'
 import type { ScreensaverRendererBackend } from '../lib/render/types'
 import { ensureServerUploadCleanupOnClose } from '../../../lib/serverUploadCleanup'
+import { DUPLICATE_EXPORT_MESSAGE, screensaverExportFingerprint } from '../../../lib/exportFingerprint'
 import { submitScreensaverExport } from '../lib/screensaverExport'
 import { subscribeAnimationOverlayOnOutput } from '../lib/subscribeAnimation/subscribeAnimationLayout'
 import { renderSubscribeAnimationFrames } from '../lib/subscribeAnimation/subscribeAnimationExportFrames'
@@ -121,6 +122,7 @@ export const useScreensaverStore = defineStore('screensaver', () => {
   const platform = usePlatformStore()
   const { serverOnline } = storeToRefs(platform)
   const exportQueue = useManagedExportJobs()
+  const lastEnqueuedExportFingerprint = ref<string | null>(null)
 
   const hydrated = ref(false)
   const name = ref(defaultProject().name)
@@ -193,6 +195,50 @@ export const useScreensaverStore = defineStore('screensaver', () => {
     )
   })
 
+  function buildExportProjectJson(): Record<string, unknown> {
+    const mediaId = serverId.value
+    const kind = mediaKind.value
+    if (!mediaId || !kind) return {}
+    const animSettings = structuredClone(toRaw(subscribeAnimation.value))
+    const overlay =
+      animSettings.enabled
+        ? subscribeAnimationOverlayOnOutput(outputWidth.value, outputHeight.value, animSettings)
+        : null
+    return {
+      filename: name.value.trim() || 'screensaver',
+      mediaId,
+      kind,
+      mode: mode.value,
+      width: outputWidth.value,
+      height: outputHeight.value,
+      fps: fps.value,
+      duration: durationSeconds.value,
+      fit: fit.value,
+      loopType: loopType.value,
+      crossfadeSeconds: crossfadeSeconds.value,
+      audioMode: audioMode.value,
+      audioVolume: audioVolume.value,
+      audioFadeIn: audioFadeIn.value,
+      audioFadeOut: audioFadeOut.value,
+      loopAudio: loopAudio.value,
+      backgroundColor: backgroundColor.value,
+      profile: profile.value,
+      encoder: encoder.value,
+      composition: cloneComposition(composition.value),
+      subscribeAnimation: overlay
+        ? { ...animSettings, overlayX: overlay.x, overlayY: overlay.y }
+        : animSettings,
+    }
+  }
+
+  const currentExportFingerprint = computed(() => {
+    if (!serverId.value || !mediaKind.value) return ''
+    return screensaverExportFingerprint(
+      buildExportProjectJson(),
+      audioMode.value === 'upload' ? audioFile : null,
+    )
+  })
+
   const exportBlocker = computed(() => {
     if (!serverOnline.value) return 'The renderer is offline.'
     if (uploadState.value !== 'ready' || !serverId.value) return 'Upload an image or video first.'
@@ -217,6 +263,13 @@ export const useScreensaverStore = defineStore('screensaver', () => {
       staticImage: mode.value === 'static' && mediaKind.value === 'image',
     })
     if (subscribeAnimation.value.enabled && !animCheck.ok) return animCheck.message ?? 'Invalid subscribe animation settings.'
+    if (
+      lastEnqueuedExportFingerprint.value !== null &&
+      currentExportFingerprint.value !== '' &&
+      currentExportFingerprint.value === lastEnqueuedExportFingerprint.value
+    ) {
+      return DUPLICATE_EXPORT_MESSAGE
+    }
     return ''
   })
 
@@ -655,8 +708,6 @@ export const useScreensaverStore = defineStore('screensaver', () => {
     historyIndex.value = 0
     uploadProgress.value = 0
     uploadError.value = null
-    exportQueue.cancelAll()
-    exportQueue.clearFinished()
     compareAdjustments.value = false
     cropEditing.value = false
     frameImage.value = null
@@ -668,12 +719,10 @@ export const useScreensaverStore = defineStore('screensaver', () => {
   async function newProject(): Promise<void> {
     const hasWork = mediaKind.value !== null || audioFileName.value !== null
     if (hasWork && !window.confirm('Start a new project? The current source and settings will be cleared.')) return
-    exportQueue.cancelAll()
-    const previousServerId = serverId.value
     removeSource()
     clearAudio()
     resetToDefaults()
-    if (previousServerId) void api.deleteClip(previousServerId).catch(() => undefined)
+    lastEnqueuedExportFingerprint.value = null
     await idb.clearScreensaverProject().catch(() => undefined)
   }
 
@@ -999,79 +1048,55 @@ export const useScreensaverStore = defineStore('screensaver', () => {
       frameId: composition.value.frameId,
     }
     const animSettings = structuredClone(toRaw(subscribeAnimation.value))
-    const overlay =
-      animSettings.enabled
-        ? subscribeAnimationOverlayOnOutput(outputWidth.value, outputHeight.value, animSettings)
-        : null
-    const projectJson: Record<string, unknown> = {
-      filename,
-      mediaId,
-      kind,
-      mode: mode.value,
-      width: outputWidth.value,
-      height: outputHeight.value,
-      fps: fps.value,
-      duration: durationSeconds.value,
-      fit: fit.value,
-      loopType: loopType.value,
-      crossfadeSeconds: crossfadeSeconds.value,
-      audioMode: audioMode.value,
-      audioVolume: audioVolume.value,
-      audioFadeIn: audioFadeIn.value,
-      audioFadeOut: audioFadeOut.value,
-      loopAudio: loopAudio.value,
-      backgroundColor: backgroundColor.value,
-      profile: profile.value,
-      encoder: encoder.value,
-      composition: cloneComposition(composition.value),
-      subscribeAnimation: overlay
-        ? { ...animSettings, overlayX: overlay.x, overlayY: overlay.y }
-        : animSettings,
-    }
+    const projectJson = buildExportProjectJson()
     const snapshotAnimSettings = animSettings
     const snapshotAudioFile = audioMode.value === 'upload' ? audioFile : null
 
-    exportQueue.enqueue({
-      app: 'screensaver',
-      displayName,
-      downloadFilename: `${filename}.mp4`,
-      toast,
-      onError: (text) => toast(text, 'error'),
-      submit: async (signal, onUpdate) => {
-        onUpdate({
-          phase: 'preparing',
-          progress: 0.02,
-          message: 'Preparing composition',
-          stage: 'Preparing composition',
-        })
-        const blobs = await buildExportBlobsForSnapshot(snapshot)
-        if (signal.aborted) throw new DOMException('The export was cancelled.', 'AbortError')
-        let animationFrameBlobs: Blob[] | null = null
-        if (snapshotAnimSettings.enabled && kind === 'image') {
-          await preloadSubscribeChannelAvatar(snapshotAnimSettings.channelAvatarUrl)
-          animationFrameBlobs = await renderSubscribeAnimationFrames(snapshotAnimSettings, snapshot.outputWidth, (done, total) => {
-            onUpdate({
-              progress: 0.02 + (done / total) * 0.12,
-              message: `Rendering subscribe animation (${done}/${total}).`,
-              stage: 'Preparing animation',
-            })
+    if (
+      exportQueue.enqueue({
+        app: 'screensaver',
+        displayName,
+        downloadFilename: `${filename}.mp4`,
+        toast,
+        onError: (text) => toast(text, 'error'),
+        submit: async (signal, onUpdate) => {
+          onUpdate({
+            phase: 'preparing',
+            progress: 0.02,
+            message: 'Preparing composition',
+            stage: 'Preparing composition',
           })
+          const blobs = await buildExportBlobsForSnapshot(snapshot)
           if (signal.aborted) throw new DOMException('The export was cancelled.', 'AbortError')
-          const animBytes = animationFrameBlobs.reduce((sum, blob) => sum + blob.size, 0)
-          if (animBytes > SUBSCRIBE_ANIMATION_UPLOAD_BUDGET_BYTES) {
-            throw new Error('Subscribe animation frames are too large. Lower the size and try again.')
+          let animationFrameBlobs: Blob[] | null = null
+          if (snapshotAnimSettings.enabled && kind === 'image') {
+            await preloadSubscribeChannelAvatar(snapshotAnimSettings.channelAvatarUrl)
+            animationFrameBlobs = await renderSubscribeAnimationFrames(snapshotAnimSettings, snapshot.outputWidth, (done, total) => {
+              onUpdate({
+                progress: 0.02 + (done / total) * 0.12,
+                message: `Rendering subscribe animation (${done}/${total}).`,
+                stage: 'Preparing animation',
+              })
+            })
+            if (signal.aborted) throw new DOMException('The export was cancelled.', 'AbortError')
+            const animBytes = animationFrameBlobs.reduce((sum, blob) => sum + blob.size, 0)
+            if (animBytes > SUBSCRIBE_ANIMATION_UPLOAD_BUDGET_BYTES) {
+              throw new Error('Subscribe animation frames are too large. Lower the size and try again.')
+            }
           }
-        }
-        return submitScreensaverExport({
-          ...blobs,
-          animationFrameBlobs,
-          projectJson,
-          audioFile: snapshotAudioFile,
-          signal,
-          onUpdate,
-        })
-      },
-    })
+          return submitScreensaverExport({
+            ...blobs,
+            animationFrameBlobs,
+            projectJson,
+            audioFile: snapshotAudioFile,
+            signal,
+            onUpdate,
+          })
+        },
+      })
+    ) {
+      lastEnqueuedExportFingerprint.value = currentExportFingerprint.value
+    }
   }
 
   function cancelExport() {

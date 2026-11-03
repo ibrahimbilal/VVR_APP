@@ -18,6 +18,7 @@ import * as idb from '../lib/idb'
 import { readVideoFile, validateAudioFile, validateVideoFile } from '../lib/media'
 import { defaultColorSets, loadColorSets, saveColorSets, type ColorSet } from '../lib/colorSets'
 import { playbackOrder } from '../lib/order'
+import { rankingExportFingerprint, DUPLICATE_EXPORT_MESSAGE } from '../lib/exportFingerprint'
 import { RANK_COLORS, createDefaultVideo, materializePreset } from '../lib/presets'
 import { retokenize } from '../lib/title'
 import type { Clip, PersistedClip, PresetId, ProjectStyle, Source, TitleSpan } from '../types'
@@ -27,6 +28,7 @@ const fileMap = new Map<string, File>()
 let musicFile: File | null = null
 let applying = false
 let metaTimer = 0
+const lastEnqueuedExportFingerprint = ref<string | null>(null)
 
 function blankClip(partial: Partial<Clip>): Clip {
   return {
@@ -84,6 +86,9 @@ export const useProjectStore = defineStore('project', () => {
   const exportState = exportQueue.exportState
   const exporting = exportQueue.exporting
   const activeExportCount = exportQueue.activeExportCount
+  const currentExportFingerprint = computed(() =>
+    rankingExportFingerprint(clips.value, style.value, spans.value, musicFile),
+  )
   const exportBlocker = computed(() => {
     if (!serverOnline.value) return 'The renderer is offline.'
     if (clips.value.length < 1) return 'Add at least one clip.'
@@ -91,6 +96,12 @@ export const useProjectStore = defineStore('project', () => {
     if (clips.value.some((clip) => clip.uploadState === 'empty')) return 'Upload a video file for each linked clip.'
     if (clips.value.some((clip) => clip.uploadState === 'error')) return 'Retry or remove clips that failed.'
     if (clips.value.some((clip) => clip.trimEnd - clip.trimStart < 0.3)) return 'Each clip must keep at least 0.3 seconds.'
+    if (
+      lastEnqueuedExportFingerprint.value !== null &&
+      currentExportFingerprint.value === lastEnqueuedExportFingerprint.value
+    ) {
+      return DUPLICATE_EXPORT_MESSAGE
+    }
     return ''
   })
   const timeline = computed(() => {
@@ -539,10 +550,8 @@ export const useProjectStore = defineStore('project', () => {
 
   async function newProject() {
     if (clips.value.length > 0 && !window.confirm('Start a new project? The current clips will be removed from the editor.')) return
-    cancelExport()
     for (const clip of clips.value) {
       if (clip.objectUrl) URL.revokeObjectURL(clip.objectUrl)
-      if (clip.serverId) void api.deleteClip(clip.serverId).catch(() => undefined)
     }
     fileMap.clear()
     if (musicUrl.value) URL.revokeObjectURL(musicUrl.value)
@@ -559,10 +568,9 @@ export const useProjectStore = defineStore('project', () => {
     clips.value = []
     selectedClipId.value = null
     selectedPanelOpen.value = false
-    exportQueue.cancelAll()
-    exportQueue.clearFinished()
     urlNotice.value = ''
     applying = false
+    lastEnqueuedExportFingerprint.value = null
     await idb.clearRankingProject().catch(() => undefined)
   }
 
@@ -602,23 +610,27 @@ export const useProjectStore = defineStore('project', () => {
     const snapshotMusic = musicFile
     const downloadFilename = `${filename || 'ranking'}.mp4`
 
-    exportQueue.enqueue({
-      app: 'ranking',
-      displayName,
-      downloadFilename,
-      toast,
-      onError: (text) => toast(text, 'error'),
-      submit: (signal, onUpdate) =>
-        submitRankingExport({
-          filename: filename || 'ranking',
-          clips: snapshotClips,
-          style: snapshotStyle,
-          spans: snapshotSpans,
-          musicFile: snapshotMusic,
-          signal,
-          onUpdate,
-        }),
-    })
+    if (
+      exportQueue.enqueue({
+        app: 'ranking',
+        displayName,
+        downloadFilename,
+        toast,
+        onError: (text) => toast(text, 'error'),
+        submit: (signal, onUpdate) =>
+          submitRankingExport({
+            filename: filename || 'ranking',
+            clips: snapshotClips,
+            style: snapshotStyle,
+            spans: snapshotSpans,
+            musicFile: snapshotMusic,
+            signal,
+            onUpdate,
+          }),
+      })
+    ) {
+      lastEnqueuedExportFingerprint.value = currentExportFingerprint.value
+    }
   }
 
   function cancelExport() {

@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import { Bell, CircleX, Download, X } from '@lucide/vue'
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+import { Bell, CircleX, Download, Loader2, X } from '@lucide/vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { renderAppLabel, type RenderAppId } from '../../lib/renderNotifications'
 import { BRAND } from '../../lib/brand'
@@ -11,6 +11,7 @@ const platform = usePlatformStore()
 const router = useRouter()
 const open = ref(false)
 const root = ref<HTMLElement | null>(null)
+const cancellingIds = ref<string[]>([])
 
 const operationCount = computed(() => platform.notificationOperationCount)
 const ringProgress = computed(() => platform.notificationRingProgress)
@@ -61,8 +62,17 @@ function download(item: RenderReadyNotification): void {
 }
 
 function cancelRender(trackId: string): void {
+  if (cancellingIds.value.includes(trackId)) return
+  cancellingIds.value = [...cancellingIds.value, trackId]
   platform.cancelActiveRenderJob(trackId)
 }
+
+watch(
+  () => platform.activeRenderJobs.map((job) => job.id),
+  (activeIds) => {
+    cancellingIds.value = cancellingIds.value.filter((id) => activeIds.includes(id))
+  },
+)
 
 onMounted(() => document.addEventListener('pointerdown', onDocumentPointerDown))
 onBeforeUnmount(() => document.removeEventListener('pointerdown', onDocumentPointerDown))
@@ -146,12 +156,17 @@ onBeforeUnmount(() => document.removeEventListener('pointerdown', onDocumentPoin
                   Open app
                 </button>
                 <button
-                  class="btn btn-ghost cursor-pointer py-1 text-xs text-red-300/90 hover:text-red-200"
+                  class="btn btn-ghost inline-flex min-w-[4.75rem] cursor-pointer items-center justify-center py-1 text-xs text-red-300/90 hover:text-red-200 disabled:cursor-default disabled:opacity-80"
                   type="button"
+                  :disabled="cancellingIds.includes(job.id)"
+                  :aria-label="cancellingIds.includes(job.id) ? 'Cancelling export' : 'Cancel export'"
                   @click="cancelRender(job.id)"
                 >
-                  <CircleX :size="14" />
-                  Cancel
+                  <Loader2 v-if="cancellingIds.includes(job.id)" :size="14" class="animate-spin" aria-hidden="true" />
+                  <template v-else>
+                    <CircleX :size="14" aria-hidden="true" />
+                    Cancel
+                  </template>
                 </button>
               </div>
             </li>

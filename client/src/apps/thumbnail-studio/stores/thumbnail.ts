@@ -26,6 +26,7 @@ import { deleteThumbnailValue, getImageAsset, listThumbnailKeys, loadThumbnailVa
 import { usePlatformStore } from '../../../stores/platform'
 import { movePendingAssets, releasePendingAssets, storeImageBlob, syncProjectAssets } from '../lib/assetStore'
 import { exportThumbnailBlob, type ThumbnailRenderAssets } from '../lib/renderThumbnail'
+import { DUPLICATE_EXPORT_MESSAGE, thumbnailExportFingerprint } from '../../../lib/exportFingerprint'
 
 const bitmaps = new Map<string, ImageBitmap>()
 const LEGACY_KEYS = new Set(['catalog', 'presets', 'preset-default', 'active'])
@@ -47,6 +48,18 @@ export const useThumbnailStore = defineStore('thumbnail', () => {
 
   const hasImage = computed(() => Boolean(doc.value.image.assetId))
   const hasComposition = computed(() => doc.value.image.composition != null)
+  const lastDownloadFingerprint = ref<string | null>(null)
+  const currentExportFingerprint = computed(() => thumbnailExportFingerprint(doc.value))
+  const exportDuplicateBlocker = computed(() => {
+    if (!hasImage.value) return ''
+    if (
+      lastDownloadFingerprint.value !== null &&
+      currentExportFingerprint.value === lastDownloadFingerprint.value
+    ) {
+      return DUPLICATE_EXPORT_MESSAGE
+    }
+    return ''
+  })
 
   async function init(): Promise<void> {
     if (hydrated.value) return
@@ -100,6 +113,7 @@ export const useThumbnailStore = defineStore('thumbnail', () => {
     promptOpen.value = false
     replaceOnTransfer.value = false
     resetDocument()
+    lastDownloadFingerprint.value = null
     await syncProjectAssets(previousId, previousIds, [])
     await deleteThumbnailValue(THUMBNAIL_DOCUMENT_KEY)
     await deleteThumbnailValue('pending-transfer')
@@ -373,8 +387,9 @@ export const useThumbnailStore = defineStore('thumbnail', () => {
   }
 
   async function download(): Promise<void> {
-    if (exporting.value) return
+    if (exporting.value || exportDuplicateBlocker.value) return
     exporting.value = true
+    const fingerprint = currentExportFingerprint.value
     try {
       const blob = await exportThumbnailBlob(doc.value, renderAssets())
       const url = URL.createObjectURL(blob)
@@ -383,6 +398,7 @@ export const useThumbnailStore = defineStore('thumbnail', () => {
       link.download = thumbnailFilename(doc.value.export.format, doc.value.export.width, doc.value.export.height)
       link.click()
       URL.revokeObjectURL(url)
+      lastDownloadFingerprint.value = fingerprint
     } catch (error) {
       platform.toast(error instanceof Error ? error.message : 'Could not export the thumbnail.')
     } finally {
@@ -448,6 +464,7 @@ export const useThumbnailStore = defineStore('thumbnail', () => {
     pending,
     hasImage,
     hasComposition,
+    exportDuplicateBlocker,
     init,
     newProject,
     consumeStoredTransfer,

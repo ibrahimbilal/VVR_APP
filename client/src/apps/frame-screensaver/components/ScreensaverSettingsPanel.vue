@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
-import { Eye, RotateCcw, SquareSplitHorizontal, Trash2 } from '@lucide/vue'
+import { Eye, RotateCcw, SquareSplitHorizontal, Trash2, X } from '@lucide/vue'
 import { ADJUSTMENT_FIELDS } from '@shared/screensaverAdjust'
 import { FRAME_FILE_LIMIT } from '@shared/screensaverFrames'
 import { DURATION_PRESETS, SCREENSAVER_FPS, SCREENSAVER_OUTPUTS } from '@shared/screensaver'
@@ -39,6 +39,15 @@ const frameLimitMb = FRAME_FILE_LIMIT / (1024 * 1024)
 
 function onFrameFiles(files: File[]) {
   if (files.length > 0) void store.uploadFrames(files)
+}
+
+function clearSelectedFrame(frameId: string): void {
+  if (store.composition.frameId !== frameId) return
+  store.selectFrame(frameId)
+}
+
+function removeUploadedFrame(frameId: string): void {
+  void store.removeFrame(frameId)
 }
 
 function onAudioFiles(files: File[]) {
@@ -98,25 +107,35 @@ function onCustomMinutes() {
   <div class="space-y-4">
     <SettingsAccordion title="Frames" :open="true">
       <div v-if="DEFAULT_FRAMES.length > 0" class="grid grid-cols-2 gap-2">
-        <button
-          v-for="frame in DEFAULT_FRAMES"
-          :key="frame.id"
-          class="block w-full cursor-pointer overflow-hidden rounded-md border bg-[#101114]"
-          :class="store.composition.frameId === frame.id ? 'border-brand ring-1 ring-brand' : 'border-zinc-700 hover:border-zinc-500'"
-          type="button"
-          :aria-pressed="store.composition.frameId === frame.id"
-          :title="frame.name"
-          @click="store.selectFrame(frame.id)"
-        >
-          <img
-            :src="frame.thumbUrl"
-            :alt="frame.name"
-            width="150"
-            loading="lazy"
-            decoding="async"
-            class="aspect-video w-full object-contain"
-          />
-        </button>
+        <div v-for="frame in DEFAULT_FRAMES" :key="frame.id" class="group/frame relative">
+          <button
+            class="block w-full cursor-pointer overflow-hidden rounded-md border bg-[#101114]"
+            :class="store.composition.frameId === frame.id ? 'border-brand ring-1 ring-brand' : 'border-zinc-700 hover:border-zinc-500'"
+            type="button"
+            :aria-pressed="store.composition.frameId === frame.id"
+            :title="frame.name"
+            @click="store.selectFrame(frame.id)"
+          >
+            <img
+              :src="frame.thumbUrl"
+              :alt="frame.name"
+              width="150"
+              loading="lazy"
+              decoding="async"
+              class="aspect-video w-full object-contain"
+            />
+          </button>
+          <button
+            v-if="store.composition.frameId === frame.id"
+            class="absolute inset-0 flex cursor-pointer items-center justify-center rounded-md bg-black/55 opacity-0 transition-opacity duration-150 group-hover/frame:opacity-100"
+            type="button"
+            :aria-label="`Remove ${frame.name} from preview`"
+            :title="`Remove ${frame.name}`"
+            @click.stop="clearSelectedFrame(frame.id)"
+          >
+            <X :size="22" class="text-white drop-shadow" aria-hidden="true" />
+          </button>
+        </div>
       </div>
       <FileDropZone
         class="mt-3"
@@ -131,10 +150,10 @@ function onCustomMinutes() {
         @files="onFrameFiles"
       />
       <p v-if="store.frames.length === 0" class="mt-2 text-xs text-zinc-500">
-        Choose a frame above or upload your own PNG. Click a frame to place it over the picture. Click it again to clear it.
+        Choose a frame above or upload your own PNG. Click a frame to select it. Hover the selected frame and use the remove control to clear or delete it.
       </p>
       <div v-else class="mt-3 grid grid-cols-2 gap-2">
-        <div v-for="frame in store.frames" :key="frame.id" class="relative">
+        <div v-for="frame in store.frames" :key="frame.id" class="group/frame relative">
           <button
             class="block w-full cursor-pointer overflow-hidden rounded-md border bg-[#101114]"
             :class="store.composition.frameId === frame.id ? 'border-brand ring-1 ring-brand' : 'border-zinc-700 hover:border-zinc-500'"
@@ -146,13 +165,14 @@ function onCustomMinutes() {
             <img :src="`/api/screensaver/frames/${frame.id}`" :alt="frame.name" class="aspect-video w-full object-contain" />
           </button>
           <button
-            class="absolute top-1 right-1 cursor-pointer rounded bg-black/70 p-1 text-zinc-200 hover:text-white"
+            v-if="store.composition.frameId === frame.id"
+            class="absolute inset-0 flex cursor-pointer items-center justify-center rounded-md bg-black/55 opacity-0 transition-opacity duration-150 group-hover/frame:opacity-100"
             type="button"
             :aria-label="`Remove ${frame.name}`"
             :title="`Remove ${frame.name}`"
-            @click="store.removeFrame(frame.id)"
+            @click.stop="removeUploadedFrame(frame.id)"
           >
-            <Trash2 :size="12" />
+            <Trash2 :size="20" class="text-white drop-shadow" aria-hidden="true" />
           </button>
         </div>
       </div>
