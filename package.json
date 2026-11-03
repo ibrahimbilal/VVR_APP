@@ -6,7 +6,7 @@
     "client",
     "server"
   ],
-  "description": "Video's Factory — Shorts, Screensaver, and Thumbnail Studio",
+  "description": "Video's Factory — Shorts, Screensaver, Thumbnail Studio, and Image Upscaler",
   "engines": {
     "node": "^20.19.0 || >=22.12.0"
   },
@@ -31,6 +31,7 @@
     "bench:render-report": "npm run bench:render-report -w server",
     "test:ranking": "npm run test:ranking -w server",
     "test:thumbnail": "npm exec -w server -- tsx --test ../shared/thumbnail.test.ts",
+    "test:upscaler": "npm exec -w server -- tsx --test ../shared/imageUpscaler.test.ts src/imageUpscaler.test.ts",
     "launch": "node scripts/launch-dev.cjs",
     "build:launcher": "node scripts/build-launcher.mjs",
     "pack:hostinger": "node scripts/make-deploy-archive.mjs"

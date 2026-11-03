@@ -5,6 +5,7 @@ A local web platform for video production. It hosts independent editor apps in o
 - **Shorts** — 9:16 ranking and compilation videos (the original VVR editor).
 - **Screensaver** — long-form 16:9 ambient videos from a single image or looping video clip.
 - **Thumbnail Studio** — browser-only YouTube thumbnails: upload an image or pull one from Shorts or Screensaver, place resolution and duration badges, download PNG or JPEG (no FFmpeg).
+- **Image Upscaler** — Lanczos3 resize of PNG, JPEG, and WebP to exact Full HD, 2K, 4K, or 8K pixels on the local server (Sharp / libvips). Not an AI upscaler. Details: `docs/image-upscaler.md`.
 
 There are no accounts and no cloud project storage. The Vue client talks to an Express renderer with bundled FFmpeg. Thumbnail Studio runs entirely in the browser.
 
@@ -41,6 +42,7 @@ On Windows, `npm run launch` starts the same dev stack and opens the browser onc
 | `npm run test:screensaver` | Short static-image screensaver render + ffprobe check |
 | `npm run test:ranking` | Two-clip ranking render + ffprobe check |
 | `npm run test:thumbnail` | Thumbnail document contract tests |
+| `npm run test:upscaler` | Lanczos3 upscaler engine, batch, ZIP, and HTTP checks |
 | `npm run frames:thumbs -w client` | Regenerate 150px Screensaver picker thumbs after editing `client/src/assets/frames/*.png` |
 
 More scripts (benchmarks, visual tests) are listed in `.cursor/skills/vvr-project/PROJECT.md`.
@@ -50,10 +52,11 @@ More scripts (benchmarks, visual tests) are listed in `.cursor/skills/vvr-projec
 ```
 client/src/
   App.vue                 Platform shell (sidebar, header, notifications, toasts)
-  app/router.ts           Routes: /, /ranking-videos, /frame-screensaver, /thumbnail-studio
+  app/router.ts           Routes: /, /ranking-videos, /frame-screensaver, /thumbnail-studio, /image-upscaler
   apps/ranking-videos/    Ranking editor view + components
   apps/frame-screensaver/ Screensaver editor
   apps/thumbnail-studio/  Thumbnail editor (canvas + badge SVGs)
+  apps/image-upscaler/    Lanczos3 image upscaler (UI). Processing is `server/src/imageUpscaler.ts`
   stores/platform.ts      Renderer health, global toasts, navigation UI
   stores/project.ts       Ranking project state
 server/src/
@@ -73,6 +76,7 @@ shared/
 - `/ranking-videos` — Shorts editor
 - `/frame-screensaver` — Screensaver editor
 - `/thumbnail-studio` — Thumbnail editor
+- `/image-upscaler` — Image Upscaler
 
 Direct URLs and refresh work in production; Express serves `client/dist` with SPA fallback.
 

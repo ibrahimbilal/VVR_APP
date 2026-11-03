@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ArrowRight, Image as ThumbnailIcon, ListVideo, MonitorPlay } from '@lucide/vue'
+import { ArrowRight, Image as ThumbnailIcon, Sparkles, ListVideo, MonitorPlay } from '@lucide/vue'
 import { RouterLink } from 'vue-router'
 
 const apps = [
@@ -22,6 +22,13 @@ const apps = [
     title: 'Thumbnail Studio',
     description: 'Design YouTube thumbnails from your own images or from a Shorts or Screensaver project.',
     icon: ThumbnailIcon,
+  },
+  {
+    path: '/image-upscaler',
+    title: 'Image Upscaler',
+    description:
+      'Resize PNG, JPEG, and WebP images to exact Full HD, 2K, 4K, or 8K pixels with Lanczos3 resampling. It interpolates existing pixels and does not invent missing detail.',
+    icon: Sparkles,
   },
 ]
 </script>

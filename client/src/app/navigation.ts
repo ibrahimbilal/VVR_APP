@@ -1,4 +1,4 @@
-import { Image as ThumbnailIcon, LayoutDashboard, ListVideo, MonitorPlay } from '@lucide/vue'
+import { Image as ThumbnailIcon, Sparkles, LayoutDashboard, ListVideo, MonitorPlay } from '@lucide/vue'
 import type { Component } from 'vue'
 
 export interface NavItem {
@@ -12,4 +12,5 @@ export const navItems: NavItem[] = [
   { path: '/ranking-videos', label: 'Shorts', icon: ListVideo },
   { path: '/frame-screensaver', label: 'Screensaver', icon: MonitorPlay },
   { path: '/thumbnail-studio', label: 'Thumbnail Studio', icon: ThumbnailIcon },
+  { path: '/image-upscaler', label: 'Image Upscaler', icon: Sparkles },
 ]

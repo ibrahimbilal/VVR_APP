@@ -10,6 +10,7 @@ export const clipsDir = path.join(tmpDir, 'clips')
 export const jobsDir = path.join(tmpDir, 'jobs')
 export const outputsDir = path.join(tmpDir, 'outputs')
 export const incomingDir = path.join(tmpDir, 'incoming')
+export const upscalerDir = path.join(tmpDir, 'upscaler')
 const registryPath = path.join(tmpDir, 'registry.json')
 
 export type ClipOrigin = 'ranking' | 'screensaver'
@@ -35,6 +36,7 @@ export async function ensureStorage(): Promise<void> {
   await mkdir(jobsDir, { recursive: true })
   await mkdir(outputsDir, { recursive: true })
   await mkdir(incomingDir, { recursive: true })
+  await mkdir(upscalerDir, { recursive: true })
   await loadRegistry()
 }
 
