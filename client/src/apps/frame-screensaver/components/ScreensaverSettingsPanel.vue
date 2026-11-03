@@ -4,7 +4,7 @@ import { Eye, RotateCcw, SquareSplitHorizontal, Trash2, X } from '@lucide/vue'
 import { ADJUSTMENT_FIELDS } from '@shared/screensaverAdjust'
 import { FRAME_FILE_LIMIT } from '@shared/screensaverFrames'
 import { DURATION_PRESETS, SCREENSAVER_FPS, SCREENSAVER_OUTPUTS } from '@shared/screensaver'
-import { SUBSCRIBE_ANIMATION_DURATION_SEC, SUBSCRIBE_ANIMATION_POSITIONS, SUBSCRIBE_ANIMATION_STYLES, SUBSCRIBE_CHANNEL_CARD_THEMES, MAX_SUBSCRIBE_EDGE_DISTANCE, MIN_SUBSCRIBE_EDGE_DISTANCE, MIN_SUBSCRIBE_SIZE_PERCENT, MAX_SUBSCRIBE_SIZE_PERCENT, defaultSubscribeSizePercent, type SubscribeAnimationStyle } from '@shared/screensaverSubscribeAnimation'
+import { SUBSCRIBE_ANIMATION_DURATION_SEC, SUBSCRIBE_ANIMATION_FPS, SUBSCRIBE_ANIMATION_POSITIONS, SUBSCRIBE_ANIMATION_STYLES, SUBSCRIBE_CHANNEL_CARD_THEMES, MAX_SUBSCRIBE_EDGE_DISTANCE, MIN_SUBSCRIBE_EDGE_DISTANCE, MIN_SUBSCRIBE_SIZE_PERCENT, MAX_SUBSCRIBE_SIZE_PERCENT, defaultSubscribeSizePercent, type SubscribeAnimationStyle } from '@shared/screensaverSubscribeAnimation'
 import AdvancedAudioControls from '../../../components/audio/AdvancedAudioControls.vue'
 import AudioFileField from '../../../components/audio/AudioFileField.vue'
 import FileDropZone from '../../../components/FileDropZone.vue'
@@ -114,7 +114,7 @@ function onCustomMinutes() {
           @update:model-value="(value) => store.replaceSubscribeAnimation({ enabled: value })"
         />
       </div>
-      <p class="mt-1 text-xs text-zinc-500">Static image exports only. Adds a 30 fps overlay for {{ SUBSCRIBE_ANIMATION_DURATION_SEC }} seconds (1 s pause between each click).</p>
+      <p class="mt-1 text-xs text-zinc-500">Static image exports only. Adds a {{ SUBSCRIBE_ANIMATION_FPS }} fps overlay for {{ SUBSCRIBE_ANIMATION_DURATION_SEC }} seconds (1 s pause between each click).</p>
       <template v-if="store.subscribeAnimation.enabled">
         <label class="mt-3 block text-xs text-zinc-500">Style</label>
         <select
@@ -131,7 +131,7 @@ function onCustomMinutes() {
             :value="store.subscribeAnimation.channelCardTheme"
             @change="store.replaceSubscribeAnimation({ channelCardTheme: ($event.target as HTMLSelectElement).value as never })"
           >
-            <option v-for="item in SUBSCRIBE_CHANNEL_CARD_THEMES" :key="item" :value="item">{{ item === 'dark' ? 'Dark' : 'Light' }}</option>
+            <option v-for="item in SUBSCRIBE_CHANNEL_CARD_THEMES" :key="item" :value="item">{{ item === 'light' ? 'Light' : 'Dark' }}</option>
           </select>
           <label class="mt-3 block text-xs text-zinc-500">YouTube channel or video URL</label>
           <div class="mt-1 flex gap-2">

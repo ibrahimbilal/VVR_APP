@@ -2,7 +2,7 @@ import { execFile } from 'node:child_process'
 import { mkdir, readFile, rm, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import { promisify } from 'node:util'
-import { defaultSubscribeAnimation } from '../../shared/screensaverSubscribeAnimation'
+import { defaultSubscribeAnimation, subscribeAnimationFrameCount, SUBSCRIBE_ANIMATION_FPS } from '../../shared/screensaverSubscribeAnimation'
 import { ffmpegBinary, ffprobeBinary } from '../src/binaries'
 import {
   assertMonotonicTimestamps,
@@ -63,14 +63,14 @@ async function main(): Promise<void> {
     '1',
     tile,
   ])
-  for (let index = 1; index <= 210; index += 1) {
-    await writeFile(path.join(animDir, `${String(index).padStart(4, '0')}.png`), await readFile(tile))
-  }
-
   const settings = defaultSubscribeAnimation()
   settings.enabled = true
   settings.startSec = 10
   settings.durationSec = 4
+  const animFrameCount = subscribeAnimationFrameCount(settings.durationSec)
+  for (let index = 1; index <= animFrameCount; index += 1) {
+    await writeFile(path.join(animDir, `${String(index).padStart(4, '0')}.png`), await readFile(tile))
+  }
 
   const hybridId = '00000000-0000-4000-8000-000000000011'
   await renderScreensaver(
@@ -91,12 +91,12 @@ async function main(): Promise<void> {
 
   const frames = await readVideoFrameTimestamps(hybridPath)
   assertMonotonicTimestamps(frames)
-  if (frames.length < 120 || frames.length > 220) {
-    throw new Error(`Expected hybrid total frame count roughly 120–220, got ${frames.length}`)
+  if (frames.length < 120 || frames.length > animFrameCount + 80) {
+    throw new Error(`Expected hybrid total frame count roughly 120–${animFrameCount + 80}, got ${frames.length}`)
   }
-  const fullFpsEstimate = hybridSummary.duration * 30
+  const fullFpsEstimate = hybridSummary.duration * SUBSCRIBE_ANIMATION_FPS
   if (frames.length > fullFpsEstimate * 0.45) {
-    throw new Error('Hybrid output has too many frames compared with full 30 fps encoding.')
+    throw new Error(`Hybrid output has too many frames compared with full ${SUBSCRIBE_ANIMATION_FPS} fps encoding.`)
   }
 
   console.log('Subscribe hybrid verify OK:', { duration: hybridSummary.duration, frameCount: frames.length })

@@ -1,6 +1,6 @@
 import { rm, writeFile } from 'node:fs/promises'
 import path from 'node:path'
-import type { SubscribeAnimationSettings } from '../../shared/screensaverSubscribeAnimation'
+import { SUBSCRIBE_ANIMATION_FPS, type SubscribeAnimationSettings } from '../../shared/screensaverSubscribeAnimation'
 import type { EncoderId } from './encoders'
 import { n, RenderCancelled, spawnFfmpeg, verifyVideoOutput } from './ffmpegUtil'
 import { audioFilterLine } from './screensaverGraph'
@@ -143,9 +143,10 @@ async function encodeAnimationSegment(
   const filterPath = path.join(path.dirname(output), 'seg-b-filter.txt')
   const ox = job.animationOverlayX
   const oy = job.animationOverlayY
+  const animFps = String(SUBSCRIBE_ANIMATION_FPS)
   const lines = [
-    `[0:v]fps=30,trim=0:${n(durationSec)},setpts=PTS-STARTPTS[bg]`,
-    `[1:v]format=rgba,fps=30[ov]`,
+    `[0:v]fps=${animFps},trim=0:${n(durationSec)},setpts=PTS-STARTPTS[bg]`,
+    `[1:v]format=rgba,fps=${animFps}[ov]`,
     `[bg][ov]overlay=${ox}:${oy}:format=auto[vout]`,
   ]
   await writeFile(filterPath, lines.join(';\n'))
@@ -158,11 +159,11 @@ async function encodeAnimationSegment(
     '-loop',
     '1',
     '-framerate',
-    '30',
+    animFps,
     '-i',
     job.compositionPath,
     '-framerate',
-    '30',
+    animFps,
     '-start_number',
     '1',
     '-i',
@@ -174,7 +175,7 @@ async function encodeAnimationSegment(
     '-an',
     ...encoder.args,
     '-r',
-    '30',
+    animFps,
     '-t',
     n(durationSec + 0.02),
     '-movflags',

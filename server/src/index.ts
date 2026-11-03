@@ -22,6 +22,8 @@ import {
 } from '../../shared/screensaver'
 import {
   sanitizeSubscribeAnimation,
+  SCREENSAVER_EXPORT_MAX_MULTIPART_FILES,
+  SUBSCRIBE_ANIMATION_EXPORT_FRAME_CAP,
   subscribeAnimationFrameCount,
   validateSubscribeAnimation,
   type SubscribeAnimationSettings,
@@ -75,7 +77,7 @@ const screensaverMediaUpload = multer({
 
 const screensaverExportUpload = multer({
   dest: incomingDir,
-  limits: { fileSize: 80 * 1024 * 1024, files: 214 },
+  limits: { fileSize: 80 * 1024 * 1024, files: SCREENSAVER_EXPORT_MAX_MULTIPART_FILES },
 })
 
 const screensaverFrameUpload = multer({
@@ -416,7 +418,7 @@ app.post(
     { name: 'composition', maxCount: 1 },
     { name: 'frame', maxCount: 1 },
     { name: 'mask', maxCount: 1 },
-    { name: 'animationFrames', maxCount: 210 },
+    { name: 'animationFrames', maxCount: SUBSCRIBE_ANIMATION_EXPORT_FRAME_CAP },
   ]),
   async (req, res) => {
     const files = req.files as
@@ -649,13 +651,17 @@ if (existsSync(path.join(clientDist, 'index.html'))) {
 app.use((error: unknown, req: Request, res: Response, next: NextFunction) => {
   if (error instanceof multer.MulterError) {
     const tooLarge = error.code === 'LIMIT_FILE_SIZE'
+    const tooManyFiles = error.code === 'LIMIT_FILE_COUNT'
     const frameUpload = req.path.includes('/screensaver/frames')
+    const screensaverExport = req.path.includes('/screensaver/export')
     res.status(tooLarge ? 413 : 400).json({
       error: tooLarge
         ? frameUpload
           ? `PNG frames must be ${FRAME_FILE_LIMIT / (1024 * 1024)} MB or smaller.`
           : 'That file is too large. Videos must be 500 MB or smaller. Music and overlays must be 40 MB or smaller.'
-        : 'The upload could not be accepted.',
+        : tooManyFiles && screensaverExport
+          ? `Too many files in one export (max ${SCREENSAVER_EXPORT_MAX_MULTIPART_FILES}). Lower subscribe animation FPS or duration, or restart the server after changing export limits.`
+          : 'The upload could not be accepted.',
     })
     return
   }

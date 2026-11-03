@@ -1,6 +1,6 @@
 import { DEFAULT_SCREENSAVER_OUTPUT } from './screensaver'
 
-export const SUBSCRIBE_ANIMATION_FPS = 30
+export const SUBSCRIBE_ANIMATION_FPS = 60
 
 export const SUBSCRIBE_ANIMATION_DURATION_SEC = 7
 
@@ -21,7 +21,7 @@ export const SUBSCRIBE_ANIMATION_STYLES = [
 
 export type SubscribeAnimationStyle = (typeof SUBSCRIBE_ANIMATION_STYLES)[number]['id']
 
-export const SUBSCRIBE_CHANNEL_CARD_THEMES = ['dark', 'light'] as const
+export const SUBSCRIBE_CHANNEL_CARD_THEMES = ['light', 'dark'] as const
 
 export type SubscribeChannelCardTheme = (typeof SUBSCRIBE_CHANNEL_CARD_THEMES)[number]
 
@@ -34,8 +34,8 @@ export const MAX_SUBSCRIBE_EDGE_DISTANCE = 240
 export const MIN_SUBSCRIBE_SIZE_PERCENT = 5
 export const MAX_SUBSCRIBE_SIZE_PERCENT = 75
 
-/** Max total PNG bytes for one subscribe animation upload (screensaver export multer budget). */
-export const SUBSCRIBE_ANIMATION_UPLOAD_BUDGET_BYTES = 72 * 1024 * 1024
+/** Max total PNG bytes for one subscribe animation upload (scales with frame count). */
+export const SUBSCRIBE_ANIMATION_UPLOAD_BUDGET_BYTES = Math.ceil(72 * 1024 * 1024 * (SUBSCRIBE_ANIMATION_FPS / 30))
 
 /** Heuristic: sparse transparent UI PNG ≈ this fraction of raw RGBA size. */
 export const SUBSCRIBE_ANIMATION_PNG_SIZE_FACTOR = 0.35
@@ -102,7 +102,7 @@ export function defaultSubscribeAnimation(): SubscribeAnimationSettings {
     edgeDistance: DEFAULT_SUBSCRIBE_EDGE_DISTANCE,
     style: 'channel-card',
     previewOnCanvas: true,
-    channelCardTheme: 'dark',
+    channelCardTheme: 'light',
     channelUrl: DEFAULT_SUBSCRIBE_CHANNEL_URL,
     channelAvatarUrl: null,
     channelSubscriberCount: null,
@@ -112,6 +112,12 @@ export function defaultSubscribeAnimation(): SubscribeAnimationSettings {
 export function subscribeAnimationFrameCount(durationSec: number): number {
   return Math.round(Math.max(0, durationSec) * SUBSCRIBE_ANIMATION_FPS)
 }
+
+/** Max `animationFrames` PNG parts at default clip length (screensaver export multer). */
+export const SUBSCRIBE_ANIMATION_EXPORT_FRAME_CAP = subscribeAnimationFrameCount(SUBSCRIBE_ANIMATION_DURATION_SEC)
+
+/** Multer `files` cap: animation PNGs plus optional audio, composition, frame, and mask. */
+export const SCREENSAVER_EXPORT_MAX_MULTIPART_FILES = SUBSCRIBE_ANIMATION_EXPORT_FRAME_CAP + 4
 
 export function isSubscribeAnimationPosition(value: unknown): value is SubscribeAnimationPosition {
   return typeof value === 'string' && (SUBSCRIBE_ANIMATION_POSITIONS as readonly string[]).includes(value)
