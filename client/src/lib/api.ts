@@ -20,6 +20,7 @@ export interface ImportResult {
 
 export interface JobStatus {
   id: string
+  kind?: 'ranking' | 'screensaver'
   status: 'queued' | 'preparing' | 'rendering' | 'verifying' | 'done' | 'error' | 'cancelled'
   progress: number
   message: string
@@ -213,6 +214,20 @@ export async function getJob(id: string): Promise<JobStatus> {
   const response = await fetch(`/api/jobs/${id}`)
   if (!response.ok) throw new Error(await readError(response))
   return (await response.json()) as JobStatus
+}
+
+export async function fetchJob(id: string): Promise<JobStatus | null> {
+  const response = await fetch(`/api/jobs/${id}`)
+  if (response.status === 404) return null
+  if (!response.ok) throw new Error(await readError(response))
+  return (await response.json()) as JobStatus
+}
+
+export async function listRecoverableJobs(): Promise<JobStatus[]> {
+  const response = await fetch('/api/jobs/active')
+  if (!response.ok) throw new Error(await readError(response))
+  const data = (await response.json()) as { jobs?: JobStatus[] }
+  return data.jobs ?? []
 }
 
 export async function cancelJob(id: string): Promise<void> {

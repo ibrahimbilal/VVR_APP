@@ -8,6 +8,7 @@ export type JobStatus = 'queued' | 'preparing' | 'rendering' | 'verifying' | 'do
 
 export interface JobView {
   id: string
+  kind: 'ranking' | 'screensaver'
   status: JobStatus
   progress: number
   message: string
@@ -124,6 +125,15 @@ export function createScreensaverJob(
 export function getJob(id: string): JobView | null {
   const job = jobs.get(id)
   return job ? view(job) : null
+}
+
+export function listRecoverableJobs(): JobView[] {
+  const out: JobView[] = []
+  for (const job of jobs.values()) {
+    if (job.status === 'error' || job.status === 'cancelled') continue
+    out.push(view(job))
+  }
+  return out
 }
 
 export function jobOutput(id: string): { path: string; name: string } | null {
@@ -280,6 +290,7 @@ function view(job: Job): JobView {
   }
   return {
     id: job.id,
+    kind: job.kind,
     status: job.status,
     progress: job.progress,
     message: job.message,

@@ -28,7 +28,7 @@ import {
 } from '../../shared/screensaverSubscribeAnimation'
 import { resolveFade, sequenceDuration } from '../../shared/timeline'
 import { checkFfmpeg, logEncodeCheck } from './binaries'
-import { cancelJob, createJob, createScreensaverJob, dropJobOutput, getJob, jobIdsInUse, jobOutput, outputPathsInUse } from './jobs'
+import { cancelJob, createJob, createScreensaverJob, dropJobOutput, getJob, jobIdsInUse, jobOutput, listRecoverableJobs, outputPathsInUse } from './jobs'
 import { lookupUrl } from './oembed'
 import { lookupYoutubeChannel } from './youtubeChannel'
 import { encoderCatalog } from './encoders'
@@ -584,6 +584,10 @@ app.post(
     }
   },
 )
+
+app.get('/api/jobs/active', (_req, res) => {
+  res.json({ jobs: listRecoverableJobs() })
+})
 
 app.get('/api/jobs/:id', (req, res) => {
   if (!UUID.test(req.params.id)) {

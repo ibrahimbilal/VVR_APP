@@ -1,4 +1,5 @@
 import type { ExportPhase, ExportState } from '../types'
+import type { JobPollUpdate } from './jobPoll'
 
 export const ACTIVE_EXPORT_PHASES: ReadonlySet<ExportPhase> = new Set([
   'overlays',
@@ -31,6 +32,28 @@ export function idleExport(): ExportState {
 
 export function isActiveExportPhase(phase: ExportPhase): boolean {
   return ACTIVE_EXPORT_PHASES.has(phase)
+}
+
+export function exportStateFromPoll(patch: JobPollUpdate): ExportState {
+  const base = idleExport()
+  return {
+    ...base,
+    phase: (patch.phase as ExportPhase) ?? base.phase,
+    progress: patch.progress ?? base.progress,
+    message: patch.message ?? base.message,
+    error: patch.error ?? base.error,
+    warning: patch.warning ?? base.warning,
+    downloadUrl: patch.downloadUrl ?? base.downloadUrl,
+    bytes: patch.bytes ?? base.bytes,
+    jobId: patch.jobId ?? base.jobId,
+    encoder: patch.encoder ?? base.encoder,
+    hardware: patch.hardware ?? base.hardware,
+    encodeFps: patch.encodeFps ?? base.encodeFps,
+    encodeSpeed: patch.encodeSpeed ?? base.encodeSpeed,
+    elapsedSec: patch.elapsedSec ?? base.elapsedSec,
+    etaSec: patch.etaSec ?? base.etaSec,
+    stage: patch.stage ?? base.stage,
+  }
 }
 
 export function pickDisplayExportState(jobs: { state: ExportState }[]): ExportState {

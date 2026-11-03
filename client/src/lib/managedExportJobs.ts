@@ -10,6 +10,7 @@ import {
   syncTrackedRender,
   unregisterRenderCancel,
 } from './renderJobTracking'
+import { forgetRenderJob, rememberRenderJob } from './persistedRenderJobs'
 import { notifyRenderReady, type RenderAppId } from './renderNotifications'
 import type { JobPollUpdate } from './jobPoll'
 
@@ -107,12 +108,21 @@ export function useManagedExportJobs() {
       onUpdate: (patch) => {
         const updated = patchJob(id, patch as Partial<ExportState>)
         if (!updated) return
+        if (updated.state.jobId) {
+          rememberRenderJob({
+            serverJobId: updated.state.jobId,
+            app: input.app,
+            projectName: input.displayName,
+            downloadFilename: input.downloadFilename,
+          })
+        }
         syncTrackedRender(trackId, updated.state)
       },
       onComplete: (result) => {
         unregisterRenderCancel(trackId)
         const current = jobs.value.find((item) => item.id === id)
         endTrackedRender(trackId)
+        if (current?.state.jobId) forgetRenderJob(current.state.jobId)
         if (!current) return
         if (result === 'done' && current.state.phase === 'done' && current.state.downloadUrl) {
           notifyRenderReady(input.app, current.displayName, current.state.downloadUrl, current.downloadFilename)

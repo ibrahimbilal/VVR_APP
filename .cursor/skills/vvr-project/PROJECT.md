@@ -57,7 +57,7 @@ Stack: Vue 3, **vue-router**, Pinia, Tailwind 4, Lucide. Client aliases `@shared
 
 ## Platform shell
 
-`App.vue`: left sidebar (desktop), header with **notifications** (bell, left of renderer status), renderer status (`GET /api/health`), **New project** on Shorts, Screensaver, and Thumbnail Studio (`AppHeader.vue`, `AppNotifications.vue`), `router-view`, global toasts (`usePlatformStore`). Finished Shorts and Screensaver renders are listed in the header notification panel (`renderNotifications.ts`, `platform.ts`). In-progress rows have **Cancel** (per export: client abort + server `POST /api/jobs/:id/cancel` when submitted; `renderJobTracking.ts`).
+`App.vue`: left sidebar (desktop), header with **notifications** (bell, left of renderer status), renderer status (`GET /api/health`), **New project** on Shorts, Screensaver, and Thumbnail Studio (`AppHeader.vue`, `AppNotifications.vue`), `router-view`, global toasts (`usePlatformStore`). Finished Shorts and Screensaver renders are listed in the header notification panel (`renderNotifications.ts`, `platform.ts`). In-progress rows have **Cancel** (per export: client abort + server `POST /api/jobs/:id/cancel` when submitted; `renderJobTracking.ts`). After a full page reload, active server jobs are restored from `localStorage` (`persistedRenderJobs.ts`) and from `GET /api/jobs/active`, then polling resumes in `resumePersistedRenderJobs.ts` (header bell shows progress again; finished-while-away jobs appear as ready downloads).
 
 - Routes: `/` dashboard, `/ranking-videos`, `/frame-screensaver`, `/thumbnail-studio`. SPA fallback in production.
 - Mobile: hamburger opens left drawer; ranking mobile tabs inside `RankingVideosView`; Screensaver uses **Settings / Preview** tabs (`FrameScreensaverView.vue`).
@@ -213,6 +213,7 @@ Progress on the client: overlays/upload are local; queued/preparing/rendering/ve
 | DELETE | `/api/clips/:id` | remove unless a render holds it |
 | POST | `/api/import-url` | `{ url }` → title lookup, `canDownload: false` |
 | POST | `/api/export` | `project` JSON + overlays + optional music, 40 MB each, up to 31 files |
+| GET | `/api/jobs/active` | queued / preparing / rendering / verifying / done jobs still on the renderer (for reload recovery) |
 | GET | `/api/jobs/:id` | status |
 | POST | `/api/jobs/:id/cancel` | kill ffmpeg |
 | GET | `/api/jobs/:id/download` | verified mp4, 409 if not ready |
@@ -391,6 +392,7 @@ Badge SVGs are committed under `client/src/assets/thumbnail-badges/` (catalog sl
 - 2026-11-02 — Client devDependency `sharp` bumped to ^0.35.5 (GHSA-wq5f-xc86-pv6w / librsvg RCE advisory).
 - 2026-11-02 — Subscribe animation per-style default size % and edge 0; pre-export PNG size blocker removed (check after render).
 - 2026-11-02 — YouTube channel lookup: parse subscriber count from modern `metadataParts` JSON when `subscriberCountText` is absent (`server/src/youtubeChannel.ts`).
+- 2026-11-03 — Reload recovery for Shorts/Screensaver exports: persist server job ids in `localStorage`, resume polling on app load, `GET /api/jobs/active` (`persistedRenderJobs.ts`, `resumePersistedRenderJobs.ts`, `managedExportJobs.ts`, `App.vue`, `server/src/jobs.ts`, `server/src/index.ts`).
 - 2026-11-01 — Subscribe animation alert click: **bell-ring** icon + continuous bell wiggle from click through hold (`subscribeAnimationLucideIcons.ts`, timeline/draw).
 - 2026-11-01 — Subscribe animation timeline: **1 s** between like → subscribe → alerts; channel card uses separate subscribe + bell buttons; clip length **7 s** (`subscribeAnimationTimeline.ts`).
 - 2026-11-01 — Screensaver experimental **Subscribe Animation** PoC: shared settings, canvas renderer, hybrid 1/30/1 fps segment export, tests/bench/docs (`shared/screensaverSubscribeAnimation.ts`, `renderScreensaverHybrid.ts`, `SubscribeAnimation.vue`, `docs/screensaver-subscribe-animation-poc.md`).

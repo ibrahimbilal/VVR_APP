@@ -5,13 +5,14 @@ import { X } from '@lucide/vue'
 import AppHeader from './components/layout/AppHeader.vue'
 import AppSidebar from './components/layout/AppSidebar.vue'
 import MobileNavDrawer from './components/layout/MobileNavDrawer.vue'
+import { resumePersistedRenderJobs } from './lib/resumePersistedRenderJobs'
 import { usePlatformStore } from './stores/platform'
 
 const platform = usePlatformStore()
 const navTrigger = ref<HTMLElement | null>(null)
 
 onMounted(() => {
-  void platform.refreshServer()
+  void platform.refreshServer().then(() => resumePersistedRenderJobs())
 })
 
 function onOpenNav(trigger: HTMLElement) {
