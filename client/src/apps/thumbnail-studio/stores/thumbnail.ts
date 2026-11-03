@@ -1,11 +1,10 @@
-import { clampBadgeMarginPx, fullNormCrop, panNormCrop, presetAnchorPoint, zoomNormCrop, type FixedAnchor } from '@shared/thumbnailLayout'
+import { clampBadgeMarginPx, fullNormCrop, presetAnchorPoint, type FixedAnchor } from '@shared/thumbnailLayout'
 import { DURATION_BADGE_OPTIONS, RESOLUTION_BADGE_OPTIONS } from '@shared/thumbnailBadges'
 import {
   type BadgeId,
   type BadgeStyleId,
   type ThumbnailBadge,
   type ThumbnailDocument,
-  type ThumbnailFit,
   THUMBNAIL_DOCUMENT_KEY,
   assetIdsInDocument,
   badgeAppearance,
@@ -17,7 +16,7 @@ import {
   placeBadge,
   resetBadgePosition,
   syncPresetBadgeCoords,
-  thumbnailFilename,
+  thumbnailDownloadFilename,
 } from '@shared/thumbnailProject'
 import { documentFromTransfer, validateThumbnailTransfer, type ThumbnailTransferPayload } from '@shared/thumbnailTransfer'
 import { defineStore } from 'pinia'
@@ -250,35 +249,9 @@ export const useThumbnailStore = defineStore('thumbnail', () => {
     }
   }
 
-  function setFit(fit: ThumbnailFit): void {
-    if (hasComposition.value) return
+  function setName(value: string): void {
     edit((draft) => {
-      draft.image.fit = fit
-    })
-  }
-
-  function setZoom(level: number): void {
-    if (hasComposition.value) return
-    edit((draft) => {
-      const current = zoomFromCrop(draft.image.crop.w)
-      const factor = clamp(level, 1, 4) / current
-      draft.image.crop = zoomNormCrop(draft.image.crop, factor)
-    })
-  }
-
-  function setPan(axis: 'x' | 'y', value: number): void {
-    if (hasComposition.value) return
-    edit((draft) => {
-      const crop = draft.image.crop
-      if (axis === 'x') draft.image.crop = panNormCrop(crop, clamp(value, 0, 1 - crop.w) - crop.x, 0)
-      else draft.image.crop = panNormCrop(crop, 0, clamp(value, 0, 1 - crop.h) - crop.y)
-    })
-  }
-
-  function resetCrop(): void {
-    edit((draft) => {
-      draft.image.crop = fullNormCrop()
-      draft.image.fit = 'cover'
+      draft.name = value.slice(0, 80)
     })
   }
 
@@ -395,7 +368,7 @@ export const useThumbnailStore = defineStore('thumbnail', () => {
       const url = URL.createObjectURL(blob)
       const link = document.createElement('a')
       link.href = url
-      link.download = thumbnailFilename(doc.value.export.format, doc.value.export.width, doc.value.export.height)
+      link.download = thumbnailDownloadFilename(doc.value)
       link.click()
       URL.revokeObjectURL(url)
       lastDownloadFingerprint.value = fingerprint
@@ -472,10 +445,7 @@ export const useThumbnailStore = defineStore('thumbnail', () => {
     clearReplaceOnNextTransfer,
     acceptTransfer,
     uploadImage,
-    setFit,
-    setZoom,
-    setPan,
-    resetCrop,
+    setName,
     setBadgeEnabled,
     setBadgeText,
     setResolutionLabel,
@@ -500,11 +470,6 @@ function payloadAssetIds(payload: ThumbnailTransferPayload): string[] {
   const ids = [payload.artwork.assetId]
   if (payload.frame?.assetId) ids.push(payload.frame.assetId)
   return ids
-}
-
-function zoomFromCrop(width: number): number {
-  if (!Number.isFinite(width) || width <= 0) return 1
-  return clamp(1 / width, 1, 4)
 }
 
 function exactSize(width: number, height: number): { width: number; height: number } {

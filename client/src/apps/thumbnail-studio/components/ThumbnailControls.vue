@@ -16,12 +16,6 @@ const badges = [
   { id: 'duration' as const, title: 'Duration Badge' },
 ]
 
-const zoom = computed(() => {
-  const width = store.doc.image.crop.w
-  if (!Number.isFinite(width) || width <= 0) return 1
-  return Math.min(4, Math.max(1, 1 / width))
-})
-
 const marginMaxPx = computed(() => maxBadgeMarginPx(store.doc.export.width, store.doc.export.height))
 
 const anyBadgeEnabled = computed(() => store.doc.resolution.enabled || store.doc.duration.enabled)
@@ -64,6 +58,18 @@ function onExportSize(event: Event): void {
 <template>
   <aside class="flex min-h-0 w-full max-h-[55vh] min-w-0 shrink-0 flex-col border-t border-zinc-800 lg:max-h-none lg:w-[400px] lg:border-t-0 lg:border-l">
     <div class="min-h-0 flex-1 overflow-y-auto">
+      <section class="border-b border-zinc-800 px-4 py-4">
+        <label class="block">
+          <span class="mb-1 block text-[11px] font-semibold uppercase tracking-[0.14em] text-zinc-500">Project</span>
+          <input
+            class="field text-sm font-semibold"
+            maxlength="80"
+            type="text"
+            :value="store.doc.name"
+            @input="store.setName(($event.target as HTMLInputElement).value)"
+          />
+        </label>
+      </section>
       <section class="space-y-3 border-b border-zinc-800 px-4 py-4">
         <h2 class="text-[11px] font-semibold uppercase tracking-[0.14em] text-zinc-400">Image</h2>
         <FileDropZone
@@ -76,30 +82,6 @@ function onExportSize(event: Event): void {
         <p v-if="store.hasComposition" class="text-xs leading-5 text-zinc-400">
           Screensaver crop, placement, and frame are already in this image.
         </p>
-        <template v-else>
-          <div class="grid grid-cols-2 gap-2">
-            <button class="btn cursor-pointer" :class="store.doc.image.fit === 'cover' ? 'btn-primary' : 'btn-ghost'" type="button" @click="store.setFit('cover')">Cover</button>
-            <button class="btn cursor-pointer" :class="store.doc.image.fit === 'contain' ? 'btn-primary' : 'btn-ghost'" type="button" @click="store.setFit('contain')">Contain</button>
-          </div>
-          <SliderField label="Zoom" :model-value="Math.round(zoom * 100) / 100" :min="1" :max="4" :step="0.05" suffix="×" @update:model-value="store.setZoom($event)" />
-          <SliderField
-            label="Horizontal"
-            :model-value="Math.round(store.doc.image.crop.x * 100)"
-            :min="0"
-            :max="Math.max(0, Math.round((1 - store.doc.image.crop.w) * 100))"
-            suffix="%"
-            @update:model-value="store.setPan('x', $event / 100)"
-          />
-          <SliderField
-            label="Vertical"
-            :model-value="Math.round(store.doc.image.crop.y * 100)"
-            :min="0"
-            :max="Math.max(0, Math.round((1 - store.doc.image.crop.h) * 100))"
-            suffix="%"
-            @update:model-value="store.setPan('y', $event / 100)"
-          />
-          <button class="btn btn-ghost cursor-pointer" type="button" @click="store.resetCrop()">Reset image</button>
-        </template>
         <button v-if="store.doc.source.app === 'frame-screensaver'" class="btn btn-ghost w-full cursor-pointer" type="button" @click="updateFromScreensaver">
           Update from Screensaver
         </button>

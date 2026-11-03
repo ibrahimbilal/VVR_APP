@@ -112,6 +112,7 @@ export function documentFromTransfer(payload: ThumbnailTransferPayload, id?: str
   }
   doc.resolution.enabled = true
   doc.duration.enabled = true
+  if (payload.title) doc.name = payload.title.slice(0, 80)
   doc.updatedAt = Date.now()
   return normalizeThumbnailBadgeLabels(doc)
 }

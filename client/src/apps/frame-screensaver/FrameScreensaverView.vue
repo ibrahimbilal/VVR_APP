@@ -69,7 +69,10 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
       class="min-h-0 shrink-0 overflow-y-auto border-b border-zinc-800 p-4 lg:h-full lg:w-[360px] lg:border-b-0 lg:border-r"
       :class="tab === 'settings' ? 'flex max-h-none flex-1 flex-col' : 'hidden lg:flex lg:max-h-none lg:flex-none lg:flex-col'"
     >
-      <input v-model="store.name" class="field mb-4 text-sm font-semibold" type="text" aria-label="Project name" />
+      <label class="mb-4 block">
+        <span class="mb-1 block text-[11px] font-semibold uppercase tracking-[0.14em] text-zinc-500">Project</span>
+        <input v-model="store.name" class="field text-sm font-semibold" type="text" maxlength="80" />
+      </label>
       <ScreensaverMediaPanel />
       <div class="mt-6">
         <ScreensaverSettingsPanel v-model:custom-minutes="customMinutes" />

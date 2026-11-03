@@ -32,6 +32,8 @@ import {
   qualityFromResolution,
   qualityIdFromText,
   resetBadgePosition,
+  thumbnailDownloadFilename,
+  DEFAULT_THUMBNAIL_PROJECT_NAME,
 } from './thumbnailProject'
 import { documentFromTransfer, validateThumbnailTransfer } from './thumbnailTransfer'
 
@@ -70,6 +72,7 @@ describe('thumbnail transfer', () => {
     assert.equal((doc.image.composition as { rotation: number }).rotation, 12)
     assert.equal(doc.image.frameAssetId, 'frame-png')
     assert.equal(doc.source.returnPath, '/frame-screensaver')
+    assert.equal(doc.name, 'Gallery')
     assert.equal(doc.resolution.text, '1080P')
     assert.equal(doc.duration.text, '1 HOUR')
     assert.deepEqual(assetIdsInDocument(doc).sort(), ['art', 'frame-png'])
@@ -91,6 +94,7 @@ describe('thumbnail transfer', () => {
     assert.equal(doc.image.composition, null)
 
     const blank = createThumbnailDocument()
+    assert.equal(blank.name, DEFAULT_THUMBNAIL_PROJECT_NAME)
     blank.image.sourceWidth = 640
     blank.image.sourceHeight = 360
     assert.equal(blank.resolution.text, '4K UHD')
@@ -278,8 +282,10 @@ describe('export and persistence', () => {
     const doc = createThumbnailDocument()
     doc.duration.text = '30 MIN'
     doc.export = { width: 1920, height: 1080, format: 'jpeg', jpegQuality: 0.8 }
+    doc.name = 'My thumb'
     const loaded = parseThumbnailDocument(JSON.parse(JSON.stringify(doc)))
     assert.ok(loaded)
+    assert.equal(loaded?.name, 'My thumb')
     assert.equal(loaded?.duration.text, '30 MIN')
     assert.equal(loaded?.export.width, 1920)
     assert.equal(loaded?.export.format, 'jpeg')
@@ -291,6 +297,8 @@ describe('export and persistence', () => {
     assert.equal(migrated?.resolution.appearance.styleId, 'gold-plate')
     assert.equal(migrated?.duration.appearance.styleId, 'invert')
     assert.equal(loaded?.image.fit, 'cover')
+    assert.equal(thumbnailDownloadFilename(doc), 'My thumb-1920x1080.jpg')
+    assert.equal(thumbnailDownloadFilename(createThumbnailDocument()), 'thumbnail-1280x720.png')
   })
 })
 

@@ -108,9 +108,12 @@ export interface ThumbnailSource {
   durationSeconds: number | null
 }
 
+export const DEFAULT_THUMBNAIL_PROJECT_NAME = 'Untitled thumbnail'
+
 export interface ThumbnailDocument {
   version: 2
   id: string
+  name: string
   image: ThumbnailImage
   resolution: ThumbnailBadge
   duration: ThumbnailBadge
@@ -231,6 +234,13 @@ export function thumbnailFilename(format: 'png' | 'jpeg', width: number, height:
   return `thumbnail-${width}x${height}.${format === 'jpeg' ? 'jpg' : 'png'}`
 }
 
+export function thumbnailDownloadFilename(doc: ThumbnailDocument): string {
+  const ext = doc.export.format === 'jpeg' ? 'jpg' : 'png'
+  const trimmed = doc.name.trim()
+  const base = trimmed && trimmed !== DEFAULT_THUMBNAIL_PROJECT_NAME ? trimmed : 'thumbnail'
+  return `${base}-${doc.export.width}x${doc.export.height}.${ext}`
+}
+
 export function assetIdsInDocument(doc: ThumbnailDocument): string[] {
   const ids = [doc.image.assetId, doc.image.frameAssetId].filter((id): id is string => Boolean(id))
   return [...new Set(ids)]
@@ -310,6 +320,7 @@ export function createThumbnailDocument(): ThumbnailDocument {
   return {
     version: 2,
     id: createThumbnailId(),
+    name: DEFAULT_THUMBNAIL_PROJECT_NAME,
     image: {
       assetId: null,
       frameAssetId: null,
@@ -352,6 +363,7 @@ export function parseThumbnailDocument(raw: unknown): ThumbnailDocument | null {
   return {
     version: 2,
     id: data.id.trim(),
+    name: parseProjectName(data.name, fallback.name),
     image,
     resolution,
     duration,
@@ -378,6 +390,12 @@ export function legacyThumbnailAssets(raw: unknown): { projectId: string; assetI
     if (typeof assetId === 'string' && assetId.trim()) assetIds.push(assetId.trim())
   }
   return { projectId: data.id.trim(), assetIds: [...new Set(assetIds)] }
+}
+
+function parseProjectName(value: unknown, fallback: string): string {
+  if (typeof value !== 'string') return fallback
+  const trimmed = value.trim()
+  return trimmed ? trimmed.slice(0, 80) : fallback
 }
 
 function defaultBadge(text: string, anchor: FixedAnchor): ThumbnailBadge {
