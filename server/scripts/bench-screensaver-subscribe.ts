@@ -4,7 +4,7 @@ import { copyFile, mkdir, rm, stat, writeFile } from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 import { promisify } from 'node:util'
-import { defaultSubscribeAnimation } from '../../shared/screensaverSubscribeAnimation'
+import { defaultSubscribeAnimation, subscribeAnimationFrameCount } from '../../shared/screensaverSubscribeAnimation'
 import { ffmpegBinary, ffprobeBinary } from '../src/binaries'
 import { countFramesInRange, readVideoFrameTimestamps } from '../src/ffprobeFrames'
 import { renderScreensaver, type ScreensaverRenderRequest } from '../src/renderScreensaver'
@@ -59,13 +59,13 @@ async function main(): Promise<void> {
     '1',
     tile,
   ])
-  for (let index = 1; index <= 210; index += 1) {
-    await copyFile(tile, path.join(animDir, `${String(index).padStart(4, '0')}.png`))
-  }
-
   const settings = defaultSubscribeAnimation()
   settings.enabled = true
   settings.startSec = 20
+  const animFrameCount = subscribeAnimationFrameCount(settings.durationSec)
+  for (let index = 1; index <= animFrameCount; index += 1) {
+    await copyFile(tile, path.join(animDir, `${String(index).padStart(4, '0')}.png`))
+  }
 
   const rows: BenchRow[] = []
   rows.push(await runCase('A-baseline-1fps', base(composed, 1, null, null)))
