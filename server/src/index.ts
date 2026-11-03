@@ -36,6 +36,7 @@ import { lookupYoutubeChannel } from './youtubeChannel'
 import { encoderCatalog } from './encoders'
 import { addFrame, ensureFrames, getFrame, listFrames, removeAllFrames, removeFrame } from './frames'
 import { probeAudioFile, probeImage, probeMedia, probeSourceDetails, probeStill, sniffMediaKind } from './probe'
+import { imageUpscalerRouter, purgeImageUpscaler, sweepImageUpscaler } from './imageUpscalerRoutes'
 import {
   addClip,
   clipIsBusy,
@@ -630,6 +631,8 @@ app.get('/api/jobs/:id/download', (req, res) => {
   res.download(output.path, output.name)
 })
 
+app.use('/api/image-upscaler', imageUpscalerRouter)
+
 app.use('/api', (_req, res) => {
   res.status(404).json({ error: 'Not found.' })
 })
@@ -961,9 +964,11 @@ async function main(): Promise<void> {
   await ensureFrames()
   await sweepStorage()
   await purgeJobDirs(jobIdsInUse())
+  await purgeImageUpscaler()
   setInterval(() => {
     void sweepStorage()
     void purgeJobDirs(jobIdsInUse())
+    void sweepImageUpscaler()
   }, 10 * 60 * 1000)
   const ffmpegReady = await checkFfmpeg()
   await logEncodeCheck()

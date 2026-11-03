@@ -621,6 +621,19 @@ export const useScreensaverStore = defineStore('screensaver', () => {
     void uploadSource()
   }
 
+  async function hasBlockingSource(): Promise<boolean> {
+    if (hydrated.value) return mediaKind.value === 'image' || mediaKind.value === 'video'
+    const stored = await idb.loadScreensaverSource()
+    if (stored?.blob) return true
+    const saved = await idb.loadScreensaverProject<SavedScreensaverProject>()
+    return saved?.mediaKind === 'image' || saved?.mediaKind === 'video'
+  }
+
+  async function acceptExternalImage(file: File): Promise<void> {
+    if (!hydrated.value) await init()
+    await pickSource(file)
+  }
+
   async function uploadSource() {
     if (!sourceFile) return
     uploadState.value = 'uploading'
@@ -1181,6 +1194,8 @@ export const useScreensaverStore = defineStore('screensaver', () => {
     init,
     newProject,
     pickSource,
+    hasBlockingSource,
+    acceptExternalImage,
     removeSource,
     setDurationPreset,
     setCustomDurationMinutes,

@@ -18,11 +18,16 @@ function isActive(path: string): boolean {
     class="hidden h-full shrink-0 flex-col border-r border-zinc-800 bg-[#0c0d10] transition-[width] duration-200 ease-out xl:flex"
     :class="platform.sidebarCollapsed ? 'w-14' : 'w-[240px]'"
   >
-    <div class="flex h-14 items-center gap-2 border-b border-zinc-800 px-3">
-      <span class="grid h-8 w-8 shrink-0 place-items-center rounded-sm text-black">
-        <img src="/logo.png" alt="Video's Factory" class="h-8 w-8 object-contain" />
-      </span>
-      <span v-if="!platform.sidebarCollapsed" class="min-w-0 truncate text-sm font-black tracking-[0.06em]">Video's Factory</span>
+    <div class="flex h-14 items-center border-b border-zinc-800 px-3">
+      <RouterLink
+        :to="{ name: 'dashboard' }"
+        class="flex min-w-0 items-center gap-2 rounded-sm text-zinc-100 transition-colors"
+        aria-label="Video's Factory, go to dashboard"
+        :title="platform.sidebarCollapsed ? 'Dashboard' : undefined"
+      >
+        <img src="/logo.png" alt="" class="h-8 w-8 shrink-0 object-contain" />
+        <span v-if="!platform.sidebarCollapsed" class="min-w-0 truncate text-sm font-black tracking-[0.06em]">Video's Factory</span>
+      </RouterLink>
     </div>
     <nav class="flex flex-1 flex-col gap-1 p-2" aria-label="Main">
       <RouterLink

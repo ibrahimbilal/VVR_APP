@@ -1,9 +1,10 @@
 <script setup lang="ts">
 import { CircleAlert, CircleCheck, FilePlus, Menu } from '@lucide/vue'
 import { computed } from 'vue'
-import { useRoute } from 'vue-router'
+import { RouterLink, useRoute } from 'vue-router'
 import AppNotifications from './AppNotifications.vue'
 import { useScreensaverStore } from '../../apps/frame-screensaver/stores/screensaver'
+import { useImageUpscalerStore } from '../../apps/image-upscaler/stores/imageUpscaler'
 import { useThumbnailStore } from '../../apps/thumbnail-studio/stores/thumbnail'
 import { usePlatformStore } from '../../stores/platform'
 import { useProjectStore } from '../../stores/project'
@@ -13,16 +14,18 @@ const platform = usePlatformStore()
 const project = useProjectStore()
 const screensaver = useScreensaverStore()
 const thumbnail = useThumbnailStore()
+const upscaler = useImageUpscalerStore()
 
 const title = computed(() => (route.meta.title as string) || "Video's Factory")
 const showNewProject = computed(() =>
-  route.name === 'ranking-videos' || route.name === 'frame-screensaver' || route.name === 'thumbnail-studio',
+  route.name === 'ranking-videos' || route.name === 'frame-screensaver' || route.name === 'thumbnail-studio' || route.name === 'image-upscaler',
 )
 
 function startNewProject(): void {
   if (route.name === 'ranking-videos') void project.newProject()
   else if (route.name === 'frame-screensaver') void screensaver.newProject()
   else if (route.name === 'thumbnail-studio') void thumbnail.newProject()
+  else if (route.name === 'image-upscaler') void upscaler.newProject()
 }
 
 const emit = defineEmits<{ openNav: [trigger: HTMLElement] }>()
@@ -38,7 +41,11 @@ const emit = defineEmits<{ openNav: [trigger: HTMLElement] }>()
     >
       <Menu :size="20" />
     </button>
-    <h1 class="min-w-0 truncate text-sm font-semibold text-zinc-200">{{ title }}</h1>
+    <h1 class="min-w-0 truncate text-sm font-semibold">
+      <RouterLink :to="{ name: 'dashboard' }" class="text-zinc-200 transition-colors" :aria-label="`${title}, go to dashboard`">
+        {{ title }}
+      </RouterLink>
+    </h1>
     <button
       v-if="showNewProject"
       class="btn btn-ghost shrink-0 cursor-pointer"

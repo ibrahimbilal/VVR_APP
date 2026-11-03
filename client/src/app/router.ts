@@ -3,6 +3,7 @@ import DashboardView from '../views/DashboardView.vue'
 import RankingVideosView from '../apps/ranking-videos/RankingVideosView.vue'
 import FrameScreensaverView from '../apps/frame-screensaver/FrameScreensaverView.vue'
 import ThumbnailStudioView from '../apps/thumbnail-studio/ThumbnailStudioView.vue'
+import ImageUpscalerView from '../apps/image-upscaler/ImageUpscalerView.vue'
 
 export const router = createRouter({
   history: createWebHistory(),
@@ -30,6 +31,12 @@ export const router = createRouter({
       name: 'thumbnail-studio',
       component: ThumbnailStudioView,
       meta: { title: 'Thumbnail Studio' },
+    },
+    {
+      path: '/image-upscaler',
+      name: 'image-upscaler',
+      component: ImageUpscalerView,
+      meta: { title: 'Image Upscaler' },
     },
   ],
 })

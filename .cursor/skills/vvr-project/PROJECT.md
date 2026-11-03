@@ -1,10 +1,11 @@
 # Video's Factory — project map
 
-Local **Video's Factory** platform with three apps:
+Local **Video's Factory** platform with four apps:
 
 1. **Shorts** (legacy VVR) — 9:16 ranking compilation editor.
 2. **Screensaver** — long-form 16:9 ambient video from one image or looping video.
 3. **Thumbnail Studio** — browser-only YouTube thumbnail tool. Upload an image or take one from Screensaver / Shorts, then place a resolution badge and a duration badge. It does not call FFmpeg.
+4. **Image Upscaler** — Lanczos3 resize of PNG, JPEG, and WebP to exact preset pixels (default 4K). Sharp on the server. It does not use the FFmpeg queue. See `docs/image-upscaler.md`.
 
 Ranking behavior is unchanged in substance: upload clips (or link titles only), order, style banner and ranks, preview, export MP4.
 
@@ -34,12 +35,17 @@ Workspaces: root `vvr-app` **1.1.0**, `client` (`vvr-client`), `server` (`vvr-se
 
 ```
 client/src/App.vue                      platform shell (sidebar, header, toasts)
-client/src/app/router.ts                /, /ranking-videos, /frame-screensaver, /thumbnail-studio
+client/src/app/router.ts                /, /ranking-videos, /frame-screensaver, /thumbnail-studio, /image-upscaler
 client/src/stores/platform.ts           renderer health, global toasts, nav UI
 client/src/stores/project.ts            ranking editor state
 client/src/apps/ranking-videos/         RankingVideosView (editor layout)
 client/src/apps/frame-screensaver/      screensaver view, store, components
 client/src/apps/thumbnail-studio/       thumbnail view, store, canvas renderer, transfer
+client/src/apps/image-upscaler/         upscaler view, store, comparison, batch UI
+server/src/imageUpscaler.ts             Lanczos3 Sharp engine
+server/src/imageUpscalerJobs.ts         sequential image jobs, separate from FFmpeg
+server/src/imageUpscalerRoutes.ts       `/api/image-upscaler/*`
+shared/imageUpscaler.ts                 presets, limits, options, filenames
 client/src/components/layout/           AppSidebar, AppHeader, MobileNavDrawer
 client/src/composables/usePlayback.ts     ranking preview clock
 client/src/components/                  ranking panels (ClipSidebar, PreviewStage, …)
@@ -57,9 +63,9 @@ Stack: Vue 3, **vue-router**, Pinia, Tailwind 4, Lucide. Client aliases `@shared
 
 ## Platform shell
 
-`App.vue`: left sidebar (desktop), header with **notifications** (bell, left of renderer status), renderer status (`GET /api/health`), **New project** on Shorts, Screensaver, and Thumbnail Studio (`AppHeader.vue`, `AppNotifications.vue`), `router-view`, global toasts (`usePlatformStore`). Finished Shorts and Screensaver renders are listed in the header notification panel (`renderNotifications.ts`, `platform.ts`). In-progress rows have **Cancel** (per export: client abort + server `POST /api/jobs/:id/cancel` when submitted; `renderJobTracking.ts`). After a full page reload, active server jobs are restored from `localStorage` (`persistedRenderJobs.ts`) and from `GET /api/jobs/active`, then polling resumes in `resumePersistedRenderJobs.ts` (header bell shows progress again; finished-while-away jobs appear as ready downloads).
+`App.vue`: left sidebar (desktop). The logo, **Video's Factory** name, and header page title link to the dashboard. Header also has **notifications** (bell, left of renderer status), renderer status (`GET /api/health`), **New project** on Shorts, Screensaver, Thumbnail Studio, and Image Upscaler (`AppHeader.vue`, `AppNotifications.vue`), `router-view`, global toasts (`usePlatformStore`). Finished Shorts and Screensaver renders are listed in the header notification panel (`renderNotifications.ts`, `platform.ts`). In-progress rows have **Cancel** (per export: client abort + server `POST /api/jobs/:id/cancel` when submitted; `renderJobTracking.ts`). After a full page reload, active server jobs are restored from `localStorage` (`persistedRenderJobs.ts`) and from `GET /api/jobs/active`, then polling resumes in `resumePersistedRenderJobs.ts` (header bell shows progress again; finished-while-away jobs appear as ready downloads).
 
-- Routes: `/` dashboard, `/ranking-videos`, `/frame-screensaver`, `/thumbnail-studio`. SPA fallback in production.
+- Routes: `/` dashboard, `/ranking-videos`, `/frame-screensaver`, `/thumbnail-studio`, `/image-upscaler`. SPA fallback in production.
 - Mobile: hamburger opens left drawer; ranking mobile tabs inside `RankingVideosView`; Screensaver uses **Settings / Preview** tabs (`FrameScreensaverView.vue`).
 
 ## Shorts screen
@@ -225,6 +231,13 @@ Progress on the client: overlays/upload are local; queued/preparing/rendering/ve
 | DELETE | `/api/screensaver/frames/:id` | remove a saved frame |
 | POST | `/api/uploads/cleanup` | JSON `{ purgeAll?: true, jobId? }` (default) — remove all frame PNGs, leftover `jobs/` work dirs, every clip not held by a render, and export MP4s in `outputs/` (optional `jobId` for the just-downloaded file; skips outputs and job dirs for jobs still encoding). Same handler at `/api/screensaver/uploads/cleanup`. Legacy `{ mediaId, frameIds }` when `purgeAll: false` |
 | POST | `/api/screensaver/export` | screensaver JSON, optional `audio`, optional `composition` PNG, optional `animationFrames` PNGs (max 120). Video frames come from the saved PNG, not an upload |
+| POST | `/api/image-upscaler/process` | one image, field `file`, plus `options` JSON. Returns a job |
+| POST | `/api/image-upscaler/batch` | field `files` (max 8), plus `options` JSON |
+| GET | `/api/image-upscaler/jobs/:id` | per-image status. No filesystem paths |
+| GET | `/api/image-upscaler/jobs/:id/items/:itemId/download` | full processed image |
+| GET | `/api/image-upscaler/jobs/:id/items/:itemId/preview` | comparison WebP, long edge ≤ 1440 |
+| GET | `/api/image-upscaler/jobs/:id/download` | ZIP of completed images |
+| DELETE | `/api/image-upscaler/jobs/:id` | cancel while running; `?purge=1` or a finished job deletes files |
 
 Jobs queue handles `kind: 'ranking' | 'screensaver'` (`server/src/jobs.ts`).
 
@@ -241,6 +254,7 @@ Unknown `/api` routes return 404 JSON. If `client/dist/index.html` exists, Expre
 - `incoming/` — Multer landing pad.
 - `jobs/<id>/` — overlays, composition PNG, and music for the active render. Removed when the job ends, on tab/window close, and on server boot. Leftovers from a crashed or restarted render do not wait for the 6-hour sweep.
 - `outputs/<id>.mp4` — finished files.
+- `upscaler/<jobId>/` — Image Upscaler inputs and outputs. Removed on boot, on purge, and after the job TTL (2 hours). Not part of the FFmpeg queue.
 
 Sweep every 10 minutes: outputs older than 2 hours, jobs and incoming older than 6 hours, clips older than 7 days (unless a render holds them).
 
@@ -289,6 +303,7 @@ Sweep every 10 minutes: outputs older than 2 hours, jobs and incoming older than
 | oEmbed | `server/src/oembed.ts` |
 | Screensaver editor, export, frames, subscribe overlay | `client/src/apps/frame-screensaver/`, `shared/screensaver.ts`, `shared/screensaverComposition.ts`, `shared/screensaverFrames.ts`, `shared/screensaverAdjust.ts`, `shared/screensaverSubscribeAnimation.ts`, `server/src/frames.ts`, `server/src/youtubeChannel.ts` |
 | Thumbnail editor, transfer, export | `client/src/apps/thumbnail-studio/`, `shared/thumbnailProject.ts`, `shared/thumbnailTransfer.ts`, `shared/thumbnailLayout.ts`, `client/src/lib/idb.ts` |
+| Image Upscaler | `client/src/apps/image-upscaler/`, `shared/imageUpscaler.ts`, `server/src/imageUpscaler.ts`, `server/src/imageUpscalerJobs.ts`, `server/src/imageUpscalerRoutes.ts`, `docs/image-upscaler.md` |
 | Screensaver encode and encoder probe | `server/src/renderScreensaver.ts`, `server/src/renderScreensaverHybrid.ts`, `server/src/screensaverGraph.ts`, `server/src/encoders.ts`, `shared/screensaverSubscribeAnimation.ts` |
 
 ## Invariants
@@ -377,8 +392,22 @@ Export is 16:9 PNG or JPEG at 1280×720 (default), 1920×1080, or 3840×2160. JP
 `npm run test:thumbnail` runs the shared contract tests.
 Badge SVGs are committed under `client/src/assets/thumbnail-badges/` (catalog slugs in `shared/thumbnailBadges.ts`).
 
+## Image Upscaler
+
+Editor state is `useImageUpscalerStore` (`client/src/apps/image-upscaler/stores/imageUpscaler.ts`). It is not written to IndexedDB. Ranking, Screensaver, and Thumbnail stores stay independent. Processing is Sharp Lanczos3 (`kernel: lanczos3`) in `server/src/imageUpscaler.ts`. The engine interface is `ImageUpscaleEngine.process` in `shared/imageUpscaler.ts`. No AI model is installed.
+
+Default output is **3840×2160**, mode **contain**. Presets Full HD, 2K/QHD, 4K UHD, and 8K UHD always use those pixel sizes. PNG is lossless. JPEG/WebP quality defaults to 90 (range 60–100). JPEG flattens transparency onto the padding color. Sharpen defaults to off (subtle / moderate are separate from the resize). One image runs at a time and waits while an FFmpeg job is active. Inputs are limited to 40 MB, 8 files, and 7680×4320 pixels (see `docs/image-upscaler.md` for env overrides).
+
+**Send to Screensaver** fetches the full output file. If Screensaver already has a source, the user must confirm. Replace calls `acceptExternalImage`, which uses the same image-drop path as `pickSource` (static mode, reframe, keep frame id). Duration, output resolution, audio, and encoder are not reset. Cancel leaves Screensaver unchanged.
+
+Comparison previews are WebP with a 1440px long edge. Downloads are the verified full-size files. `npm run test:upscaler` covers dimensions, resize modes, alpha, JPEG flatten, rejection, batch, ZIP names, cleanup, cancel, and preview versus download.
+
 ## Changelog
 
+- 2026-11-04 — Logo, Video's Factory name, and header page title link to the dashboard (`AppSidebar.vue`, `MobileNavDrawer.vue`, `AppHeader.vue`).
+- 2026-11-04 — Image Upscaler cover crop positions are icon buttons on one row (`UpscaleSettings.vue`).
+- 2026-11-03 — Image Upscaler comparison zoom keeps the divider on the same pixels while zooming and panning (`ImageComparison.vue`).
+- 2026-11-03 — Add Image Upscaler: Lanczos3 Sharp pipeline, `/image-upscaler`, batch ZIP, Screensaver handoff (`shared/imageUpscaler.ts`, `server/src/imageUpscaler*.ts`, `client/src/apps/image-upscaler/`, `docs/image-upscaler.md`).
 - 2026-11-03 — Subscribe animation 60 fps: multer multipart file cap and hybrid FFmpeg fps follow `SUBSCRIBE_ANIMATION_FPS`; upload PNG budget scales with frame count (`shared/screensaverSubscribeAnimation.ts`, `server/src/index.ts`, `renderScreensaverHybrid.ts`).
 - 2026-11-03 — Screensaver defaults: **Preview rendering** CPU when unset; **Encoding method** CPU for new/reset projects (`previewRendererPreference.ts`, `stores/screensaver.ts`).
 - 2026-11-03 — Screensaver Settings: **Subscribe Animation** accordion above **Frames** (`ScreensaverSettingsPanel.vue`).
