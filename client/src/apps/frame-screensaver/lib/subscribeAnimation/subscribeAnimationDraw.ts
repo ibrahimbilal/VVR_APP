@@ -115,7 +115,7 @@ export function drawIconButton(
     const likeColor = channelTheme?.iconLike ?? '#0078f8'
     const defaultIcon = channelTheme?.iconDefault ?? '#ffffff'
     if (kind === 'bell') {
-      const paths = active ? LUCIDE_BELL_RING_PATHS : LUCIDE_BELL_PATHS
+      const paths = clicked ? LUCIDE_BELL_RING_PATHS : LUCIDE_BELL_PATHS
       const iconColor = clicked ? (channelTheme?.buttonClickedIcon ?? '#000000') : defaultIcon
       strokeLucidePaths(ctx, paths, cx, cy, iconSize, iconColor, {
         strokeWidth: 2.25 * scale,

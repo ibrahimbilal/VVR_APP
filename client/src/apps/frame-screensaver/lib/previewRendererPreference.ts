@@ -11,7 +11,7 @@ export function readPreviewRendererMode(): PreviewRendererMode {
   } catch {
     // ignore
   }
-  return 'auto'
+  return 'canvas2d'
 }
 
 export function writePreviewRendererMode(mode: PreviewRendererMode): void {

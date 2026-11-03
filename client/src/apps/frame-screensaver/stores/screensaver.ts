@@ -144,7 +144,7 @@ export const useScreensaverStore = defineStore('screensaver', () => {
   const outputHeight = ref<number>(DEFAULT_SCREENSAVER_OUTPUT.height)
   const fps = ref(1)
   const profile = ref<ScreensaverProfile>('static-fast')
-  const encoder = ref<EncoderChoice>('auto')
+  const encoder = ref<EncoderChoice>('cpu')
   const composition = ref<ScreensaverComposition>(defaultComposition())
   const frames = ref<api.ScreensaverFrame[]>([])
   const framesLoaded = ref(false)
@@ -520,7 +520,7 @@ export const useScreensaverStore = defineStore('screensaver', () => {
     backgroundColor.value = saved.backgroundColor
     audioFileName.value = saved.audioFileName
     profile.value = isScreensaverProfile(saved.profile) ? saved.profile : 'balanced'
-    encoder.value = isEncoderChoice(saved.encoder) ? saved.encoder : 'auto'
+    encoder.value = isEncoderChoice(saved.encoder) ? saved.encoder : 'cpu'
     composition.value =
       saved.version === 2 && saved.composition
         ? clampComposition(saved.composition)
@@ -702,7 +702,7 @@ export const useScreensaverStore = defineStore('screensaver', () => {
     backgroundColor.value = defaults.backgroundColor
     audioFileName.value = defaults.audioFileName
     profile.value = 'static-fast'
-    encoder.value = 'auto'
+    encoder.value = 'cpu'
     composition.value = defaultComposition()
     history.value = [cloneComposition(composition.value)]
     historyIndex.value = 0
