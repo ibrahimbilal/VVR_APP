@@ -16,6 +16,8 @@ export interface JobPollUpdate {
   elapsedSec?: number | null
   etaSec?: number | null
   stage?: string | null
+  /** FFmpeg encode completion 0–1 (time / duration), null before server render starts. */
+  encodeProgress?: number | null
 }
 
 export function mapJobToProgress(job: JobStatus, uploadProgress = 0.16): JobPollUpdate {
@@ -25,6 +27,10 @@ export function mapJobToProgress(job: JobStatus, uploadProgress = 0.16): JobPoll
   if (job.status === 'verifying') progress = 0.97
   if (job.status === 'done') progress = 1
   const phase = job.status === 'queued' ? 'queued' : job.status
+  let encodeProgress: number | null = null
+  if (job.status === 'queued' || job.status === 'preparing') encodeProgress = 0
+  if (job.status === 'rendering') encodeProgress = Math.min(1, Math.max(0, job.progress))
+  if (job.status === 'verifying' || job.status === 'done') encodeProgress = 1
   return {
     phase,
     progress,
@@ -40,6 +46,7 @@ export function mapJobToProgress(job: JobStatus, uploadProgress = 0.16): JobPoll
     elapsedSec: job.elapsedSec ?? null,
     etaSec: job.etaSec ?? null,
     stage: job.stage ?? null,
+    encodeProgress,
   }
 }
 
@@ -76,6 +83,7 @@ export async function pollJobUntilDone(
       warning: latest.warning,
       jobId: latest.id,
       error: null,
+      encodeProgress: 1,
     })
     return latest
   } finally {

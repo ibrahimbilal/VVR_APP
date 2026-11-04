@@ -5,8 +5,12 @@ import { BADGE_STYLES, THUMBNAIL_OUTPUTS, type BadgeStyleId } from '@shared/thum
 import { computed } from 'vue'
 import { stylePreviewSvgUrl } from '../lib/badgeAssets'
 import FileDropZone from '../../../components/FileDropZone.vue'
+import FileStatusBox from '../../../components/FileStatusBox.vue'
 import SliderField from '../../../components/SliderField.vue'
 import ToggleSwitch from '../../../components/ToggleSwitch.vue'
+import { formatBytes } from '../../../lib/format'
+import { fileStatusBoxLabel } from '../../../lib/fileStatusBox'
+import { audioFormatLabel } from '../../../lib/media'
 import { useThumbnailStore } from '../stores/thumbnail'
 
 const store = useThumbnailStore()
@@ -53,6 +57,23 @@ function onExportSize(event: Event): void {
   const [width, height] = value.split('x').map(Number)
   store.setExportSize(width, height)
 }
+
+const showImageStatusBox = computed(() => Boolean(store.imageFileName))
+
+const imageMetaParts = computed(() => {
+  const parts: string[] = []
+  const name = store.imageFileName
+  if (name && store.imageFileStatus === 'ready') parts.push(audioFormatLabel(name))
+  if (store.imageFileSize != null && store.imageFileSize > 0) parts.push(formatBytes(store.imageFileSize))
+  const w = store.doc.image.sourceWidth
+  const h = store.doc.image.sourceHeight
+  if (w > 0 && h > 0) parts.push(`${w}×${h}`)
+  return parts
+})
+
+const imageStatusLabel = computed(() =>
+  fileStatusBoxLabel(store.imageFileStatus, { processingMessage: 'Reading image…' }),
+)
 </script>
 
 <template>
@@ -79,6 +100,21 @@ function onExportSize(event: Event): void {
           formats="PNG, JPEG, WebP"
           @files="onFiles"
         />
+        <FileStatusBox
+          v-if="showImageStatusBox && store.imageFileName"
+          :file-name="store.imageFileName"
+          :status="store.imageFileStatus"
+          :status-label="imageStatusLabel"
+          remove-label="Remove image"
+          @remove="void store.clearImage()"
+        >
+          <template #meta>
+            <span v-if="imageMetaParts.length > 0">{{ imageMetaParts.join(' · ') }}</span>
+            <span v-if="store.imageFileError" class="text-red-300">
+              <span v-if="imageMetaParts.length > 0"> · </span>{{ store.imageFileError }}
+            </span>
+          </template>
+        </FileStatusBox>
         <p v-if="store.hasComposition" class="text-xs leading-5 text-zinc-400">
           Screensaver crop, placement, and frame are already in this image.
         </p>

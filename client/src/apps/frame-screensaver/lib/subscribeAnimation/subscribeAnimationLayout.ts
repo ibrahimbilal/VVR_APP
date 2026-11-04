@@ -16,7 +16,10 @@ export interface SubscribeAnimationLayout {
   height: number
   contentWidth: number
   contentHeight: number
+  /** Top, left, and right transparent margin (export px). */
   padding: number
+  /** Bottom transparent margin: base canvas padding plus `edgeDistance` (export px). */
+  paddingBottom: number
   mouseEntryPadding: number
   designWidth: number
   designHeight: number
@@ -34,6 +37,8 @@ export function subscribeAnimationLayout(
   const scale = contentWidth / design.width
   const contentHeight = Math.round(design.height * scale)
   const padding = Math.round(SUBSCRIBE_ANIMATION_CANVAS_PADDING_DESIGN * scale)
+  const edgeBottom = Math.max(0, Math.round(settings.edgeDistance))
+  const paddingBottom = padding + edgeBottom
   const mouseEntryPadding = Math.round(SUBSCRIBE_ANIMATION_MOUSE_ENTRY_PADDING_DESIGN * scale)
   return {
     designWidth: design.width,
@@ -41,9 +46,10 @@ export function subscribeAnimationLayout(
     contentWidth,
     contentHeight,
     padding,
+    paddingBottom,
     mouseEntryPadding,
     width: contentWidth + padding * 2,
-    height: contentHeight + padding * 2 + mouseEntryPadding,
+    height: contentHeight + padding + paddingBottom + mouseEntryPadding,
     scale,
   }
 }
@@ -56,7 +62,7 @@ export function subscribeAnimationOverlayOnOutput(
   const layout = subscribeAnimationLayout(settings, outputWidth)
   const margin = Math.max(0, Math.round(settings.edgeDistance))
   let x = margin
-  const y = Math.max(0, outputHeight - layout.height - margin)
+  const y = Math.max(0, outputHeight - layout.height)
   if (settings.position === 'bottom-center') {
     x = Math.round((outputWidth - layout.width) / 2)
   } else if (settings.position === 'bottom-right') {

@@ -76,7 +76,7 @@ export interface SubscribeAnimationSettings {
   position: SubscribeAnimationPosition
   /** Content width as a percent of export frame width (see `subscribeAnimationLayout`). */
   sizePercent: number
-  /** Distance from output frame edges in export pixels (bottom + horizontal). */
+  /** Horizontal inset from output frame edges (export px). Adds the same value to overlay bottom padding for slide room. */
   edgeDistance: number
   style: SubscribeAnimationStyle
   /** Loop subscribe animation on the main preview canvas while editing. */

@@ -26,6 +26,7 @@ import { usePlatformStore } from '../../../stores/platform'
 import { movePendingAssets, releasePendingAssets, storeImageBlob, syncProjectAssets } from '../lib/assetStore'
 import { exportThumbnailBlob, type ThumbnailRenderAssets } from '../lib/renderThumbnail'
 import { DUPLICATE_EXPORT_MESSAGE, thumbnailExportFingerprint } from '../../../lib/exportFingerprint'
+import { type FileStatusBoxStatus } from '../../../lib/fileStatusBox'
 
 const bitmaps = new Map<string, ImageBitmap>()
 const LEGACY_KEYS = new Set(['catalog', 'presets', 'preset-default', 'active'])
@@ -47,6 +48,10 @@ export const useThumbnailStore = defineStore('thumbnail', () => {
 
   const hasImage = computed(() => Boolean(doc.value.image.assetId))
   const hasComposition = computed(() => doc.value.image.composition != null)
+  const imageFileName = ref<string | null>(null)
+  const imageFileSize = ref<number | null>(null)
+  const imageFileStatus = ref<FileStatusBoxStatus>('ready')
+  const imageFileError = ref<string | null>(null)
   const lastDownloadFingerprint = ref<string | null>(null)
   const currentExportFingerprint = computed(() => thumbnailExportFingerprint(doc.value))
   const exportDuplicateBlocker = computed(() => {
@@ -100,6 +105,29 @@ export const useThumbnailStore = defineStore('thumbnail', () => {
       bitmaps.delete(id)
     }
     assetEpoch.value += 1
+    imageFileName.value = null
+    imageFileSize.value = null
+    imageFileStatus.value = 'ready'
+    imageFileError.value = null
+  }
+
+  function clearImageFileUi(): void {
+    imageFileName.value = null
+    imageFileSize.value = null
+    imageFileStatus.value = 'ready'
+    imageFileError.value = null
+  }
+
+  async function refreshImageAssetMeta(): Promise<void> {
+    const id = doc.value.image.assetId
+    if (!id) {
+      imageFileName.value = null
+      imageFileSize.value = null
+      return
+    }
+    const asset = await getImageAsset(id)
+    imageFileName.value = asset?.name ?? 'Image'
+    imageFileSize.value = asset?.byteLength ?? null
   }
 
   async function newProject(): Promise<void> {
@@ -180,9 +208,13 @@ export const useThumbnailStore = defineStore('thumbnail', () => {
       return
     }
     const previousIds = assetIdsInDocument(doc.value)
+    imageFileStatus.value = 'processing'
+    imageFileError.value = null
     let next = documentFromTransfer(payload, doc.value.id)
     const artwork = await getImageAsset(payload.artwork.assetId)
     if (artwork) {
+      imageFileName.value = artwork.name
+      imageFileSize.value = artwork.byteLength
       next.image.sourceWidth = artwork.width
       next.image.sourceHeight = artwork.height
     }
@@ -192,6 +224,8 @@ export const useThumbnailStore = defineStore('thumbnail', () => {
     bitmapKey = ''
     await deleteThumbnailValue('pending-transfer')
     await syncBitmaps()
+    await refreshImageAssetMeta()
+    imageFileStatus.value = 'ready'
     await saveNow(previousIds)
   }
 
@@ -218,7 +252,12 @@ export const useThumbnailStore = defineStore('thumbnail', () => {
 
   async function uploadImage(file: File): Promise<void> {
     const previous = assetIdsInDocument(doc.value)
+    imageFileName.value = file.name
+    imageFileSize.value = file.size
+    imageFileStatus.value = 'uploading'
+    imageFileError.value = null
     try {
+      imageFileStatus.value = 'processing'
       const asset = await storeImageBlob(file, file.name, doc.value.id)
       const next = clone(doc.value)
       next.image = {
@@ -243,10 +282,47 @@ export const useThumbnailStore = defineStore('thumbnail', () => {
       doc.value = next
       bitmapKey = ''
       await syncBitmaps()
+      await refreshImageAssetMeta()
+      imageFileStatus.value = 'ready'
       await saveNow(previous)
     } catch (error) {
-      platform.toast(error instanceof Error ? error.message : 'Could not read that image.')
+      const message = error instanceof Error ? error.message : 'Could not read that image.'
+      imageFileStatus.value = 'error'
+      imageFileError.value = message
+      platform.toast(message)
     }
+  }
+
+  async function clearImage(): Promise<void> {
+    const hadAsset = Boolean(doc.value.image.assetId)
+    if (!hadAsset && !imageFileName.value) return
+    const previousIds = assetIdsInDocument(doc.value)
+    if (hadAsset) {
+      edit((draft) => {
+        draft.image = {
+          assetId: null,
+          frameAssetId: null,
+          composition: null,
+          fit: 'cover',
+          crop: fullNormCrop(),
+          sourceWidth: 0,
+          sourceHeight: 0,
+        }
+        draft.source = {
+          app: 'standalone',
+          linkMode: 'snapshot',
+          returnPath: null,
+          sourceProjectId: null,
+          videoWidth: null,
+          videoHeight: null,
+          durationSeconds: null,
+        }
+      })
+      bitmapKey = ''
+      await syncBitmaps()
+      await saveNow(previousIds)
+    }
+    clearImageFileUi()
   }
 
   function setName(value: string): void {
@@ -437,6 +513,10 @@ export const useThumbnailStore = defineStore('thumbnail', () => {
     pending,
     hasImage,
     hasComposition,
+    imageFileName,
+    imageFileSize,
+    imageFileStatus,
+    imageFileError,
     exportDuplicateBlocker,
     init,
     newProject,
@@ -445,6 +525,7 @@ export const useThumbnailStore = defineStore('thumbnail', () => {
     clearReplaceOnNextTransfer,
     acceptTransfer,
     uploadImage,
+    clearImage,
     setName,
     setBadgeEnabled,
     setBadgeText,

@@ -196,7 +196,7 @@ function onCustomMinutes() {
           :model-value="store.subscribeAnimation.edgeDistance"
           @update:model-value="(v) => store.replaceSubscribeAnimation({ edgeDistance: v })"
         />
-        <p class="mt-1 text-xs text-zinc-500">In export pixels from the bottom and horizontal edges.</p>
+        <p class="mt-1 text-xs text-zinc-500">Export pixels: inset from the left/right edges; adds the same amount as transparent space below the UI inside the animation (for slide-out).</p>
         <div class="mt-3 flex items-center justify-between gap-3">
           <span class="text-sm">Show on preview canvas</span>
           <ToggleSwitch
@@ -257,7 +257,7 @@ function onCustomMinutes() {
         Choose a frame above or upload your own PNG. Click a frame to select it. Hover the selected frame and use the remove control to clear or delete it.
       </p>
       <div v-else class="mt-3 grid grid-cols-2 gap-2">
-        <div v-for="frame in store.frames" :key="frame.id" class="group/frame relative">
+        <div v-for="frame in store.frames" :key="frame.id" class="group/frame relative min-w-0">
           <button
             class="block w-full cursor-pointer overflow-hidden rounded-md border bg-[#101114]"
             :class="store.composition.frameId === frame.id ? 'border-brand ring-1 ring-brand' : 'border-zinc-700 hover:border-zinc-500'"
@@ -268,6 +268,7 @@ function onCustomMinutes() {
           >
             <img :src="`/api/screensaver/frames/${frame.id}`" :alt="frame.name" class="aspect-video w-full object-contain" />
           </button>
+          <p class="mt-1 truncate px-0.5 text-xs font-semibold text-zinc-200" :title="frame.name">{{ frame.name }}</p>
           <button
             v-if="store.composition.frameId === frame.id"
             class="absolute inset-0 flex cursor-pointer items-center justify-center rounded-md bg-black/55 opacity-0 transition-opacity duration-150 group-hover/frame:opacity-100"
@@ -488,6 +489,8 @@ function onCustomMinutes() {
         v-if="store.audioMode === 'upload'"
         class="mt-3"
         :file-name="store.audioFileName"
+        :file-size="store.audioFileSize"
+        :preview-url="store.audioUrl"
         @files="onAudioFiles"
         @clear="store.clearAudio()"
       />

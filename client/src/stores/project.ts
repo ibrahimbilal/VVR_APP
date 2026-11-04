@@ -74,6 +74,7 @@ export const useProjectStore = defineStore('project', () => {
   const activeColorSetId = ref(storedColors.activeId)
   const musicUrl = ref<string | null>(null)
   const musicName = ref<string | null>(null)
+  const musicFileSize = ref<number | null>(null)
   const hydrated = ref(false)
   const urlNotice = ref('')
   const encoderOptions = ref<Awaited<ReturnType<typeof api.fetchEncoders>>['encoders']>([])
@@ -213,6 +214,7 @@ export const useProjectStore = defineStore('project', () => {
           musicFile = new File([music.blob], music.name, { type: music.type || 'audio/mpeg' })
           musicUrl.value = URL.createObjectURL(musicFile)
           musicName.value = music.name
+          musicFileSize.value = musicFile.size
         }
         for (const meta of saved.clips ?? []) {
           const clip = clipFromMeta(meta)
@@ -532,6 +534,7 @@ export const useProjectStore = defineStore('project', () => {
       musicFile = null
       musicUrl.value = null
       musicName.value = null
+      musicFileSize.value = null
       await idb.clearMusicFile().catch(() => undefined)
       return
     }
@@ -543,6 +546,7 @@ export const useProjectStore = defineStore('project', () => {
     musicFile = file
     musicUrl.value = URL.createObjectURL(file)
     musicName.value = file.name
+    musicFileSize.value = file.size
     void idb.saveMusicFile(file).catch(() => {
       toast('The music will play until you refresh, but it could not be saved in this browser.', 'info')
     })
@@ -558,6 +562,7 @@ export const useProjectStore = defineStore('project', () => {
     musicFile = null
     musicUrl.value = null
     musicName.value = null
+    musicFileSize.value = null
     const fresh = materializePreset('classic', createDefaultVideo())
     applying = true
     name.value = 'Untitled ranking'
@@ -750,6 +755,7 @@ export const useProjectStore = defineStore('project', () => {
     activeColors,
     musicUrl,
     musicName,
+    musicFileSize,
     serverOnline,
     hydrated,
     exportState,

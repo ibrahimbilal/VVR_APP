@@ -142,6 +142,7 @@ export interface ExportState {
   elapsedSec?: number | null
   etaSec?: number | null
   stage?: string | null
+  encodeProgress?: number | null
 }
 
 export interface PersistedClip {

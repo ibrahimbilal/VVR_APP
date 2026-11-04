@@ -87,6 +87,5 @@ export function subscribeMousePointerAt(
     from = { x: target.cx, y: target.cy }
   }
 
-  const last = targets[targets.length - 1]
-  return { x: last.cx, y: last.cy, visible: true, pressed: false, clickScale: 1 }
+  return hidden
 }

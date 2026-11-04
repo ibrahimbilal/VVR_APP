@@ -27,6 +27,7 @@ export function idleExport(): ExportState {
     elapsedSec: null,
     etaSec: null,
     stage: null,
+    encodeProgress: null,
   }
 }
 
@@ -53,6 +54,7 @@ export function exportStateFromPoll(patch: JobPollUpdate): ExportState {
     elapsedSec: patch.elapsedSec ?? base.elapsedSec,
     etaSec: patch.etaSec ?? base.etaSec,
     stage: patch.stage ?? base.stage,
+    encodeProgress: patch.encodeProgress ?? base.encodeProgress,
   }
 }
 

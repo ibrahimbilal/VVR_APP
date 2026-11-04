@@ -1,6 +1,10 @@
 <script setup lang="ts">
-import { Trash2 } from '@lucide/vue'
+import { computed } from 'vue'
+import { formatBytes } from '../../../lib/format'
+import { audioFormatLabel } from '../../../lib/media'
 import FileDropZone from '../../../components/FileDropZone.vue'
+import FileStatusBox from '../../../components/FileStatusBox.vue'
+import { fileStatusBoxLabel, type FileStatusBoxStatus } from '../../../lib/fileStatusBox'
 import { useScreensaverStore } from '../stores/screensaver'
 
 const store = useScreensaverStore()
@@ -11,6 +15,25 @@ function onFiles(files: File[]) {
   const file = files[0]
   if (file) void store.pickSource(file)
 }
+
+const metaParts = computed(() => {
+  const parts: string[] = []
+  if (store.fileName) parts.push(audioFormatLabel(store.fileName))
+  if (store.sourceFileSize != null && store.sourceFileSize > 0) parts.push(formatBytes(store.sourceFileSize))
+  if (store.width > 0 && store.height > 0) parts.push(`${store.width}×${store.height}`)
+  if (store.sourceDuration) parts.push(`${Math.round(store.sourceDuration)}s`)
+  return parts
+})
+
+const fileStatus = computed((): FileStatusBoxStatus => {
+  if (store.uploadState === 'uploading') return 'uploading'
+  if (store.uploadState === 'error') return 'error'
+  return 'ready'
+})
+
+const statusLabel = computed(() =>
+  fileStatusBoxLabel(fileStatus.value, { uploadProgress: store.uploadProgress }),
+)
 </script>
 
 <template>
@@ -22,14 +45,22 @@ function onFiles(files: File[]) {
         <img v-if="store.mediaKind === 'image'" :src="store.objectUrl" alt="" class="h-full w-full object-contain" />
         <video v-else :src="store.objectUrl" class="h-full w-full object-contain" muted playsinline />
       </div>
-      <p class="mt-2 truncate text-sm font-semibold text-zinc-200">{{ store.fileName }}</p>
-      <p class="text-xs text-zinc-500">
-        {{ store.width }}×{{ store.height }}
-        <span v-if="store.sourceDuration"> · {{ Math.round(store.sourceDuration) }}s</span>
-        <span v-if="store.uploadState === 'uploading'"> · Uploading {{ Math.round(store.uploadProgress * 100) }}%</span>
-        <span v-if="store.uploadState === 'ready'" class="text-emerald-400"> · Ready</span>
-        <span v-if="store.uploadState === 'error'" class="text-red-300"> · {{ store.uploadError }}</span>
-      </p>
+      <FileStatusBox
+        v-if="store.fileName"
+        class="mt-2"
+        :file-name="store.fileName"
+        :status="fileStatus"
+        :status-label="statusLabel"
+        remove-label="Remove media"
+        @remove="store.removeSource()"
+      >
+        <template #meta>
+          <span v-if="metaParts.length > 0">{{ metaParts.join(' · ') }}</span>
+          <span v-if="store.uploadState === 'error' && store.uploadError" class="text-red-300">
+            <span v-if="metaParts.length > 0"> · </span>{{ store.uploadError }}
+          </span>
+        </template>
+      </FileStatusBox>
       <FileDropZone
         class="mt-3"
         compact
@@ -39,12 +70,6 @@ function onFiles(files: File[]) {
         hint="or click to browse"
         @files="onFiles"
       />
-      <div class="mt-2 flex gap-2">
-        <button class="btn btn-ghost cursor-pointer flex-1" type="button" @click="store.removeSource()">
-          <Trash2 :size="16" />
-          Remove
-        </button>
-      </div>
     </div>
 
     <FileDropZone

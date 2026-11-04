@@ -17,16 +17,23 @@ function designHeight(style: SubscribeAnimationStyle): number {
 }
 
 /** Mirrors client `subscribeAnimationLayout` sizing at a given output width. */
-function layoutBitmapPixels(outputWidth: number, style: SubscribeAnimationStyle, sizePercent: number) {
+function layoutBitmapPixels(
+  outputWidth: number,
+  style: SubscribeAnimationStyle,
+  sizePercent: number,
+  edgeDistance = 0,
+) {
   const designW = subscribeDesignWidthForStyle(style)
   const designH = designHeight(style)
   const contentWidth = Math.max(1, Math.round((outputWidth * sizePercent) / 100))
   const scale = contentWidth / designW
   const contentHeight = Math.round(designH * scale)
   const padding = Math.round(PADDING_DESIGN * scale)
+  const edgeBottom = Math.max(0, Math.round(edgeDistance))
+  const paddingBottom = padding + edgeBottom
   return {
     width: contentWidth + padding * 2,
-    height: contentHeight + padding * 2,
+    height: contentHeight + padding + paddingBottom,
     scale,
   }
 }

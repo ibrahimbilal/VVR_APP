@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ChevronLeft, ChevronRight } from '@lucide/vue'
-import { computed, ref, watch } from 'vue'
+import { computed, ref } from 'vue'
 import { useScreensaverStore } from '../stores/screensaver'
 
 const store = useScreensaverStore()
@@ -10,6 +10,21 @@ const open = ref(false)
 const visible = computed(
   () => store.exporting || Boolean(store.exportState.encoder) || store.exportState.phase === 'done',
 )
+
+const totalFrames = computed(() => Math.max(1, Math.round(store.durationSeconds * store.fps)))
+
+const renderedFramesLabel = computed(() => {
+  const enc = store.exportState.encodeProgress
+  if (enc == null) return '—'
+  const rendered = Math.min(totalFrames.value, Math.max(0, Math.round(totalFrames.value * enc)))
+  return `${rendered.toLocaleString()} / ${totalFrames.value.toLocaleString()}`
+})
+
+function formatPercent(progress: number | undefined): string {
+  if (progress == null || !Number.isFinite(progress)) return '—'
+  if (store.exportState.phase === 'idle') return '—'
+  return `${Math.round(Math.min(1, Math.max(0, progress)) * 100)}%`
+}
 
 function formatSeconds(value: number | null | undefined): string {
   if (value == null || !Number.isFinite(value)) return '—'
@@ -31,6 +46,12 @@ function formatSeconds(value: number | null | undefined): string {
       <dl class="grid grid-cols-2 gap-x-3 gap-y-2 text-xs text-zinc-400">
         <div>Stage</div>
         <div class="text-zinc-200">{{ store.exportState.stage || store.exportState.message || '—' }}</div>
+        <div>Progress</div>
+        <div class="text-zinc-200 tabular-nums">{{ formatPercent(store.exportState.progress) }}</div>
+        <div>Total frames</div>
+        <div class="text-zinc-200 tabular-nums">{{ totalFrames.toLocaleString() }}</div>
+        <div>Rendered frames</div>
+        <div class="text-zinc-200 tabular-nums">{{ renderedFramesLabel }}</div>
         <div>Encoding</div>
         <div class="text-zinc-200">{{ store.exportState.encoder || '—' }}</div>
         <div>Acceleration</div>

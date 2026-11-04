@@ -130,6 +130,7 @@ export const useScreensaverStore = defineStore('screensaver', () => {
   const mediaKind = ref<'image' | 'video' | null>(null)
   const serverId = ref<string | null>(null)
   const fileName = ref('')
+  const sourceFileSize = ref<number | null>(null)
   const width = ref(0)
   const height = ref(0)
   const sourceDuration = ref<number | null>(null)
@@ -175,6 +176,7 @@ export const useScreensaverStore = defineStore('screensaver', () => {
   const backgroundColor = ref('#000000')
   const audioUrl = ref<string | null>(null)
   const audioFileName = ref<string | null>(null)
+  const audioFileSize = ref<number | null>(null)
   const subscribeAnimation = ref<SubscribeAnimationSettings>(defaultSubscribeAnimation())
   const subscribeChannelLookupLoading = ref(false)
 
@@ -348,6 +350,7 @@ export const useScreensaverStore = defineStore('screensaver', () => {
     sourceFile = null
     serverId.value = null
     fileName.value = ''
+    sourceFileSize.value = null
     mediaKind.value = null
     width.value = 0
     height.value = 0
@@ -366,6 +369,7 @@ export const useScreensaverStore = defineStore('screensaver', () => {
     audioFile = null
     audioUrl.value = null
     audioFileName.value = null
+    audioFileSize.value = null
     audioMode.value = 'none'
   }
 
@@ -394,6 +398,7 @@ export const useScreensaverStore = defineStore('screensaver', () => {
             sourceFile = new File([stored.blob], stored.name, { type: stored.type })
             objectUrl.value = URL.createObjectURL(sourceFile)
             fileName.value = stored.name
+            sourceFileSize.value = sourceFile.size
             uploadState.value = 'uploading'
             void resumeUpload()
           }
@@ -580,6 +585,7 @@ export const useScreensaverStore = defineStore('screensaver', () => {
     clearSourceUrls()
     sourceFile = file
     fileName.value = file.name
+    sourceFileSize.value = file.size
     mediaKind.value = kind
     mode.value = kind === 'image' ? 'static' : 'loop'
     if (kind === 'image') {
@@ -678,6 +684,7 @@ export const useScreensaverStore = defineStore('screensaver', () => {
     mediaKind.value = null
     serverId.value = null
     fileName.value = ''
+    sourceFileSize.value = null
     width.value = 0
     height.value = 0
     sourceDuration.value = null
@@ -694,6 +701,7 @@ export const useScreensaverStore = defineStore('screensaver', () => {
     mediaKind.value = defaults.mediaKind
     serverId.value = defaults.serverId
     fileName.value = defaults.fileName
+    sourceFileSize.value = null
     width.value = defaults.width
     height.value = defaults.height
     sourceDuration.value = defaults.sourceDuration
@@ -714,6 +722,7 @@ export const useScreensaverStore = defineStore('screensaver', () => {
     loopAudio.value = defaults.loopAudio
     backgroundColor.value = defaults.backgroundColor
     audioFileName.value = defaults.audioFileName
+    audioFileSize.value = null
     profile.value = 'static-fast'
     encoder.value = 'cpu'
     composition.value = defaultComposition()
@@ -764,6 +773,7 @@ export const useScreensaverStore = defineStore('screensaver', () => {
     audioFile = null
     audioUrl.value = null
     audioFileName.value = null
+    audioFileSize.value = null
   }
 
   async function restoreBackgroundAudio(): Promise<void> {
@@ -774,6 +784,7 @@ export const useScreensaverStore = defineStore('screensaver', () => {
       audioFile = new File([audio.blob], audio.name, { type: audio.type || 'audio/mpeg' })
       audioUrl.value = URL.createObjectURL(audioFile)
       audioFileName.value = audio.name
+      audioFileSize.value = audioFile.size
       audioMode.value = 'upload'
       return
     }
@@ -799,6 +810,7 @@ export const useScreensaverStore = defineStore('screensaver', () => {
     audioFile = file
     audioUrl.value = URL.createObjectURL(file)
     audioFileName.value = file.name
+    audioFileSize.value = file.size
     audioMode.value = 'upload'
   }
 
@@ -1138,6 +1150,7 @@ export const useScreensaverStore = defineStore('screensaver', () => {
     mediaKind,
     serverId,
     fileName,
+    sourceFileSize,
     width,
     height,
     sourceDuration,
@@ -1182,6 +1195,7 @@ export const useScreensaverStore = defineStore('screensaver', () => {
     backgroundColor,
     audioUrl,
     audioFileName,
+    audioFileSize,
     subscribeAnimation,
     subscribeChannelLookupLoading,
     exportState,

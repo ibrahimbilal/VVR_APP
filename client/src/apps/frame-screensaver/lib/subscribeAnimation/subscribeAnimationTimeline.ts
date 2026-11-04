@@ -7,6 +7,8 @@ export const SUBSCRIBE_IDLE_BEFORE_ACTIONS_SEC = 1
 export const SUBSCRIBE_CLICK_SEC = 0.4
 export const SUBSCRIBE_ACTION_GAP_SEC = 1
 export const SUBSCRIBE_FADE_OUT_SEC = 0.8
+/** Design-pixel slide distance for intro (slide up) and outro (slide down). */
+export const SUBSCRIBE_SLIDE_OFFSET_DESIGN = 200
 
 export const SUBSCRIBE_FIRST_ACTION_SEC = SUBSCRIBE_FADE_IN_SEC + SUBSCRIBE_IDLE_BEFORE_ACTIONS_SEC
 
@@ -113,7 +115,7 @@ export function subscribeAnimationMotionAt(
   const t = Math.max(0, Math.min(durationSec, timeSec))
   const motion: SubscribeAnimationMotion = {
     opacity: 0,
-    slideY: 24,
+    slideY: SUBSCRIBE_SLIDE_OFFSET_DESIGN,
     buttonPressed: false,
     subscribed: false,
     likeActive: false,
@@ -127,7 +129,7 @@ export function subscribeAnimationMotionAt(
   if (t < SUBSCRIBE_FADE_IN_SEC) {
     const p = easeOutCubic(t / SUBSCRIBE_FADE_IN_SEC)
     motion.opacity = p
-    motion.slideY = 24 * (1 - p)
+    motion.slideY = SUBSCRIBE_SLIDE_OFFSET_DESIGN * (1 - p)
     return motion
   }
 
@@ -137,7 +139,7 @@ export function subscribeAnimationMotionAt(
   if (t >= fadeStart) {
     const p = easeInOutCubic((t - fadeStart) / SUBSCRIBE_FADE_OUT_SEC)
     motion.opacity = 1 - p
-    motion.slideY = 8 * p
+    motion.slideY = SUBSCRIBE_SLIDE_OFFSET_DESIGN * p
   } else {
     motion.opacity = 1
     motion.slideY = 0

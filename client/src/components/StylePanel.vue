@@ -433,7 +433,13 @@ function setTitleHideAfterEnabled(enabled: boolean) {
       />
       <div class="space-y-2 border-t border-zinc-800 pt-3">
         <p class="text-[11px] font-semibold uppercase tracking-[0.14em] text-zinc-500">Background music</p>
-        <AudioFileField :file-name="store.musicName" @files="onMusicFiles" @clear="store.setMusic(null)" />
+        <AudioFileField
+          :file-name="store.musicName"
+          :file-size="store.musicFileSize"
+          :preview-url="store.musicUrl"
+          @files="onMusicFiles"
+          @clear="store.setMusic(null)"
+        />
         <AdvancedAudioControls
           v-if="store.musicName"
           v-model:volume="store.style.video.musicVolume"

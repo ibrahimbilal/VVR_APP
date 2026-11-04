@@ -24,6 +24,15 @@ export function validateAudioFile(file: File): string | null {
   return null
 }
 
+/** Short label for uploaded audio (extension or MIME subtype). */
+export function audioFormatLabel(fileName: string, mimeType?: string | null): string {
+  const extension = fileName.split('.').pop()?.toLowerCase() ?? ''
+  if (extension) return extension.toUpperCase()
+  const subtype = mimeType?.split('/')[1]?.split(';')[0]?.trim()
+  if (subtype) return subtype.toUpperCase()
+  return 'Audio'
+}
+
 export interface LocalImageMeta {
   width: number
   height: number
