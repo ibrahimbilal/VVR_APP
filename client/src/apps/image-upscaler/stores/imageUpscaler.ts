@@ -6,8 +6,11 @@ import {
   presetById,
   screensaverTransferAction,
   type OutputFormat,
+  type PublicUpscaleJob,
   type ResolutionPresetId,
+  type UpscaleEngineId,
   type UpscaleOptions,
+  type UpscalerCapabilities,
 } from '@shared/imageUpscaler'
 import { defineStore } from 'pinia'
 import { computed, ref } from 'vue'
@@ -16,7 +19,7 @@ import { usePlatformStore } from '../../../stores/platform'
 import { useScreensaverStore } from '../../frame-screensaver/stores/screensaver'
 import { readLocalImage } from '../lib/localPreview'
 import { sendFileToScreensaver } from '../lib/sendToScreensaver'
-import { cancelUpscaleJob, fetchUpscaledBlob, getUpscaleJob, startUpscale, zipDownloadUrl } from '../lib/upscalerApi'
+import { cancelUpscaleJob, fetchUpscaledBlob, fetchUpscalerCapabilities, getUpscaleJob, startUpscale, zipDownloadUrl } from '../lib/upscalerApi'
 import type { LocalUpscaleItem } from '../types'
 
 export const useImageUpscalerStore = defineStore('image-upscaler', () => {
@@ -24,6 +27,8 @@ export const useImageUpscalerStore = defineStore('image-upscaler', () => {
   const items = ref<LocalUpscaleItem[]>([])
   const selectedId = ref<string | null>(null)
   const settings = ref<UpscaleOptions>(defaultUpscaleOptions())
+  const capabilities = ref<UpscalerCapabilities | null>(null)
+  const jobEngine = ref<UpscaleEngineId>('lanczos3')
   const jobId = ref<string | null>(null)
   const busy = ref(false)
   const confirmSendId = ref<string | null>(null)
@@ -100,6 +105,7 @@ export const useImageUpscalerStore = defineStore('image-upscaler', () => {
     items.value = []
     selectedId.value = null
     jobId.value = null
+    jobEngine.value = 'lanczos3'
     confirmSendId.value = null
     window.clearTimeout(pollTimer)
   }
@@ -116,6 +122,30 @@ export const useImageUpscalerStore = defineStore('image-upscaler', () => {
       preset: preset.id,
       width: preset.width ?? settings.value.width,
       height: preset.height ?? settings.value.height,
+    }
+  }
+
+  function setEngine(engine: UpscaleEngineId): void {
+    if (engine === 'realesrgan-lite' && capabilities.value?.engines['realesrgan-lite'].available !== true) return
+    settings.value = { ...settings.value, engine }
+  }
+
+  async function loadCapabilities(): Promise<void> {
+    const report = await fetchUpscalerCapabilities()
+    capabilities.value = report ?? {
+      engines: {
+        lanczos3: { available: true, model: null, scale: null, matchesUpscaylLite: false, reason: null },
+        'realesrgan-lite': {
+          available: false,
+          model: null,
+          scale: null,
+          matchesUpscaylLite: false,
+          reason: 'AI Lite is not available from this server.',
+        },
+      },
+    }
+    if (settings.value.engine === 'realesrgan-lite' && !capabilities.value.engines['realesrgan-lite'].available) {
+      settings.value = { ...settings.value, engine: 'lanczos3' }
     }
   }
 
@@ -137,6 +167,7 @@ export const useImageUpscalerStore = defineStore('image-upscaler', () => {
       return
     }
     settings.value = normalized.options
+    jobEngine.value = normalized.options.engine
     busy.value = true
     for (const item of items.value) {
       item.status = 'pending'
@@ -155,6 +186,7 @@ export const useImageUpscalerStore = defineStore('image-upscaler', () => {
         normalized.options,
       )
       jobId.value = job.id
+      if (job.engine) jobEngine.value = job.engine
       applyJob(job)
       schedulePoll()
     } catch (error) {
@@ -190,10 +222,11 @@ export const useImageUpscalerStore = defineStore('image-upscaler', () => {
     }
   }
 
-  function applyJob(job: { items: Array<{ id: string; status: LocalUpscaleItem['status']; error: string | null; warning: string | null; outputName: string | null; outputBytes: number | null; width: number | null; height: number | null; skippedResize: boolean }> }): void {
+  function applyJob(job: PublicUpscaleJob): void {
+    if (job.engine) jobEngine.value = job.engine
     job.items.forEach((serverItem, index) => {
       const local = items.value[index]
-      if (!local || serverItem.status === 'ready') return
+      if (!local) return
       local.serverItemId = serverItem.id
       local.status = serverItem.status
       local.error = serverItem.error
@@ -285,14 +318,19 @@ export const useImageUpscalerStore = defineStore('image-upscaler', () => {
     clearItems()
     busy.value = false
     settings.value = defaultUpscaleOptions()
+    jobEngine.value = 'lanczos3'
     if (id) await cancelUpscaleJob(id, true).catch(() => undefined)
   }
+
+  void loadCapabilities()
 
   return {
     items,
     selectedId,
     selected,
     settings,
+    capabilities,
+    jobEngine,
     jobId,
     busy,
     processing,
@@ -304,6 +342,8 @@ export const useImageUpscalerStore = defineStore('image-upscaler', () => {
     clearFiles,
     selectItem,
     setPreset,
+    setEngine,
+    loadCapabilities,
     setFormat,
     upscale,
     cancel,

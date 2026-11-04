@@ -20,7 +20,7 @@ const canSend = computed(() => showComparison.value)
       <div>
         <h2 class="text-sm font-bold text-zinc-100">Image Upscaler</h2>
         <p class="mt-1 text-[11px] leading-relaxed text-zinc-500">
-          Lanczos3 resampling changes the pixel size. It does not reconstruct detail that was not in the original image.
+          Standard mode resizes with Lanczos3. AI Lite, when this server has it, reconstructs edges and texture and can change fine detail.
         </p>
       </div>
       <ImageUploader />

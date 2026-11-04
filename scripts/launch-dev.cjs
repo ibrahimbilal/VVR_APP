@@ -1,6 +1,7 @@
 'use strict'
 
 const { spawn } = require('node:child_process')
+const { applyAiUpscalerEnv, detectUpscaylLite } = require('./upscaler-ai-env.cjs')
 const fs = require('node:fs')
 const http = require('node:http')
 const path = require('node:path')
@@ -81,18 +82,23 @@ function openBrowser(url) {
 }
 
 function spawnDev(projectRoot) {
+  const env = applyAiUpscalerEnv(process.env)
+  const upscayl = detectUpscaylLite(process.env)
+  if (upscayl && env.VVR_AI_UPSCALER_ENABLED === 'true') {
+    console.log('[VVR launcher] AI Lite: enabled (Upscayl', upscayl.modelName + ')')
+  }
   if (process.platform === 'win32') {
     return spawn('cmd.exe', ['/d', '/s', '/c', 'npm run dev'], {
       cwd: projectRoot,
       stdio: 'inherit',
-      env: process.env,
+      env,
       windowsHide: false,
     })
   }
   return spawn('npm', ['run', 'dev'], {
     cwd: projectRoot,
     stdio: 'inherit',
-    env: process.env,
+    env,
   })
 }
 

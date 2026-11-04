@@ -53,11 +53,17 @@ export function createLanczosEngine(): ImageUpscaleEngine {
   }
 }
 
-export async function inspectImage(filePath: string, limits: UpscaleLimits): Promise<InspectedImage> {
+export async function inspectImage(
+  filePath: string,
+  limits: UpscaleLimits,
+  bounds?: { maxEdge: number; maxPixels: number },
+): Promise<InspectedImage> {
   configureSharp()
+  const maxEdge = bounds?.maxEdge ?? limits.maxInputEdge
+  const maxPixels = bounds?.maxPixels ?? limits.maxInputPixels
   let meta: Awaited<ReturnType<ReturnType<typeof sharp>['metadata']>>
   try {
-    meta = await sharp(filePath, sharpOptions(limits)).metadata()
+    meta = await sharp(filePath, { ...sharpOptions(limits), limitInputPixels: maxPixels }).metadata()
   } catch (error) {
     throw new UpscaleError(publicError(error, 'This file is not a valid PNG, JPEG, or WebP image.'))
   }
@@ -72,9 +78,9 @@ export async function inspectImage(filePath: string, limits: UpscaleLimits): Pro
   const swaps = orientation >= 5 && orientation <= 8
   const width = swaps ? storedHeight : storedWidth
   const height = swaps ? storedWidth : storedHeight
-  if (width > limits.maxInputEdge || height > limits.maxInputEdge || width * height > limits.maxInputPixels) {
+  if (width > maxEdge || height > maxEdge || width * height > maxPixels) {
     throw new UpscaleError(
-      `This image is too large to process safely (limit ${limits.maxInputEdge}px per edge and ${limits.maxInputPixels.toLocaleString('en-US')} pixels).`,
+      `This image is too large to process safely (limit ${maxEdge}px per edge and ${maxPixels.toLocaleString('en-US')} pixels).`,
     )
   }
   return {
@@ -110,26 +116,50 @@ export async function processLanczos(
   if (canCopy) {
     const { copyFile } = await import('node:fs/promises')
     await copyFile(inputPath, outputPath)
-  } else {
-    let pipeline = sharp(inputPath, sharpOptions(limits)).rotate()
-    if (!skippedResize) {
-      pipeline = pipeline.resize(options.width, options.height, {
-        kernel: sharp.kernel.lanczos3,
-        fit: options.mode === 'cover' ? 'cover' : options.mode === 'contain' ? 'contain' : 'fill',
-        position: cropPosition(options),
-        background: paddingRgba(options),
-        withoutEnlargement: false,
-      })
+    const verified = await verifyOutputFile(outputPath, options)
+    const outputStat = await stat(outputPath)
+    return {
+      width: verified.width,
+      height: verified.height,
+      format: options.format,
+      bytes: outputStat.size,
+      skippedResize: true,
     }
-    const sharpen = sharpenParams(options.sharpen)
-    if (sharpen) pipeline = pipeline.sharpen(sharpen)
-    if (options.format === 'jpeg') pipeline = pipeline.flatten({ background: paddingRgba(options) })
-    pipeline = encode(pipeline, options)
-    try {
-      await pipeline.toFile(outputPath)
-    } catch (error) {
-      throw new UpscaleError(publicError(error, 'The image could not be resized.'))
-    }
+  }
+  const fitted = await writeFittedImage(inputPath, outputPath, options, limits, { skipResize: skippedResize })
+  return { ...fitted, skippedResize }
+}
+
+export async function writeFittedImage(
+  inputPath: string,
+  outputPath: string,
+  options: UpscaleOptions,
+  limits: UpscaleLimits,
+  fit?: { skipResize?: boolean; maxEdge?: number; maxPixels?: number },
+): Promise<UpscaleResult> {
+  configureSharp()
+  const maxEdge = fit?.maxEdge ?? limits.maxInputEdge
+  const maxPixels = fit?.maxPixels ?? limits.maxInputPixels
+  await inspectImage(inputPath, limits, { maxEdge, maxPixels })
+  const skipResize = fit?.skipResize === true
+  let pipeline = sharp(inputPath, { ...sharpOptions(limits), limitInputPixels: maxPixels }).rotate()
+  if (!skipResize) {
+    pipeline = pipeline.resize(options.width, options.height, {
+      kernel: sharp.kernel.lanczos3,
+      fit: options.mode === 'cover' ? 'cover' : options.mode === 'contain' ? 'contain' : 'fill',
+      position: cropPosition(options),
+      background: paddingRgba(options),
+      withoutEnlargement: false,
+    })
+  }
+  const sharpen = sharpenParams(options.sharpen)
+  if (sharpen) pipeline = pipeline.sharpen(sharpen)
+  if (options.format === 'jpeg') pipeline = pipeline.flatten({ background: paddingRgba(options) })
+  pipeline = encode(pipeline, options)
+  try {
+    await pipeline.toFile(outputPath)
+  } catch (error) {
+    throw new UpscaleError(publicError(error, 'The image could not be resized.'))
   }
   const verified = await verifyOutputFile(outputPath, options)
   const outputStat = await stat(outputPath)
@@ -138,7 +168,7 @@ export async function processLanczos(
     height: verified.height,
     format: options.format,
     bytes: outputStat.size,
-    skippedResize,
+    skippedResize: skipResize,
   }
 }
 

@@ -17,7 +17,7 @@
     "bench:ranking": "tsx scripts/bench-ranking.ts",
     "bench:render-report": "tsx scripts/bench-report.ts",
     "test:ranking": "tsx scripts/verify-ranking.ts",
-    "test:upscaler": "tsx --test ../shared/imageUpscaler.test.ts src/imageUpscaler.test.ts"
+    "test:upscaler": "tsx --test ../shared/imageUpscaler.test.ts src/imageUpscaler.test.ts src/realesrgan.test.ts"
   },
   "dependencies": {
     "cors": "^2.8.6",

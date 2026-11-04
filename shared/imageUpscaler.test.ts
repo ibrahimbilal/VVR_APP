@@ -14,6 +14,16 @@ import {
 } from './imageUpscaler'
 
 describe('image upscaler settings', () => {
+  it('defaults to Lanczos3 and accepts an omitted engine', () => {
+    const options = defaultUpscaleOptions()
+    assert.equal(options.engine, 'lanczos3')
+    const legacy = { ...options } as Record<string, unknown>
+    delete legacy.engine
+    assert.equal(normalizeOptions(legacy).options.engine, 'lanczos3')
+    assert.equal(normalizeOptions({ ...options, engine: 'realesrgan-lite' }).options.engine, 'realesrgan-lite')
+    assert.throws(() => normalizeOptions({ ...options, engine: 'cuda' }), /engine/i)
+  })
+
   it('defaults to 4K UHD contain', () => {
     const options = defaultUpscaleOptions()
     assert.equal(options.preset, 'uhd4k')
@@ -56,6 +66,9 @@ describe('image upscaler settings', () => {
     assert.equal(summary.targetWidth, 3840)
     assert.equal(summary.targetHeight, 2160)
     assert.match(summary.warning ?? '', /cannot recover detail/)
+    const ai = resizeSummary(320, 180, normalizeOptions({ ...defaultUpscaleOptions(), engine: 'realesrgan-lite' }).options)
+    assert.match(ai.warning ?? '', /not a lossless recovery/)
+    assert.doesNotMatch(ai.warning ?? '', /Lanczos3 only/)
     assert.equal(enlargementWarning(3840, 2160, 3840, 2160), null)
     assert.match(resizeModeLabel('fill'), /stretch/)
   })

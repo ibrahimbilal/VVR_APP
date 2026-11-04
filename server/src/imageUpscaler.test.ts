@@ -347,6 +347,10 @@ describe('upscaler jobs', () => {
       assert.deepEqual([downloaded.width, downloaded.height], [36, 20])
       assert.ok((previewMeta.width ?? 0) < 36)
       assert.match(download.headers.get('content-disposition') ?? '', /landscape_custom_36x20\.png/)
+      const inline = await fetch(`http://127.0.0.1:${port}/api/image-upscaler/jobs/${job.id}/items/${item.id}/download?inline=1`)
+      assert.equal(inline.status, 200)
+      assert.match(inline.headers.get('content-disposition') ?? '', /inline/)
+      assert.equal(magicMatches('png', Buffer.from(await inline.arrayBuffer())), true)
 
       const missing = await fetch(`http://127.0.0.1:${port}/api/image-upscaler/process`, { method: 'POST', body: new FormData() })
       assert.equal(missing.status, 400)

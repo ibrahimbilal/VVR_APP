@@ -7,6 +7,7 @@ using System.Text.RegularExpressions;
 
 const string MutexName = "Global\\VVR_VideosFactory_StartDevServer";
 const string PackageName = "vvr-app";
+const string AiModelName = "upscayl-lite-4x";
 
 using var mutex = new Mutex(true, MutexName, out var ownsMutex);
 if (!ownsMutex)
@@ -74,6 +75,11 @@ var psi = new ProcessStartInfo
     StandardOutputEncoding = Encoding.UTF8,
     StandardErrorEncoding = Encoding.UTF8,
 };
+
+if (TryApplyAiUpscalerEnv(psi, out var aiNote))
+{
+    Console.WriteLine("[Video factory] " + aiNote);
+}
 
 devProcess = new Process { StartInfo = psi, EnableRaisingEvents = true };
 devProcess.OutputDataReceived += (_, e) => ForwardLine(e.Data, isError: false);
@@ -220,6 +226,37 @@ static void TryKillTree(Process process)
     {
         // best effort
     }
+}
+
+static bool TryApplyAiUpscalerEnv(ProcessStartInfo psi, out string note)
+{
+    note = "";
+    if (!OperatingSystem.IsWindows()) return false;
+
+    var enabledFlag = Environment.GetEnvironmentVariable("VVR_AI_UPSCALER_ENABLED");
+    if (enabledFlag is "false" or "0" or "no") return false;
+
+    var root = Environment.GetEnvironmentVariable("VVR_UPSCAYL_INSTALL_DIR")
+        ?? @"C:\Program Files\Upscayl";
+    var binary = Path.Combine(root, "resources", "bin", "upscayl-bin.exe");
+    var modelDir = Path.Combine(root, "resources", "models");
+    if (!File.Exists(binary)) return false;
+    if (!File.Exists(Path.Combine(modelDir, AiModelName + ".param"))) return false;
+    if (!File.Exists(Path.Combine(modelDir, AiModelName + ".bin"))) return false;
+
+    SetChildEnvIfEmpty(psi, "VVR_AI_UPSCALER_ENABLED", "true");
+    SetChildEnvIfEmpty(psi, "VVR_REALESRGAN_BINARY", binary);
+    SetChildEnvIfEmpty(psi, "VVR_REALESRGAN_MODEL_DIR", modelDir);
+    SetChildEnvIfEmpty(psi, "VVR_REALESRGAN_MODEL_NAME", AiModelName);
+
+    note = "AI Lite: enabled (Upscayl " + AiModelName + "). Override with VVR_* env vars before starting.";
+    return true;
+}
+
+static void SetChildEnvIfEmpty(ProcessStartInfo psi, string key, string value)
+{
+    if (!string.IsNullOrEmpty(Environment.GetEnvironmentVariable(key))) return;
+    psi.Environment[key] = value;
 }
 
 [DoesNotReturn]

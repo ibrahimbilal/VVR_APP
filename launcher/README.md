@@ -33,3 +33,14 @@ You can still commit a custom **`launcher/icon.ico`** only if you do not use `cl
 3. Close the console window to stop the dev server (child processes are terminated).
 
 Only one launcher instance can run at a time.
+
+## Image Upscaler AI Lite (Windows)
+
+When you start the dev server through **`Video Factory.exe`** or **`npm run launch`**, the launcher looks for Upscayl at `C:\Program Files\Upscayl` (or `VVR_UPSCAYL_INSTALL_DIR`). If `upscayl-bin.exe` and `upscayl-lite-4x` model files are present, it sets these for the Node server (only when you have not set them yourself):
+
+- `VVR_AI_UPSCALER_ENABLED=true`
+- `VVR_REALESRGAN_BINARY`
+- `VVR_REALESRGAN_MODEL_DIR`
+- `VVR_REALESRGAN_MODEL_NAME=upscayl-lite-4x`
+
+Set `VVR_AI_UPSCALER_ENABLED=false` before starting to disable. Rebuild the exe after changing `launcher/Program.cs` with `npm run build:launcher`.

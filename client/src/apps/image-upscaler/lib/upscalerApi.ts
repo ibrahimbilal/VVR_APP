@@ -1,8 +1,11 @@
-import type { UpscaleOptions } from '@shared/imageUpscaler'
-import type { PublicUpscaleJob } from '@shared/imageUpscaler'
+import type { PublicUpscaleJob, UpscaleOptions, UpscalerCapabilities } from '@shared/imageUpscaler'
 
 export function itemDownloadUrl(jobId: string, itemId: string): string {
   return `/api/image-upscaler/jobs/${jobId}/items/${itemId}/download`
+}
+
+export function itemInlineUrl(jobId: string, itemId: string): string {
+  return `${itemDownloadUrl(jobId, itemId)}?inline=1`
 }
 
 export function itemPreviewUrl(jobId: string, itemId: string): string {
@@ -11,6 +14,18 @@ export function itemPreviewUrl(jobId: string, itemId: string): string {
 
 export function zipDownloadUrl(jobId: string): string {
   return `/api/image-upscaler/jobs/${jobId}/download`
+}
+
+export async function fetchUpscalerCapabilities(): Promise<UpscalerCapabilities | null> {
+  try {
+    const response = await fetch('/api/image-upscaler/capabilities')
+    if (!response.ok) return null
+    const data = (await response.json()) as UpscalerCapabilities
+    if (typeof data?.engines?.['realesrgan-lite']?.available !== 'boolean') return null
+    return data
+  } catch {
+    return null
+  }
 }
 
 export async function startUpscale(files: File[], options: UpscaleOptions): Promise<PublicUpscaleJob> {

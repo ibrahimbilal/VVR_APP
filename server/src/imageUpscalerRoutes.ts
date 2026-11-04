@@ -1,9 +1,10 @@
 import { rm } from 'node:fs/promises'
 import express, { type NextFunction, type Request, type Response, type Router } from 'express'
 import multer from 'multer'
-import { contentTypeForFormat, limitsFromEnv, normalizeOptions } from '../../shared/imageUpscaler'
+import { contentTypeForFormat, limitsFromEnv, normalizeOptions, type UpscalerCapabilities } from '../../shared/imageUpscaler'
 import { createUpscalerRuntime, type UpscalerRuntime } from './imageUpscalerJobs'
 import { publicError, UpscaleError } from './imageUpscaler'
+import { createUpscaleEngineRegistry } from './realesrganEngine'
 import { incomingDir, upscalerDir } from './storage'
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
@@ -11,6 +12,7 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-
 export interface ImageUpscalerRouteOptions {
   runtime: UpscalerRuntime
   incomingDir: string
+  capabilities?: () => Promise<UpscalerCapabilities>
 }
 
 export function createImageUpscalerRouter(options: ImageUpscalerRouteOptions): Router {
@@ -18,6 +20,11 @@ export function createImageUpscalerRouter(options: ImageUpscalerRouteOptions): R
   const upload = multer({
     dest: options.incomingDir,
     limits: { fileSize: options.runtime.limits.maxFileBytes, files: options.runtime.limits.maxBatch },
+  })
+
+  router.get('/capabilities', async (_req, res) => {
+    const report = await (options.capabilities ?? defaultCapabilities)()
+    res.json(report)
   })
 
   router.post('/process', upload.single('file'), async (req, res) => {
@@ -55,6 +62,11 @@ export function createImageUpscalerRouter(options: ImageUpscalerRouteOptions): R
     }
     res.setHeader('Content-Type', contentTypeForFormat(file.format))
     res.setHeader('Cache-Control', 'private, no-store')
+    if (req.query.inline === '1') {
+      res.setHeader('Content-Disposition', `inline; filename="${file.name.replace(/["\\\r\n]/g, '')}"`)
+      res.sendFile(file.path)
+      return
+    }
     res.download(file.path, file.name)
   })
 
@@ -168,11 +180,13 @@ async function accept(req: Request, res: Response, runtime: UpscalerRuntime, fil
   }
 }
 
-const runtime = createUpscalerRuntime(upscalerDir, undefined, limitsFromEnv())
+const engines = createUpscaleEngineRegistry()
+const runtime = createUpscalerRuntime(upscalerDir, engines, limitsFromEnv())
 
 export const imageUpscalerRouter = createImageUpscalerRouter({
   runtime,
   incomingDir,
+  capabilities: () => engines.capabilities(),
 })
 
 export function imageUpscalerRuntime(): UpscalerRuntime {
@@ -185,4 +199,19 @@ export async function sweepImageUpscaler(): Promise<void> {
 
 export async function purgeImageUpscaler(): Promise<void> {
   await runtime.purgeAll()
+}
+
+function defaultCapabilities(): Promise<UpscalerCapabilities> {
+  return Promise.resolve({
+    engines: {
+      lanczos3: { available: true, model: null, scale: null, matchesUpscaylLite: false, reason: null },
+      'realesrgan-lite': {
+        available: false,
+        model: null,
+        scale: null,
+        matchesUpscaylLite: false,
+        reason: 'AI Lite is not available on this server.',
+      },
+    },
+  })
 }

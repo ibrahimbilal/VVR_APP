@@ -1,6 +1,8 @@
 /** Image Upscaler contract shared by the editor and the renderer. */
 
 export const IMAGE_UPSCALER_ENGINE_ID = 'lanczos3' as const
+export const UPSCALE_ENGINES = ['lanczos3', 'realesrgan-lite'] as const
+export type UpscaleEngineId = (typeof UPSCALE_ENGINES)[number]
 
 export const RESOLUTION_PRESETS = [
   { id: 'fhd', label: 'Full HD', tag: 'FHD', width: 1920, height: 1080 },
@@ -49,6 +51,8 @@ export const DEFAULT_UPSCALE_LIMITS: UpscaleLimits = {
 }
 
 export interface UpscaleOptions {
+  /** Lanczos3 unless the client explicitly selects AI Lite. */
+  engine: UpscaleEngineId
   preset: ResolutionPresetId
   width: number
   height: number
@@ -59,6 +63,10 @@ export interface UpscaleOptions {
   format: OutputFormat
   quality: number
   sharpen: SharpenPreset
+  /**
+   * Standard mode skips the Lanczos resize when the image is already the target size.
+   * AI Lite still runs the model in that case, then fits the result to the exact size.
+   */
   preserveWhenMatched: boolean
 }
 
@@ -68,15 +76,40 @@ export interface UpscaleResult {
   format: OutputFormat
   bytes: number
   skippedResize: boolean
+  /** Set when an engine had to qualify the result. Lanczos3 leaves this empty. */
+  note?: string | null
 }
 
-/**
- * One image transformation. Lanczos3 is the only backend today.
- * A later local engine can implement this without changing the editor.
- */
+export interface UpscaleProcessContext {
+  signal?: AbortSignal
+}
+
+/** One image transformation. Lanczos3 is the default. AI Lite is optional. */
 export interface ImageUpscaleEngine {
   readonly id: string
-  process(inputPath: string, outputPath: string, options: UpscaleOptions, limits: UpscaleLimits): Promise<UpscaleResult>
+  process(
+    inputPath: string,
+    outputPath: string,
+    options: UpscaleOptions,
+    limits: UpscaleLimits,
+    context?: UpscaleProcessContext,
+  ): Promise<UpscaleResult>
+}
+
+export interface EngineCapability {
+  available: boolean
+  model: string | null
+  scale: number | null
+  /** True only when the configured model id is the Upscayl Lite model. */
+  matchesUpscaylLite: boolean
+  reason: string | null
+}
+
+export interface UpscalerCapabilities {
+  engines: {
+    lanczos3: EngineCapability
+    'realesrgan-lite': EngineCapability
+  }
 }
 
 export interface SharpenParams {
@@ -110,6 +143,7 @@ export interface PublicUpscaleItem {
 export interface PublicUpscaleJob {
   id: string
   status: UpscaleJobStatus
+  engine: UpscaleEngineId
   items: PublicUpscaleItem[]
   createdAt: number
 }
@@ -132,6 +166,7 @@ const HEX = /^#[0-9a-fA-F]{6}$/
 
 export function defaultUpscaleOptions(): UpscaleOptions {
   return {
+    engine: 'lanczos3',
     preset: 'uhd4k',
     width: 3840,
     height: 2160,
@@ -194,9 +229,19 @@ export function resizeSummary(sourceWidth: number, sourceHeight: number, options
     scaleX,
     scaleY,
     scaleLabel,
-    warning: enlargementWarning(sourceWidth, sourceHeight, options.width, options.height),
+    warning:
+      options.engine === 'realesrgan-lite'
+        ? aiScaleWarning(sourceWidth, sourceHeight, options.width, options.height)
+        : enlargementWarning(sourceWidth, sourceHeight, options.width, options.height),
     matchesTarget: sourceWidth === options.width && sourceHeight === options.height,
   }
+}
+
+export function aiScaleWarning(sourceWidth: number, sourceHeight: number, targetWidth: number, targetHeight: number): string | null {
+  if (sourceWidth <= 0 || sourceHeight <= 0) return null
+  const scale = Math.max(targetWidth / sourceWidth, targetHeight / sourceHeight)
+  if (scale < 1.25 && scale > 0.8) return null
+  return 'AI Lite rebuilds edges and texture. It can invent detail or change fine artwork. It is not a lossless recovery of the original.'
 }
 
 export function enlargementWarning(sourceWidth: number, sourceHeight: number, targetWidth: number, targetHeight: number): string | null {
@@ -247,6 +292,11 @@ export function normalizeOptions(
 ): { options: UpscaleOptions; warnings: string[] } {
   if (!raw || typeof raw !== 'object') throw new Error('Upscale settings are missing.')
   const data = raw as Record<string, unknown>
+  let engine: UpscaleEngineId = 'lanczos3'
+  if (data.engine != null && data.engine !== '') {
+    if (data.engine !== 'lanczos3' && data.engine !== 'realesrgan-lite') throw new Error('Choose an upscaling engine.')
+    engine = data.engine
+  }
   const preset = presetById(typeof data.preset === 'string' ? data.preset : '')
   if (!preset) throw new Error('Choose a resolution preset.')
   let width = preset.width ?? positiveInt(data.width)
@@ -293,6 +343,7 @@ export function normalizeOptions(
   }
   return {
     options: {
+      engine,
       preset: preset.id,
       width,
       height,

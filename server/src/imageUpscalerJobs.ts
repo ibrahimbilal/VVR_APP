@@ -10,16 +10,17 @@ import {
   type OutputFormat,
   type PublicUpscaleItem,
   type PublicUpscaleJob,
+  type UpscaleEngineId,
   type UpscaleItemStatus,
   type UpscaleJobStatus,
   type UpscaleLimits,
   type UpscaleOptions,
+  type UpscalerCapabilities,
 } from '../../shared/imageUpscaler'
 import { jobIdsInUse } from './jobs'
 import {
   createLanczosEngine,
   inspectImage,
-  processLanczos,
   publicError,
   UpscaleError,
   verifyOutputFile,
@@ -62,6 +63,12 @@ export interface SubmittedFile {
   originalName: string
 }
 
+export interface UpscaleEngineRegistry {
+  resolve(id: UpscaleEngineId): ImageUpscaleEngine
+  unavailableReason(id: UpscaleEngineId): Promise<string | null>
+  capabilities(): Promise<UpscalerCapabilities>
+}
+
 export interface UpscalerRuntime {
   limits: UpscaleLimits
   submit(files: SubmittedFile[], options: UpscaleOptions, warnings?: string[]): Promise<PublicUpscaleJob>
@@ -76,8 +83,19 @@ export interface UpscalerRuntime {
   whenIdle(): Promise<void>
 }
 
-export function createUpscalerRuntime(rootDir: string, engine: ImageUpscaleEngine = createLanczosEngine(), limits = limitsFromEnv()): UpscalerRuntime {
+function isRegistry(value: ImageUpscaleEngine | UpscaleEngineRegistry): value is UpscaleEngineRegistry {
+  return 'resolve' in value && 'unavailableReason' in value
+}
+
+export function createUpscalerRuntime(
+  rootDir: string,
+  engine: ImageUpscaleEngine | UpscaleEngineRegistry = createLanczosEngine(),
+  limits = limitsFromEnv(),
+): UpscalerRuntime {
+  const registry = isRegistry(engine) ? engine : null
+  const single = registry ? null : engine
   const jobs = new Map<string, JobRecord>()
+  const activeAborts = new Map<string, AbortController>()
   const queue: Array<{ jobId: string; itemId: string }> = []
   let active = 0
   let idleWaiters: Array<() => void> = []
@@ -87,6 +105,7 @@ export function createUpscalerRuntime(rootDir: string, engine: ImageUpscaleEngin
     return {
       id: job.id,
       status: job.status,
+      engine: job.options.engine,
       createdAt: job.createdAt,
       items: job.items.map(publicItem),
     }
@@ -94,6 +113,7 @@ export function createUpscalerRuntime(rootDir: string, engine: ImageUpscaleEngin
 
   function refresh(job: JobRecord): void {
     const busy = job.items.some((item) => item.status === 'pending' || item.status === 'processing')
+    if (!busy) activeAborts.delete(job.id)
     if (busy) {
       job.status = job.items.some((item) => item.status === 'processing') ? 'running' : 'queued'
       return
@@ -114,8 +134,11 @@ export function createUpscalerRuntime(rootDir: string, engine: ImageUpscaleEngin
       return
     }
     while (active < limits.concurrency && queue.length > 0) {
-      const next = queue.shift()
+      const next = queue[0]
       if (!next) break
+      const nextJob = jobs.get(next.jobId)
+      if (nextJob?.options.engine === 'realesrgan-lite' && active > 0) return
+      queue.shift()
       active += 1
       void processQueued(next.jobId, next.itemId).finally(() => {
         active -= 1
@@ -145,6 +168,7 @@ export function createUpscalerRuntime(rootDir: string, engine: ImageUpscaleEngin
     const ext = job.options.format === 'jpeg' ? 'jpg' : job.options.format
     const outputPath = path.join(job.dir, 'out', `${item.id}.${ext}`)
     const previewPath = path.join(job.dir, 'out', `${item.id}.preview.webp`)
+    const signal = activeAborts.get(job.id)?.signal
     try {
       const info = await inspectImage(item.inputPath, limits)
       item.inputWidth = info.width
@@ -153,15 +177,15 @@ export function createUpscalerRuntime(rootDir: string, engine: ImageUpscaleEngin
         item.warning = appendWarning(item.warning, 'JPEG cannot store transparency. Transparent pixels were flattened onto the background color.')
       }
       for (const warning of job.warnings) item.warning = appendWarning(item.warning, warning)
-      const result = engine.id === 'lanczos3'
-        ? await processLanczos(item.inputPath, outputPath, job.options, limits)
-        : await engine.process(item.inputPath, outputPath, job.options, limits)
-      if (job.cancelRequested) {
+      const selected = engineFor(job)
+      const result = await selected.process(item.inputPath, outputPath, job.options, limits, { signal })
+      if (job.cancelRequested || signal?.aborted) {
         item.status = 'cancelled'
         await rm(outputPath, { force: true }).catch(() => undefined)
         return
       }
-      if (engine.id !== 'lanczos3') await verifyOutputFile(outputPath, job.options)
+      if (selected.id !== 'lanczos3') await verifyOutputFile(outputPath, job.options)
+      if (result.note) item.warning = appendWarning(item.warning, result.note)
       try {
         const preview = await writeComparisonPreview(outputPath, previewPath, limits.previewMaxEdge)
         if (preview.width > result.width || preview.height > result.height) {
@@ -180,7 +204,8 @@ export function createUpscalerRuntime(rootDir: string, engine: ImageUpscaleEngin
       item.skippedResize = result.skippedResize
       item.status = 'completed'
     } catch (error) {
-      item.status = job.cancelRequested ? 'cancelled' : 'failed'
+      const aborted = job.cancelRequested || Boolean(signal?.aborted)
+      item.status = aborted ? 'cancelled' : 'failed'
       item.error = item.status === 'failed' ? publicError(error, 'This image could not be processed.') : null
       await rm(outputPath, { force: true }).catch(() => undefined)
       await rm(previewPath, { force: true }).catch(() => undefined)
@@ -192,6 +217,10 @@ export function createUpscalerRuntime(rootDir: string, engine: ImageUpscaleEngin
   return {
     limits,
     async submit(files, options, warnings = []) {
+      if (registry) {
+        const reason = await registry.unavailableReason(options.engine)
+        if (reason) throw new UpscaleError(reason)
+      }
       if (files.length < 1) throw new UpscaleError('Choose at least one image.')
       if (files.length > limits.maxBatch) throw new UpscaleError(`Upload at most ${limits.maxBatch} images at a time.`)
       await mkdir(rootDir, { recursive: true })
@@ -249,6 +278,7 @@ export function createUpscalerRuntime(rootDir: string, engine: ImageUpscaleEngin
         cancelRequested: false,
       }
       jobs.set(id, job)
+      activeAborts.set(id, new AbortController())
       for (const item of items) queue.push({ jobId: id, itemId: item.id })
       pump()
       return view(job)
@@ -260,26 +290,14 @@ export function createUpscalerRuntime(rootDir: string, engine: ImageUpscaleEngin
     requestCancel(id) {
       const job = jobs.get(id)
       if (!job) return null
-      job.cancelRequested = true
-      for (const item of job.items) {
-        if (item.status === 'pending') item.status = 'cancelled'
-      }
-      for (let i = queue.length - 1; i >= 0; i -= 1) {
-        if (queue[i]?.jobId === id) queue.splice(i, 1)
-      }
+      halt(job)
       refresh(job)
       return view(job)
     },
     async remove(id) {
       const job = jobs.get(id)
       if (!job) return false
-      job.cancelRequested = true
-      for (const item of job.items) {
-        if (item.status === 'pending') item.status = 'cancelled'
-      }
-      for (let i = queue.length - 1; i >= 0; i -= 1) {
-        if (queue[i]?.jobId === id) queue.splice(i, 1)
-      }
+      halt(job)
       const busy = job.items.some((item) => item.status === 'processing')
       if (busy) {
         await new Promise<void>((resolve) => {
@@ -291,6 +309,7 @@ export function createUpscalerRuntime(rootDir: string, engine: ImageUpscaleEngin
           }, 50)
         })
       }
+      activeAborts.delete(id)
       jobs.delete(id)
       await rm(job.dir, { recursive: true, force: true })
       return true
@@ -326,15 +345,21 @@ export function createUpscalerRuntime(rootDir: string, engine: ImageUpscaleEngin
         if (now - job.createdAt < limits.jobTtlMs) continue
         if (job.items.some((item) => item.status === 'processing')) continue
         job.cancelRequested = true
+        activeAborts.get(job.id)?.abort()
+        activeAborts.delete(job.id)
+        for (let i = queue.length - 1; i >= 0; i -= 1) {
+          if (queue[i]?.jobId === job.id) queue.splice(i, 1)
+        }
         jobs.delete(job.id)
         await rm(job.dir, { recursive: true, force: true }).catch(() => undefined)
       }
       await deleteStaleDirs(rootDir, limits.jobTtlMs, now, new Set(jobs.keys()))
     },
     async purgeAll() {
-      for (const job of jobs.values()) job.cancelRequested = true
+      for (const job of jobs.values()) halt(job)
       queue.splice(0, queue.length)
       await whenIdle()
+      activeAborts.clear()
       for (const job of [...jobs.values()]) {
         jobs.delete(job.id)
         await rm(job.dir, { recursive: true, force: true }).catch(() => undefined)
@@ -342,6 +367,23 @@ export function createUpscalerRuntime(rootDir: string, engine: ImageUpscaleEngin
       await deleteStaleDirs(rootDir, 0, Date.now(), new Set())
     },
     whenIdle,
+  }
+
+  function engineFor(job: JobRecord): ImageUpscaleEngine {
+    if (registry) return registry.resolve(job.options.engine)
+    if (single && 'process' in single) return single
+    return createLanczosEngine()
+  }
+
+  function halt(job: JobRecord): void {
+    job.cancelRequested = true
+    for (const item of job.items) {
+      if (item.status === 'pending') item.status = 'cancelled'
+    }
+    for (let i = queue.length - 1; i >= 0; i -= 1) {
+      if (queue[i]?.jobId === job.id) queue.splice(i, 1)
+    }
+    activeAborts.get(job.id)?.abort()
   }
 
   function whenIdle(): Promise<void> {

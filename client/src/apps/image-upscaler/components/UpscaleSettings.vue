@@ -1,11 +1,17 @@
 <script setup lang="ts">
-import { formatBytes, resizeModeLabel, resizeSummary, RESOLUTION_PRESETS, type CropPosition, type PaddingChoice, type ResizeMode, type SharpenPreset } from '@shared/imageUpscaler'
+import { formatBytes, resizeModeLabel, resizeSummary, RESOLUTION_PRESETS, type CropPosition, type PaddingChoice, type ResizeMode, type SharpenPreset, type UpscaleEngineId } from '@shared/imageUpscaler'
 import { ArrowDownToLine, ArrowLeftToLine, ArrowRightToLine, ArrowUpToLine, Crosshair } from '@lucide/vue'
 import { computed, type Component } from 'vue'
 import { useImageUpscalerStore } from '../stores/imageUpscaler'
 
 const store = useImageUpscalerStore()
 const summary = computed(() => (store.selected ? resizeSummary(store.selected.width, store.selected.height, store.settings) : null))
+const ai = computed(() => store.capabilities?.engines['realesrgan-lite'] ?? null)
+const aiReady = computed(() => ai.value?.available === true)
+const engines: Array<{ id: UpscaleEngineId; label: string }> = [
+  { id: 'lanczos3', label: 'Standard' },
+  { id: 'realesrgan-lite', label: 'AI Lite' },
+]
 const modes: Array<{ id: ResizeMode; label: string }> = [
   { id: 'contain', label: 'Contain' },
   { id: 'cover', label: 'Cover' },
@@ -39,6 +45,34 @@ function setNumber(key: 'width' | 'height' | 'quality', value: string): void {
 
 <template>
   <div class="space-y-4">
+    <div>
+      <h2 class="text-xs font-semibold uppercase tracking-wide text-zinc-500">Upscaling Engine</h2>
+      <div class="mt-2 grid grid-cols-2 gap-1">
+        <button
+          v-for="engine in engines"
+          :key="engine.id"
+          class="btn cursor-pointer"
+          :class="store.settings.engine === engine.id ? 'btn-primary' : 'btn-ghost'"
+          type="button"
+          :disabled="engine.id === 'realesrgan-lite' && !aiReady"
+          :title="engine.id === 'realesrgan-lite' && !aiReady ? (ai?.reason ?? 'AI Lite is not available on this server.') : engine.label"
+          @click="store.setEngine(engine.id)"
+        >
+          {{ engine.label }}
+        </button>
+      </div>
+      <p class="mt-2 text-[11px] leading-relaxed text-zinc-500">Standard: Fast traditional resizing.</p>
+      <p class="mt-1 text-[11px] leading-relaxed text-zinc-500">AI Lite: AI-assisted reconstruction for cleaner edges and textures. May alter fine artistic details.</p>
+      <p v-if="!store.capabilities" class="mt-2 text-[11px] text-zinc-500">Checking whether AI Lite is available.</p>
+      <p v-else-if="!aiReady" class="mt-2 text-[11px] leading-relaxed text-amber-200">{{ ai?.reason ?? 'AI Lite is not available on this server.' }}</p>
+      <p v-else-if="store.settings.engine === 'realesrgan-lite' && ai?.matchesUpscaylLite" class="mt-2 text-[11px] leading-relaxed text-zinc-400">
+        Model {{ ai?.model }}. This is the Upscayl Lite model at {{ ai?.scale }}×. The final exact size is still fitted here, so pixels can differ slightly from the Upscayl app.
+      </p>
+      <p v-else-if="store.settings.engine === 'realesrgan-lite'" class="mt-2 text-[11px] leading-relaxed text-amber-200">
+        Model {{ ai?.model }}. This is not the Upscayl Lite model, so the look can differ from an Upscayl Lite export.
+      </p>
+    </div>
+
     <div>
       <h2 class="text-xs font-semibold uppercase tracking-wide text-zinc-500">Output</h2>
       <label class="mt-2 block text-xs text-zinc-400">
@@ -155,7 +189,8 @@ function setNumber(key: 'width' | 'height' | 'quality', value: string): void {
 
     <label class="flex items-start gap-2 text-xs text-zinc-300">
       <input v-model="store.settings.preserveWhenMatched" class="mt-0.5" type="checkbox" />
-      <span>Skip Lanczos resampling when the image is already the target size and no other resize is needed.</span>
+      <span v-if="store.settings.engine === 'realesrgan-lite'">AI Lite still enhances an image that is already the target size, then fits it to those exact pixels. This switch only skips resampling in Standard mode.</span>
+      <span v-else>Skip Lanczos resampling when the image is already the target size and no other resize is needed.</span>
     </label>
 
     <div v-if="summary" class="space-y-1 rounded-lg border border-zinc-800 bg-[#101114] p-3 text-[11px] leading-relaxed text-zinc-400">
@@ -163,6 +198,7 @@ function setNumber(key: 'width' | 'height' | 'quality', value: string): void {
       <p>Target {{ summary.targetWidth }}×{{ summary.targetHeight }} · {{ summary.targetAspect }} · scale {{ summary.scaleLabel }}</p>
       <p v-if="store.selected?.outputBytes != null">Output file {{ formatBytes(store.selected.outputBytes) }}</p>
       <p v-if="store.selected?.skippedResize">Resampling was skipped because the pixels already matched the target.</p>
+      <p v-else-if="store.jobEngine === 'realesrgan-lite' && store.selected?.status === 'completed'">AI Lite ran on this image, then the result was fitted to the exact target size. Reconstructed detail was not in the original file.</p>
       <p v-if="summary.matchesTarget && store.settings.preserveWhenMatched" class="text-zinc-300">This image already matches the target size.</p>
       <p v-if="summary.warning" class="text-amber-200">{{ summary.warning }}</p>
       <p v-if="store.selected?.warning" class="text-amber-200">{{ store.selected.warning }}</p>
