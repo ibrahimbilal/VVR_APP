@@ -20,6 +20,15 @@ if (!ownsMutex)
     PauseBeforeExit(1);
 }
 
+var processPath = Environment.ProcessPath ?? "";
+if (!string.Equals(Path.GetExtension(processPath), ".exe", StringComparison.OrdinalIgnoreCase))
+{
+    Console.Error.WriteLine(
+        "[Video factory] Warning: This file should use a .exe extension (e.g. Video factory.exe). "
+            + "Without it Windows may not run or trust the app correctly. Path: "
+            + (string.IsNullOrEmpty(processPath) ? "(unknown)" : processPath));
+}
+
 var exeDir = Path.GetDirectoryName(Environment.ProcessPath) ?? Environment.CurrentDirectory;
 var projectRoot = FindProjectRoot(exeDir);
 if (projectRoot is null)

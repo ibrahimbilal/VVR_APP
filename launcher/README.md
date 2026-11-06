@@ -18,7 +18,7 @@ From the repo root:
 npm run build:launcher
 ```
 
-Output: `Video Factory.exe` in the repo root.
+Output: **`Video factory.exe`** in the repo root (keep the **`.exe`** extension; if the name is changed to omit it, Windows may not treat the file as an executable).
 
 ## Icon
 

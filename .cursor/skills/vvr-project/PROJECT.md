@@ -411,6 +411,7 @@ Comparison previews are WebP with a 1440px long edge. Downloads are the verified
 
 ## Changelog
 
+- 2026-11-07 — Launcher warns when the process path is not `*.exe` (extension stripping breaks Windows behavior); `launcher/README.md` notes keeping `.exe` (`launcher/Program.cs`).
 - 2026-11-07 — `Video factory.exe` opens the Vite dev URL `http://127.0.0.1:5173/` instead of matching the API log on 3001 (`launcher/Program.cs`, `launcher/README.md`).
 - 2026-11-06 — `Video factory.exe` runs `npm run setup:ai-lite` when AI is enabled and `tools/realesrgan/` is incomplete (unless both `VVR_REALESRGAN_BINARY` and `VVR_REALESRGAN_MODEL_DIR` are set); `launcher/README.md`, `launcher/Program.cs`, `PROJECT.md` Run section.
 - 2026-11-06 — Repo-root `.env` loaded on server boot (`server/src/loadEnv.ts`, `dotenv`) and by `scripts/launch-dev.cjs` / `launcher/Program.cs`; `.env.example` added (`docs/image-upscaler.md`). Empty `VVR_REALESRGAN_*=` lines are cleared so standalone `tools/realesrgan/` auto-detect works (`server/src/envOptional.ts`, `realesrganConfig.ts`).
