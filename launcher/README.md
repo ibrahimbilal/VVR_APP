@@ -35,7 +35,7 @@ Optional **`.env`** in the repo root (copy from **`.env.example`**): `Video fact
 ## Usage
 
 1. Run `npm install` once in the repo root.
-2. Double-click **`Video Factory.exe`** (keep it in the repo root or any subfolder — it walks up to find `package.json` / `vvr-app`).
+2. Double-click **`Video Factory.exe`** (keep it in the repo root or any subfolder — it walks up to find `package.json` / `vvr-app`). It opens **`http://127.0.0.1:5173/`** (Vite dev UI). Port **3001** is the API only.
 3. Close the console window to stop the dev server (child processes are terminated).
 
 Only one launcher instance can run at a time.

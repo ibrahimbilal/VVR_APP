@@ -9,6 +9,8 @@ const string MutexName = "Global\\VVR_VideosFactory_StartDevServer";
 const string PackageName = "vvr-app";
 const string AiModelName = "upscayl-lite-4x";
 const string AiExeName = "realesrgan-ncnn-vulkan.exe";
+/** Dev UI (Vite); API is 3001 — do not open the API URL in the browser. */
+const string ViteDevUrl = "http://127.0.0.1:5173/";
 
 using var mutex = new Mutex(true, MutexName, out var ownsMutex);
 if (!ownsMutex)
@@ -66,9 +68,6 @@ AppDomain.CurrentDomain.ProcessExit += (_, _) =>
     if (devProcess is not null) TryKillTree(devProcess);
 };
 
-var urlRegex = new Regex(@"Local:\s+(https?://[^\s\]]+)", RegexOptions.IgnoreCase | RegexOptions.Compiled);
-var fallbackUrlRegex = new Regex(@"(https?://(?:127\.0\.0\.1|localhost):\d+/?)", RegexOptions.IgnoreCase | RegexOptions.Compiled);
-
 var psi = new ProcessStartInfo
 {
     FileName = "cmd.exe",
@@ -98,6 +97,8 @@ if (!devProcess.Start())
 devProcess.BeginOutputReadLine();
 devProcess.BeginErrorReadLine();
 
+_ = TryOpenBrowserWhenReady(ViteDevUrl);
+
 try
 {
     await devProcess.WaitForExitAsync(cts.Token);
@@ -117,13 +118,6 @@ void ForwardLine(string? line, bool isError)
     if (line is null) return;
     if (isError) Console.Error.WriteLine(line);
     else Console.WriteLine(line);
-
-    var match = urlRegex.Match(line);
-    if (!match.Success) match = fallbackUrlRegex.Match(line);
-    if (!match.Success) return;
-
-    var url = match.Groups[1].Value.TrimEnd('/');
-    _ = TryOpenBrowserWhenReady(url);
 }
 
 async Task TryOpenBrowserWhenReady(string url)
