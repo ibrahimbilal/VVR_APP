@@ -19,6 +19,7 @@ import { createUpscalerRuntime, streamZipToFile, type UpscaleEngineRegistry, typ
 import { zipEntryNames } from './storedZip'
 import { runNativeProcess } from './nativeProcess'
 import { assessRealesrgan, readRealesrgan, resolveRealesrganFiles, type AppEnv } from './realesrganConfig'
+import { fileURLToPath, pathToFileURL } from 'node:url'
 import { createRealesrganEngine, createUpscaleEngineRegistry, planAiInputSize } from './realesrganEngine'
 import type { NativeRunOptions, NativeRunResult } from './nativeProcess'
 
@@ -115,6 +116,52 @@ async function settle(runtime: UpscalerRuntime, id: string) {
   throw new Error('Job did not finish.')
 }
 
+describe('standalone engine paths', () => {
+  it('fills binary and model dir from tools/realesrgan when env omits paths', async () => {
+    const tools = path.join(root, 'fake-repo', 'tools', 'realesrgan')
+    const binDir = path.join(tools, 'win-x64')
+    await mkdir(binDir, { recursive: true })
+    const standaloneExe = path.join(binDir, 'realesrgan-ncnn-vulkan.exe')
+    await writeFile(standaloneExe, 'stub')
+    const modelHome = path.join(tools, 'models')
+    await mkdir(modelHome, { recursive: true })
+    await writeFile(path.join(modelHome, 'upscayl-lite-4x.param'), 'param')
+    await writeFile(path.join(modelHome, 'upscayl-lite-4x.bin'), 'bin')
+
+    const read = readRealesrgan(
+      {
+        VVR_AI_UPSCALER_ENABLED: 'true',
+        VVR_REALESRGAN_PROJECT_ROOT: path.join(root, 'fake-repo'),
+      },
+      'win32',
+      pathToFileURL(path.join(root, 'server', 'src', 'dummy.ts')).href,
+    )
+    assert.equal(read.ok, true)
+    if (read.ok) {
+      assert.equal(read.config.binary, standaloneExe)
+      assert.equal(read.config.modelDir, modelHome)
+    }
+  })
+
+  it('accepts project-relative paths when VVR_REALESRGAN_PROJECT_ROOT is set', async () => {
+    const read = readRealesrgan(
+      {
+        VVR_AI_UPSCALER_ENABLED: 'true',
+        VVR_REALESRGAN_PROJECT_ROOT: root,
+        VVR_REALESRGAN_BINARY: 'custom\\bin.exe',
+        VVR_REALESRGAN_MODEL_DIR: 'models',
+      },
+      'win32',
+      testMetaUrl(),
+    )
+    assert.equal(read.ok, true)
+    if (read.ok) {
+      assert.equal(read.config.binary, path.join(root, 'custom', 'bin.exe'))
+      assert.equal(read.config.modelDir, path.join(root, 'models'))
+    }
+  })
+})
+
 describe('realesrgan configuration', () => {
   it('stays off unless enabled, and does not start the program', async () => {
     let probed = false
@@ -155,13 +202,13 @@ describe('realesrgan configuration', () => {
       assert.equal(missing.reason.includes(empty), false)
     }
 
-    const unknown = readRealesrgan(enabledEnv({ VVR_REALESRGAN_MODEL_NAME: '../upscayl-lite-4x' }))
+    const unknown = readRealesrgan(enabledEnv({ VVR_REALESRGAN_MODEL_NAME: '../upscayl-lite-4x' }), 'win32', testMetaUrl())
     assert.equal(unknown.ok, false)
     if (!unknown.ok) {
       assert.match(unknown.reason, /does not allow/)
       assert.equal(unknown.model, null)
     }
-    const other = readRealesrgan(enabledEnv({ VVR_REALESRGAN_MODEL_NAME: 'remacri-4x' }))
+    const other = readRealesrgan(enabledEnv({ VVR_REALESRGAN_MODEL_NAME: 'remacri-4x' }), 'win32', testMetaUrl())
     assert.equal(other.ok, false)
   })
 
@@ -601,9 +648,13 @@ describe('installed realesrgan binary', { skip: process.env.VVR_AI_UPSCALER_INTE
 })
 
 function readOrThrow(env: AppEnv) {
-  const read = readRealesrgan(env, 'win32')
+  const read = readRealesrgan(env, 'win32', testMetaUrl())
   if (!read.ok) throw new Error(read.reason)
   return read.config
+}
+
+function testMetaUrl(): string {
+  return pathToFileURL(fileURLToPath(import.meta.url)).href
 }
 
 async function gone(pid: number): Promise<boolean> {

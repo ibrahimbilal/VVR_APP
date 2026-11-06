@@ -8,6 +8,7 @@ using System.Text.RegularExpressions;
 const string MutexName = "Global\\VVR_VideosFactory_StartDevServer";
 const string PackageName = "vvr-app";
 const string AiModelName = "upscayl-lite-4x";
+const string AiExeName = "realesrgan-ncnn-vulkan.exe";
 
 using var mutex = new Mutex(true, MutexName, out var ownsMutex);
 if (!ownsMutex)
@@ -45,6 +46,10 @@ Console.WriteLine("[Video factory] Project: " + projectRoot);
 Console.WriteLine("[Video factory] Running npm run dev …");
 Console.WriteLine("[Video factory] Close this window to stop the dev server.\n");
 
+ApplyRepoDotenvToProcess(projectRoot);
+
+MaybeRunAiLiteSetup(projectRoot);
+
 using var http = new HttpClient { Timeout = TimeSpan.FromSeconds(4) };
 using var cts = new CancellationTokenSource();
 var browserOpened = 0;
@@ -76,7 +81,7 @@ var psi = new ProcessStartInfo
     StandardErrorEncoding = Encoding.UTF8,
 };
 
-if (TryApplyAiUpscalerEnv(psi, out var aiNote))
+if (TryApplyAiLiteEnv(projectRoot, psi, out var aiNote))
 {
     Console.WriteLine("[Video factory] " + aiNote);
 }
@@ -216,6 +221,88 @@ static void OpenBrowser(string url)
         });
 }
 
+/// <summary>Loads repo-root .env into the current process (KEY=VALUE). Does not override existing vars.</summary>
+/// <summary>
+/// When AI Lite is not disabled and standalone files are missing, run <c>npm run setup:ai-lite</c> (network download).
+/// Skips when the user set both binary and model dir in env or when artifacts already exist.
+/// </summary>
+static void MaybeRunAiLiteSetup(string projectRoot)
+{
+    if (!OperatingSystem.IsWindows()) return;
+
+    var enabledFlag = Environment.GetEnvironmentVariable("VVR_AI_UPSCALER_ENABLED");
+    if (enabledFlag is "false" or "0" or "no") return;
+
+    var hasBin = !string.IsNullOrEmpty(Environment.GetEnvironmentVariable("VVR_REALESRGAN_BINARY"));
+    var hasModel = !string.IsNullOrEmpty(Environment.GetEnvironmentVariable("VVR_REALESRGAN_MODEL_DIR"));
+    if (hasBin && hasModel) return;
+
+    var engineRoot = Environment.GetEnvironmentVariable("VVR_REALESRGAN_ENGINE_DIR");
+    if (string.IsNullOrWhiteSpace(engineRoot))
+        engineRoot = Path.Combine(projectRoot, "tools", "realesrgan");
+
+    var modelName = Environment.GetEnvironmentVariable("VVR_REALESRGAN_MODEL_NAME");
+    if (string.IsNullOrWhiteSpace(modelName)) modelName = AiModelName;
+
+    var binary = hasBin ? Environment.GetEnvironmentVariable("VVR_REALESRGAN_BINARY")! : Path.Combine(engineRoot, "win-x64", AiExeName);
+    var modelDir = hasModel ? Environment.GetEnvironmentVariable("VVR_REALESRGAN_MODEL_DIR")! : Path.Combine(engineRoot, "models");
+
+    if (File.Exists(binary)
+        && Directory.Exists(modelDir)
+        && File.Exists(Path.Combine(modelDir, modelName + ".param"))
+        && File.Exists(Path.Combine(modelDir, modelName + ".bin")))
+    {
+        return;
+    }
+
+    Console.WriteLine("[Video factory] AI Lite files missing — running npm run setup:ai-lite (requires network) …");
+    try
+    {
+        using var setup = Process.Start(
+            new ProcessStartInfo("cmd.exe", "/d /s /c npm run setup:ai-lite")
+            {
+                WorkingDirectory = projectRoot,
+                UseShellExecute = false,
+            });
+        if (setup is null)
+        {
+            Console.Error.WriteLine("[Video factory] Could not start npm run setup:ai-lite.");
+            return;
+        }
+
+        setup.WaitForExit();
+        if (setup.ExitCode != 0)
+            Console.Error.WriteLine("[Video factory] setup:ai-lite exited with code " + setup.ExitCode + ". AI Lite may stay unavailable.");
+        else
+            Console.WriteLine("[Video factory] setup:ai-lite finished.");
+    }
+    catch (Exception ex)
+    {
+        Console.Error.WriteLine("[Video factory] setup:ai-lite failed: " + ex.Message);
+    }
+}
+
+static void ApplyRepoDotenvToProcess(string projectRoot)
+{
+    var path = Path.Combine(projectRoot, ".env");
+    if (!File.Exists(path)) return;
+    foreach (var line in File.ReadLines(path))
+    {
+        var trimmed = line.Trim();
+        if (trimmed.Length == 0 || trimmed[0] == '#') continue;
+        var eq = trimmed.IndexOf('=');
+        if (eq <= 0) continue;
+        var key = trimmed[..eq].Trim();
+        if (key.Length == 0) continue;
+        var value = trimmed[(eq + 1)..].Trim();
+        if (value.Length >= 2 && ((value[0] == '"' && value[^1] == '"') || (value[0] == '\'' && value[^1] == '\'')))
+            value = value[1..^1];
+        if (value.Length == 0) continue;
+        if (string.IsNullOrEmpty(Environment.GetEnvironmentVariable(key)))
+            Environment.SetEnvironmentVariable(key, value);
+    }
+}
+
 static void TryKillTree(Process process)
 {
     try
@@ -228,7 +315,7 @@ static void TryKillTree(Process process)
     }
 }
 
-static bool TryApplyAiUpscalerEnv(ProcessStartInfo psi, out string note)
+static bool TryApplyAiLiteEnv(string projectRoot, ProcessStartInfo psi, out string note)
 {
     note = "";
     if (!OperatingSystem.IsWindows()) return false;
@@ -236,21 +323,95 @@ static bool TryApplyAiUpscalerEnv(ProcessStartInfo psi, out string note)
     var enabledFlag = Environment.GetEnvironmentVariable("VVR_AI_UPSCALER_ENABLED");
     if (enabledFlag is "false" or "0" or "no") return false;
 
-    var root = Environment.GetEnvironmentVariable("VVR_UPSCAYL_INSTALL_DIR")
-        ?? @"C:\Program Files\Upscayl";
-    var binary = Path.Combine(root, "resources", "bin", "upscayl-bin.exe");
-    var modelDir = Path.Combine(root, "resources", "models");
-    if (!File.Exists(binary)) return false;
-    if (!File.Exists(Path.Combine(modelDir, AiModelName + ".param"))) return false;
-    if (!File.Exists(Path.Combine(modelDir, AiModelName + ".bin"))) return false;
+    var hasBin = !string.IsNullOrEmpty(Environment.GetEnvironmentVariable("VVR_REALESRGAN_BINARY"));
+    var hasModel = !string.IsNullOrEmpty(Environment.GetEnvironmentVariable("VVR_REALESRGAN_MODEL_DIR"));
+    if (hasBin && hasModel) return false;
+
+    var engineRoot = Environment.GetEnvironmentVariable("VVR_REALESRGAN_ENGINE_DIR");
+    if (string.IsNullOrWhiteSpace(engineRoot))
+        engineRoot = Path.Combine(projectRoot, "tools", "realesrgan");
+
+    var binary = hasBin ? Environment.GetEnvironmentVariable("VVR_REALESRGAN_BINARY")! : Path.Combine(engineRoot, "win-x64", AiExeName);
+    var modelDir = hasModel ? Environment.GetEnvironmentVariable("VVR_REALESRGAN_MODEL_DIR")! : Path.Combine(engineRoot, "models");
+    var modelName = Environment.GetEnvironmentVariable("VVR_REALESRGAN_MODEL_NAME");
+    if (string.IsNullOrWhiteSpace(modelName)) modelName = AiModelName;
+
+    if (!File.Exists(binary)
+        || !Directory.Exists(modelDir)
+        || !File.Exists(Path.Combine(modelDir, modelName + ".param"))
+        || !File.Exists(Path.Combine(modelDir, modelName + ".bin")))
+    {
+        note = "[VVR] AI Lite: Unavailable — missing engine, model, or Vulkan support";
+        return true;
+    }
+
+    if (!ProbeRealesrganHelp(binary, out _))
+    {
+        note = "[VVR] AI Lite: Unavailable — missing engine, model, or Vulkan support";
+        return true;
+    }
 
     SetChildEnvIfEmpty(psi, "VVR_AI_UPSCALER_ENABLED", "true");
-    SetChildEnvIfEmpty(psi, "VVR_REALESRGAN_BINARY", binary);
-    SetChildEnvIfEmpty(psi, "VVR_REALESRGAN_MODEL_DIR", modelDir);
-    SetChildEnvIfEmpty(psi, "VVR_REALESRGAN_MODEL_NAME", AiModelName);
+    if (!hasBin) SetChildEnvIfEmpty(psi, "VVR_REALESRGAN_BINARY", binary);
+    if (!hasModel) SetChildEnvIfEmpty(psi, "VVR_REALESRGAN_MODEL_DIR", modelDir);
+    SetChildEnvIfEmpty(psi, "VVR_REALESRGAN_MODEL_NAME", modelName);
+    SetChildEnvIfEmpty(psi, "VVR_REALESRGAN_PROJECT_ROOT", projectRoot);
 
-    note = "AI Lite: enabled (Upscayl " + AiModelName + "). Override with VVR_* env vars before starting.";
+    note = "[VVR] AI Lite: Ready (standalone engine)";
     return true;
+}
+
+static bool ProbeRealesrganHelp(string binary, out bool vulkanFailed)
+{
+    vulkanFailed = false;
+    try
+    {
+        using var p = new Process
+        {
+            StartInfo = new ProcessStartInfo
+            {
+                FileName = binary,
+                Arguments = "-h",
+                UseShellExecute = false,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                CreateNoWindow = true,
+            },
+        };
+        p.Start();
+        var stdout = p.StandardOutput.ReadToEnd();
+        var stderr = p.StandardError.ReadToEnd();
+        if (!p.WaitForExit(8000))
+        {
+            try
+            {
+                p.Kill(entireProcessTree: true);
+            }
+            catch
+            {
+                // ignore
+            }
+
+            return false;
+        }
+
+        var text = stdout + "\n" + stderr;
+        if (Regex.IsMatch(
+                text,
+                @"no vulkan|vulkan.*not (?:available|found)|vkEnumeratePhysicalDevices failed|failed to create .*vulkan",
+                RegexOptions.IgnoreCase))
+        {
+            vulkanFailed = true;
+            return false;
+        }
+
+        return p.ExitCode == 0
+               || Regex.IsMatch(text, @"usage|realesrgan|upscayl|-i input", RegexOptions.IgnoreCase);
+    }
+    catch
+    {
+        return false;
+    }
 }
 
 static void SetChildEnvIfEmpty(ProcessStartInfo psi, string key, string value)

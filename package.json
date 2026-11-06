@@ -34,11 +34,13 @@
     "test:upscaler": "npm exec -w server -- tsx --test ../shared/imageUpscaler.test.ts src/imageUpscaler.test.ts src/realesrgan.test.ts",
     "launch": "node scripts/launch-dev.cjs",
     "build:launcher": "node scripts/build-launcher.mjs",
-    "pack:hostinger": "node scripts/make-deploy-archive.mjs"
+    "pack:hostinger": "node scripts/make-deploy-archive.mjs",
+    "setup:ai-lite": "node scripts/setup-ai-lite.mjs"
   },
   "devDependencies": {
     "archiver": "^8.0.0",
-    "concurrently": "^10.0.6"
+    "concurrently": "^10.0.6",
+    "unzipper": "^0.12.3"
   },
   "overrides": {
     "body-parser": "2.4.0",

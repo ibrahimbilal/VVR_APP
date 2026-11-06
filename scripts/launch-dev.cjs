@@ -1,7 +1,7 @@
 'use strict'
 
 const { spawn } = require('node:child_process')
-const { applyAiUpscalerEnv, detectUpscaylLite } = require('./upscaler-ai-env.cjs')
+const { aiLiteEnvPatch } = require('./ai-lite-env.cjs')
 const fs = require('node:fs')
 const http = require('node:http')
 const path = require('node:path')
@@ -25,6 +25,26 @@ function findProjectRoot(startDir) {
     dir = path.dirname(dir)
   }
   return null
+}
+
+function loadRepoDotenv(projectRoot) {
+  try {
+    // Resolved via workspace hoisting (server depends on dotenv).
+    require('dotenv').config({ path: path.join(projectRoot, '.env') })
+    const clearIfEmpty = [
+      'VVR_REALESRGAN_BINARY',
+      'VVR_REALESRGAN_MODEL_DIR',
+      'VVR_REALESRGAN_ENGINE_DIR',
+      'VVR_REALESRGAN_PROJECT_ROOT',
+    ]
+    for (const key of clearIfEmpty) {
+      if (process.env[key] !== undefined && String(process.env[key]).trim() === '') {
+        delete process.env[key]
+      }
+    }
+  } catch {
+    /* optional until npm install */
+  }
 }
 
 function runningAsSea() {
@@ -82,11 +102,17 @@ function openBrowser(url) {
 }
 
 function spawnDev(projectRoot) {
-  const env = applyAiUpscalerEnv(process.env)
-  const upscayl = detectUpscaylLite(process.env)
-  if (upscayl && env.VVR_AI_UPSCALER_ENABLED === 'true') {
-    console.log('[VVR launcher] AI Lite: enabled (Upscayl', upscayl.modelName + ')')
+  const { patch, standalone, probe } = aiLiteEnvPatch(projectRoot, process.env)
+  const env = { ...process.env, ...patch }
+
+  if (standalone) {
+    if (probe?.ok) {
+      console.log('[VVR] AI Lite: Ready (standalone engine)')
+    } else {
+      console.log('[VVR] AI Lite: Unavailable — missing engine, model, or Vulkan support')
+    }
   }
+
   if (process.platform === 'win32') {
     return spawn('cmd.exe', ['/d', '/s', '/c', 'npm run dev'], {
       cwd: projectRoot,
@@ -124,6 +150,7 @@ if (!projectRoot) {
     )
     process.exitCode = 1
   } else {
+    loadRepoDotenv(projectRoot)
     console.log('[VVR launcher] Project:', projectRoot)
     console.log('[VVR launcher] Starting dev server (same as npm run dev)...')
     console.log('[VVR launcher] Close this window to stop.\n')

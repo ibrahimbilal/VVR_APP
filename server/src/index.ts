@@ -1,3 +1,4 @@
+import './loadEnv'
 import cors from 'cors'
 import express, { type NextFunction, type Request, type Response } from 'express'
 import { randomUUID } from 'node:crypto'

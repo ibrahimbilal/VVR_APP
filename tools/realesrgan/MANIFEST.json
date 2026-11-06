@@ -1,0 +1,20 @@
+{
+  "ncnnExecutable": {
+    "description": "Official portable Windows build of Real-ESRGAN-ncnn-vulkan (pin this release for reproducible installs).",
+    "source": "https://github.com/xinntao/Real-ESRGAN/releases/download/v0.2.5.0/realesrgan-ncnn-vulkan-20220424-windows.zip",
+    "releaseTag": "v0.2.5.0",
+    "license": "MIT (Real-ESRGAN-ncnn-vulkan); ncnn is BSD 3-Clause; see THIRD_PARTY_NOTICES.md"
+  },
+  "upscaylLite4xModel": {
+    "description": "NCNN model pair upscayl-lite-4x (.param + .bin). Distributed in the Upscayl app repository.",
+    "files": {
+      "param": "https://raw.githubusercontent.com/upscayl/upscayl/main/resources/models/upscayl-lite-4x.param",
+      "bin": "https://raw.githubusercontent.com/upscayl/upscayl/main/resources/models/upscayl-lite-4x.bin"
+    },
+    "license": "Upscayl project is AGPL-3.0; model provenance is Upscayl. Verify redistribution terms before shipping this pair."
+  },
+  "layout": {
+    "binaryRelative": "win-x64/realesrgan-ncnn-vulkan.exe",
+    "modelDirRelative": "models"
+  }
+}

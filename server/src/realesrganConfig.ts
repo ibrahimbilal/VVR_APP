@@ -2,6 +2,8 @@ import { realpath, stat } from 'node:fs/promises'
 import path from 'node:path'
 import type { EngineCapability } from '../../shared/imageUpscaler'
 import { probeRealesrganBinary, type RealesrganProbe } from './realesrganProbe'
+import { envOptional } from './envOptional'
+import { resolveStandalonePaths, resolveVvrProjectRootForRealesrgan } from './realesrganStandalone'
 
 /**
  * Models this server is willing to pass to realesrgan-ncnn-vulkan.
@@ -46,7 +48,11 @@ type ReadResult =
 
 const DEFAULT_MODEL: RealesrganModelName = 'upscayl-lite-4x'
 
-export function readRealesrgan(env: AppEnv, platform: NodeJS.Platform = process.platform): ReadResult {
+export function readRealesrgan(
+  env: AppEnv,
+  platform: NodeJS.Platform = process.platform,
+  metaUrl: string = import.meta.url,
+): ReadResult {
   const named = modelChoice(env.VVR_REALESRGAN_MODEL_NAME)
   if (!aiEnabled(env.VVR_AI_UPSCALER_ENABLED)) {
     return {
@@ -63,11 +69,36 @@ export function readRealesrgan(env: AppEnv, platform: NodeJS.Platform = process.
   if (!named.known) {
     return { ok: false, reason: 'AI Lite is configured with a model this server does not allow.', model: null, scale: null, matchesUpscaylLite: false }
   }
+
+  const { root: projectRoot } = resolveVvrProjectRootForRealesrgan(env, metaUrl)
+  const projectRootForRel = envOptional(env, 'VVR_REALESRGAN_PROJECT_ROOT') ? projectRoot : null
+  let binary = envOptional(env, 'VVR_REALESRGAN_BINARY') ?? ''
+  let modelDir = envOptional(env, 'VVR_REALESRGAN_MODEL_DIR') ?? ''
+  const engineRootOverride = envOptional(env, 'VVR_REALESRGAN_ENGINE_DIR') ?? null
+
+  const standalone = resolveStandalonePaths({
+    projectRoot,
+    engineRootOverride,
+    platform,
+  })
+  if (!binary && !modelDir) {
+    if (standalone) {
+      binary = standalone.binary
+      modelDir = standalone.modelDir
+    }
+  } else if (standalone) {
+    if (!binary) binary = standalone.binary
+    if (!modelDir) modelDir = standalone.modelDir
+  }
+
+  binary = resolvePathForRealesrgan(binary, projectRootForRel)
+  modelDir = resolvePathForRealesrgan(modelDir, projectRootForRel)
+
   return {
     ok: true,
     config: {
-      binary: env.VVR_REALESRGAN_BINARY?.trim() ?? '',
-      modelDir: env.VVR_REALESRGAN_MODEL_DIR?.trim() ?? '',
+      binary,
+      modelDir,
       modelName: named.model as RealesrganModelName,
       scale: named.scale ?? 4,
       matchesUpscaylLite: named.matchesUpscaylLite,
@@ -76,6 +107,13 @@ export function readRealesrgan(env: AppEnv, platform: NodeJS.Platform = process.
       maxIntermediateEdge: clamp(env.VVR_REALESRGAN_MAX_INTERMEDIATE_EDGE, 1024, 16384, 8192),
     },
   }
+}
+
+function resolvePathForRealesrgan(value: string, projectRoot: string | null): string {
+  if (!value) return value
+  if (path.isAbsolute(value)) return value
+  if (!projectRoot) return value
+  return path.resolve(projectRoot, value)
 }
 
 /** Confirms the configured files exist and stay inside the model directory. Does not start the program. */
@@ -91,8 +129,9 @@ export async function assessRealesrgan(
   env: AppEnv,
   probe: RealesrganProbe = probeRealesrganBinary,
   platform: NodeJS.Platform = process.platform,
+  metaUrl: string = import.meta.url,
 ): Promise<{ capability: EngineCapability; config: RealesrganConfig | null }> {
-  const read = readRealesrgan(env, platform)
+  const read = readRealesrgan(env, platform, metaUrl)
   const blank: EngineCapability = {
     available: false,
     model: read.ok ? read.config.modelName : read.model,
@@ -164,8 +203,18 @@ function clamp(value: string | undefined, min: number, max: number, fallback: nu
 }
 
 async function resolveBinary(binary: string): Promise<{ ok: true; path: string } | { ok: false; reason: string }> {
-  if (!binary || !path.isAbsolute(binary)) {
-    return { ok: false, reason: 'AI Lite is not configured with a usable program path.' }
+  if (!binary) {
+    return {
+      ok: false,
+      reason:
+        'AI Lite is not configured with a usable program path. Populate tools/realesrgan/ (run npm run setup:ai-lite from the repo root), or set VVR_REALESRGAN_BINARY and VVR_REALESRGAN_MODEL_DIR to absolute paths in .env.',
+    }
+  }
+  if (!path.isAbsolute(binary)) {
+    return {
+      ok: false,
+      reason: 'AI Lite is not configured with a usable program path. Use an absolute path or set VVR_REALESRGAN_PROJECT_ROOT for relative paths.',
+    }
   }
   let real: string
   try {
@@ -190,8 +239,14 @@ async function resolveBinary(binary: string): Promise<{ ok: true; path: string }
 }
 
 async function resolveModelDir(modelDir: string, modelName: string): Promise<{ ok: true; path: string } | { ok: false; reason: string }> {
-  if (!modelDir || !path.isAbsolute(modelDir)) {
+  if (!modelDir) {
     return { ok: false, reason: 'AI Lite is missing the model files for the selected model.' }
+  }
+  if (!path.isAbsolute(modelDir)) {
+    return {
+      ok: false,
+      reason: 'AI Lite is missing the model files for the selected model. Use an absolute model directory or set VVR_REALESRGAN_PROJECT_ROOT for relative paths.',
+    }
   }
   let root: string
   try {

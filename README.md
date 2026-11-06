@@ -5,7 +5,7 @@ A local web platform for video production. It hosts independent editor apps in o
 - **Shorts** — 9:16 ranking and compilation videos (the original VVR editor).
 - **Screensaver** — long-form 16:9 ambient videos from a single image or looping video clip.
 - **Thumbnail Studio** — browser-only YouTube thumbnails: upload an image or pull one from Shorts or Screensaver, place resolution and duration badges, download PNG or JPEG (no FFmpeg).
-- **Image Upscaler** — PNG, JPEG, and WebP to exact Full HD, 2K, 4K, or 8K pixels. Standard is Lanczos3 on the local server. Optional AI Lite uses a local Real-ESRGAN NCNN Vulkan model when the server is configured for it. Details: `docs/image-upscaler.md`.
+- **Image Upscaler** — PNG, JPEG, and WebP to exact Full HD, 2K, 4K, or 8K pixels. Standard is Lanczos3 on the local server. Optional **AI Lite** uses a local Real-ESRGAN NCNN Vulkan build plus the `upscayl-lite-4x` model under `tools/realesrgan/` (no separate Upscayl app). Run `npm run setup:ai-lite` to fetch artifacts. Details: `docs/image-upscaler.md`.
 
 There are no accounts and no cloud project storage. The Vue client talks to an Express renderer with bundled FFmpeg. Thumbnail Studio runs entirely in the browser.
 

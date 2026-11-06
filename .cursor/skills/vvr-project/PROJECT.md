@@ -16,8 +16,9 @@ There are no accounts and no cloud project storage. The editor is a Vue app. The
 Node `^20.19.0 || >=22.12.0`. From the repo root:
 
 - `npm install` — installs both workspaces. FFmpeg and ffprobe come from `ffmpeg-static` and `ffprobe-static`. No system FFmpeg.
+- Optional repo-root **`.env`** — copy `.env.example` to `.env`; the server loads it on startup (does not override existing env vars). `npm run launch` / `Video factory.exe` merge `.env` into the dev child process too. **`Video factory.exe`** may run **`npm run setup:ai-lite`** when AI is enabled and `tools/realesrgan/` is incomplete (Windows, needs network).
 - `npm run dev` — renderer on `127.0.0.1:3001` (`tsx watch`) and editor on `127.0.0.1:5173` (Vite). Vite proxies `/api` to 3001 with no timeout.
-- **Windows shortcut:** `npm run launch` runs the same dev stack (`scripts/launch-dev.cjs`). On Windows it auto-enables Image Upscaler AI Lite when Upscayl is installed (see `scripts/upscaler-ai-env.cjs`). **`Video Factory.exe`** in the repo root is a self-contained C# launcher (`launcher/`): runs `npm run dev` with the same AI env detection, waits for Vite’s Local URL, opens the browser once, kills the process tree on exit, single-instance mutex. Build with **`npm run build:launcher`** (.NET 8 SDK required on the build machine only).
+- **Windows shortcut:** `npm run launch` runs the same dev stack (`scripts/launch-dev.cjs`). It enables Image Upscaler **AI Lite** when `tools/realesrgan/` contains the standalone NCNN runner and `upscayl-lite-4x` model files (see `scripts/ai-lite-env.cjs`, `npm run setup:ai-lite`). **`Video Factory.exe`** is a self-contained C# launcher (`launcher/`): same behavior, waits for Vite’s Local URL, opens the browser once, kills the process tree on exit, single-instance mutex. Build with **`npm run build:launcher`** (.NET 8 SDK required on the build machine only).
 - `npm run typecheck` — client `vue-tsc` via `client/scripts/typecheck.mjs`, then server `tsc --noEmit`.
 - `npm run test:screensaver` — short static screensaver render + ffprobe (`server/scripts/verify-screensaver.ts`).
 - `npm run test:screensaver-subscribe` — hybrid subscribe animation render + ffprobe frame budget (`server/scripts/verify-screensaver-subscribe.ts`; use `VVR_SCREENSAVER_TEST=1` for short duration).
@@ -44,8 +45,11 @@ client/src/apps/thumbnail-studio/       thumbnail view, store, canvas renderer, 
 client/src/apps/image-upscaler/         upscaler view, store, comparison, batch UI
 server/src/imageUpscaler.ts             Lanczos3 Sharp engine and the shared final fit
 server/src/realesrganEngine.ts          optional Real-ESRGAN NCNN Vulkan engine
-server/src/realesrganConfig.ts          AI binary/model checks and env vars
+server/src/realesrganConfig.ts          AI binary/model checks and env vars; standalone `tools/realesrgan/` discovery
+server/src/realesrganStandalone.ts    project-root + bundled engine path resolution
+server/src/projectRoot.ts               finds repo root (`vvr-app` package.json)
 server/src/imageUpscalerJobs.ts         sequential image jobs, separate from FFmpeg
+tools/realesrgan/                      optional NCNN runner + models (gitignored); see MANIFEST.json
 server/src/imageUpscalerRoutes.ts       `/api/image-upscaler/*`
 shared/imageUpscaler.ts                 presets, limits, options, filenames
 client/src/components/layout/           AppSidebar, AppHeader, MobileNavDrawer
@@ -306,7 +310,7 @@ Sweep every 10 minutes: outputs older than 2 hours, jobs and incoming older than
 | oEmbed | `server/src/oembed.ts` |
 | Screensaver editor, export, frames, subscribe overlay | `client/src/apps/frame-screensaver/`, `shared/screensaver.ts`, `shared/screensaverComposition.ts`, `shared/screensaverFrames.ts`, `shared/screensaverAdjust.ts`, `shared/screensaverSubscribeAnimation.ts`, `server/src/frames.ts`, `server/src/youtubeChannel.ts` |
 | Thumbnail editor, transfer, export | `client/src/apps/thumbnail-studio/`, `shared/thumbnailProject.ts`, `shared/thumbnailTransfer.ts`, `shared/thumbnailLayout.ts`, `client/src/lib/idb.ts` |
-| Image Upscaler | `client/src/apps/image-upscaler/`, `shared/imageUpscaler.ts`, `server/src/imageUpscaler.ts`, `server/src/realesrganEngine.ts`, `server/src/realesrganConfig.ts`, `server/src/nativeProcess.ts`, `server/src/imageUpscalerJobs.ts`, `server/src/imageUpscalerRoutes.ts`, `docs/image-upscaler.md` |
+| Image Upscaler | `client/src/apps/image-upscaler/`, `shared/imageUpscaler.ts`, `server/src/imageUpscaler.ts`, `server/src/realesrganEngine.ts`, `server/src/realesrganConfig.ts`, `server/src/realesrganStandalone.ts`, `server/src/projectRoot.ts`, `server/src/nativeProcess.ts`, `server/src/imageUpscalerJobs.ts`, `server/src/imageUpscalerRoutes.ts`, `tools/realesrgan/` (optional native files, gitignored), `scripts/ai-lite-env.cjs`, `scripts/setup-ai-lite.mjs`, `docs/image-upscaler.md` |
 | Screensaver encode and encoder probe | `server/src/renderScreensaver.ts`, `server/src/renderScreensaverHybrid.ts`, `server/src/screensaverGraph.ts`, `server/src/encoders.ts`, `shared/screensaverSubscribeAnimation.ts` |
 
 ## Invariants
@@ -397,7 +401,7 @@ Badge SVGs are committed under `client/src/assets/thumbnail-badges/` (catalog sl
 
 ## Image Upscaler
 
-Editor state is `useImageUpscalerStore` (`client/src/apps/image-upscaler/stores/imageUpscaler.ts`). It is not written to IndexedDB. Ranking, Screensaver, and Thumbnail stores stay independent. The default engine is Sharp Lanczos3 (`kernel: lanczos3`) in `server/src/imageUpscaler.ts`. Optional engine `realesrgan-lite` is `server/src/realesrganEngine.ts`: a local `realesrgan-ncnn-vulkan` / `upscayl-bin` process at the model's native scale (4× for the allowlisted models), then one Lanczos3 fit to the exact target. The model id comes from `VVR_REALESRGAN_MODEL_NAME` (default `upscayl-lite-4x`). AI is off unless `VVR_AI_UPSCALER_ENABLED` is true and the binary and model files check out. The browser only offers AI Lite when `GET /api/image-upscaler/capabilities` says it is available. A failed AI job is not replaced with Lanczos3. Cancel aborts the native process. The engine interface is `ImageUpscaleEngine.process` in `shared/imageUpscaler.ts`.
+Editor state is `useImageUpscalerStore` (`client/src/apps/image-upscaler/stores/imageUpscaler.ts`). It is not written to IndexedDB. Ranking, Screensaver, and Thumbnail stores stay independent. The default engine is Sharp Lanczos3 (`kernel: lanczos3`) in `server/src/imageUpscaler.ts`. Optional engine `realesrgan-lite` is `server/src/realesrganEngine.ts`: a local `realesrgan-ncnn-vulkan` / `upscayl-bin` process at the model's native scale (4× for the allowlisted models), then one Lanczos3 fit to the exact target. The model id comes from `VVR_REALESRGAN_MODEL_NAME` (default `upscayl-lite-4x`). **Standalone AI:** when AI is enabled and `VVR_REALESRGAN_BINARY` / `VVR_REALESRGAN_MODEL_DIR` are unset, the server looks under `tools/realesrgan/<platform>/` and `tools/realesrgan/models/` (or `VVR_REALESRGAN_ENGINE_DIR`). Paths resolve from `VVR_REALESRGAN_PROJECT_ROOT` or the server package location—not `process.cwd()`. Launch scripts set env when those files exist. AI is off unless `VVR_AI_UPSCALER_ENABLED` is true and the binary and model files check out. The browser only offers AI Lite when `GET /api/image-upscaler/capabilities` says it is available. A failed AI job is not replaced with Lanczos3. Cancel aborts the native process. The engine interface is `ImageUpscaleEngine.process` in `shared/imageUpscaler.ts`.
 
 Default output is **3840×2160**, mode **contain**, engine **lanczos3**. Presets Full HD, 2K/QHD, 4K UHD, and 8K UHD always use those pixel sizes. PNG is lossless. JPEG/WebP quality defaults to 90 (range 60–100). JPEG flattens transparency onto the padding color. Sharpen defaults to off (subtle / moderate are separate from the resize). One image runs at a time and waits while an FFmpeg job is active. AI Lite stays sequential even if Lanczos concurrency is 2. **Skip Lanczos resampling** applies to Standard only; AI Lite still enhances an image that is already the target size. Inputs are limited to 40 MB, 8 files, and 7680×4320 pixels (see `docs/image-upscaler.md` for env overrides).
 
@@ -407,7 +411,10 @@ Comparison previews are WebP with a 1440px long edge. Downloads are the verified
 
 ## Changelog
 
-- 2026-11-05 — Video Factory.exe and `npm run launch` auto-set AI Lite env when Upscayl is installed on Windows (`scripts/upscaler-ai-env.cjs`, `launcher/Program.cs`, `launcher/README.md`, `docs/image-upscaler.md`).
+- 2026-11-06 — `Video factory.exe` runs `npm run setup:ai-lite` when AI is enabled and `tools/realesrgan/` is incomplete (unless both `VVR_REALESRGAN_BINARY` and `VVR_REALESRGAN_MODEL_DIR` are set); `launcher/README.md`, `launcher/Program.cs`, `PROJECT.md` Run section.
+- 2026-11-06 — Repo-root `.env` loaded on server boot (`server/src/loadEnv.ts`, `dotenv`) and by `scripts/launch-dev.cjs` / `launcher/Program.cs`; `.env.example` added (`docs/image-upscaler.md`). Empty `VVR_REALESRGAN_*=` lines are cleared so standalone `tools/realesrgan/` auto-detect works (`server/src/envOptional.ts`, `realesrganConfig.ts`).
+- 2026-11-06 — Image Upscaler AI Lite standalone: `tools/realesrgan/` layout, server resolves from project root (`server/src/realesrganStandalone.ts`, `server/src/projectRoot.ts`, `server/src/realesrganConfig.ts`), launcher + `scripts/launch-dev.cjs` via `scripts/ai-lite-env.cjs`, optional `npm run setup:ai-lite`, Hostinger archive skips `tools/realesrgan/win-x64`, docs (`docs/image-upscaler.md`, `tools/realesrgan/THIRD_PARTY_NOTICES.md`, `launcher/README.md`).
+- 2026-11-05 — Earlier launch integration detected an installed Upscayl app under `C:\Program Files\Upscayl` (superseded 2026-11-06 by standalone `tools/realesrgan/`).
 - 2026-11-04 — Image Upscaler optional AI Lite (`realesrgan-lite`): local Real-ESRGAN NCNN Vulkan, Lanczos3 remains the default, capabilities endpoint, exact-size fit (`shared/imageUpscaler.ts`, `server/src/realesrganEngine.ts`, `server/src/imageUpscaler*.ts`, `client/src/apps/image-upscaler/`, `docs/image-upscaler.md`).
 - 2026-11-04 — Thumbnail image **FileStatusBox** uses full status flow (`uploading` → `processing` → `ready` / `error`); shared labels in `fileStatusBox.ts`.
 - 2026-11-04 — Thumbnail Studio **FileStatusBox** on image upload with format, size, dimensions; `clearImage`, asset meta refs (`ThumbnailControls.vue`, `stores/thumbnail.ts`).

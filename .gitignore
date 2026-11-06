@@ -1,3 +1,4 @@
+.env
 node_modules
 dist
 client/dist
@@ -12,3 +13,7 @@ vvr-app.zip
 launcher/bin/
 launcher/obj/
 Video factory.exe
+tools/realesrgan/win-x64/
+tools/realesrgan/linux-x64/
+tools/realesrgan/models/*.param
+tools/realesrgan/models/*.bin
