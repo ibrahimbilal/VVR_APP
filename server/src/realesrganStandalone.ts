@@ -4,14 +4,32 @@ import { vvrProjectRootFromThisModule } from './projectRoot'
 
 export const STANDALONE_ENGINE_RELATIVE = path.join('tools', 'realesrgan')
 
-/** Platform subdirectory under `tools/realesrgan` or under `VVR_REALESRGAN_ENGINE_DIR`. */
-export function standalonePlatformDir(platform: NodeJS.Platform): string | null {
+/** AI Lite standalone targets: Windows and Ubuntu-class Linux on x86-64 only. */
+export function isSupportedAiLiteArch(arch: NodeJS.Architecture | string): boolean {
+  return arch === 'x64'
+}
+
+export function unsupportedAiLiteHostReason(platform: NodeJS.Platform, arch: NodeJS.Architecture | string): string | null {
+  if (!isSupportedAiLiteArch(arch)) {
+    return `AI Lite supports 64-bit x86 (${arch}) hosts only when arch is x64.`
+  }
+  if (platform !== 'win32' && platform !== 'linux') {
+    return 'AI Lite supports Windows and Linux only.'
+  }
+  return null
+}
+
+/**
+ * Subfolder under `tools/realesrgan` for the current host OS + CPU, e.g. `win-x64` or `linux-x64`.
+ */
+export function standalonePlatformDir(platform: NodeJS.Platform, arch: NodeJS.Architecture | string = process.arch): string | null {
+  if (unsupportedAiLiteHostReason(platform, arch)) return null
   if (platform === 'win32') return 'win-x64'
   if (platform === 'linux') return 'linux-x64'
   return null
 }
 
-function binaryName(platform: NodeJS.Platform): string | null {
+export function realesrganBinaryBaseName(platform: NodeJS.Platform): string | null {
   if (platform === 'win32') return 'realesrgan-ncnn-vulkan.exe'
   if (platform === 'linux') return 'realesrgan-ncnn-vulkan'
   return null
@@ -30,9 +48,10 @@ export function resolveStandalonePaths(opts: {
   projectRoot: string | null
   engineRootOverride: string | null
   platform: NodeJS.Platform
+  arch?: NodeJS.Architecture | string
 }): StandalonePaths | null {
-  const plat = standalonePlatformDir(opts.platform)
-  const exe = binaryName(opts.platform)
+  const plat = standalonePlatformDir(opts.platform, opts.arch ?? process.arch)
+  const exe = realesrganBinaryBaseName(opts.platform)
   if (!plat || !exe) return null
 
   const roots: string[] = []

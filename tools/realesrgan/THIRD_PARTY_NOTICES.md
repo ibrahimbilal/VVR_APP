@@ -5,7 +5,7 @@ Video's Factory can run **AI Lite** with a **standalone** copy of the NCNN Vulka
 ## Real-ESRGAN-ncnn-vulkan (executable)
 
 - **Project:** [xinntao/Real-ESRGAN-ncnn-vulkan](https://github.com/xinntao/Real-ESRGAN-ncnn-vulkan)
-- **Typical source:** [Real-ESRGAN release v0.2.5.0](https://github.com/xinntao/Real-ESRGAN/releases/tag/v0.2.5.0) — asset `realesrgan-ncnn-vulkan-20220424-windows.zip`
+- **Typical source:** [Real-ESRGAN release v0.2.5.0](https://github.com/xinntao/Real-ESRGAN/releases/tag/v0.2.5.0) — `realesrgan-ncnn-vulkan-20220424-windows.zip` (Windows) or `realesrgan-ncnn-vulkan-20220424-ubuntu.zip` (Linux x64)
 - **License:** MIT License (see upstream `LICENSE` in that repository and in the release zip).
 
 ## NCNN (linked inside the executable)

@@ -3,7 +3,11 @@ import path from 'node:path'
 import type { EngineCapability } from '../../shared/imageUpscaler'
 import { probeRealesrganBinary, type RealesrganProbe } from './realesrganProbe'
 import { envOptional } from './envOptional'
-import { resolveStandalonePaths, resolveVvrProjectRootForRealesrgan } from './realesrganStandalone'
+import {
+  resolveStandalonePaths,
+  resolveVvrProjectRootForRealesrgan,
+  unsupportedAiLiteHostReason,
+} from './realesrganStandalone'
 
 /**
  * Models this server is willing to pass to realesrgan-ncnn-vulkan.
@@ -52,6 +56,7 @@ export function readRealesrgan(
   env: AppEnv,
   platform: NodeJS.Platform = process.platform,
   metaUrl: string = import.meta.url,
+  arch: NodeJS.Architecture | string = process.arch,
 ): ReadResult {
   const named = modelChoice(env.VVR_REALESRGAN_MODEL_NAME)
   if (!aiEnabled(env.VVR_AI_UPSCALER_ENABLED)) {
@@ -63,8 +68,9 @@ export function readRealesrgan(
       matchesUpscaylLite: named.matchesUpscaylLite,
     }
   }
-  if (platform !== 'win32' && platform !== 'linux') {
-    return { ok: false, reason: 'AI Lite supports Windows and Linux only.', model: named.model, scale: named.scale, matchesUpscaylLite: named.matchesUpscaylLite }
+  const hostReason = unsupportedAiLiteHostReason(platform, arch)
+  if (hostReason) {
+    return { ok: false, reason: hostReason, model: named.model, scale: named.scale, matchesUpscaylLite: named.matchesUpscaylLite }
   }
   if (!named.known) {
     return { ok: false, reason: 'AI Lite is configured with a model this server does not allow.', model: null, scale: null, matchesUpscaylLite: false }
@@ -80,6 +86,7 @@ export function readRealesrgan(
     projectRoot,
     engineRootOverride,
     platform,
+    arch,
   })
   if (!binary && !modelDir) {
     if (standalone) {
@@ -130,8 +137,9 @@ export async function assessRealesrgan(
   probe: RealesrganProbe = probeRealesrganBinary,
   platform: NodeJS.Platform = process.platform,
   metaUrl: string = import.meta.url,
+  arch: NodeJS.Architecture | string = process.arch,
 ): Promise<{ capability: EngineCapability; config: RealesrganConfig | null }> {
-  const read = readRealesrgan(env, platform, metaUrl)
+  const read = readRealesrgan(env, platform, metaUrl, arch)
   const blank: EngineCapability = {
     available: false,
     model: read.ok ? read.config.modelName : read.model,
@@ -227,10 +235,16 @@ async function resolveBinary(binary: string): Promise<{ ok: true; path: string }
   if (!ALLOWED_BINARIES.has(path.basename(real).toLowerCase())) {
     return { ok: false, reason: 'AI Lite is pointed at a program this server does not allow.' }
   }
-  if (process.platform !== 'win32') {
+  if (process.platform === 'linux') {
     try {
       const info = await stat(real)
-      if ((info.mode & 0o111) === 0) return { ok: false, reason: 'The Real-ESRGAN program could not be started.' }
+      if ((info.mode & 0o111) === 0) {
+        return {
+          ok: false,
+          reason:
+            'The Real-ESRGAN program is not executable. Run chmod +x on the binary or re-run npm run setup:ai-lite on Linux.',
+        }
+      }
     } catch {
       return { ok: false, reason: 'AI Lite needs the Real-ESRGAN program installed on the server.' }
     }

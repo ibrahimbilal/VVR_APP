@@ -1,8 +1,10 @@
 /**
  * Optional fetch: official NCNN runner (Real-ESRGAN release zip) + upscayl-lite-4x from the Upscayl repo.
  * Run from repo root: npm run setup:ai-lite
+ *
+ * Uses process.platform and process.arch; supports win32/x64 and linux/x64.
  */
-import { createReadStream, createWriteStream, existsSync, mkdirSync, readFileSync } from 'node:fs'
+import { chmodSync, createReadStream, createWriteStream, existsSync, mkdirSync, readFileSync } from 'node:fs'
 import { cp, mkdtemp, rm } from 'node:fs/promises'
 import http from 'node:http'
 import https from 'node:https'
@@ -11,6 +13,10 @@ import path from 'node:path'
 import { pipeline } from 'node:stream/promises'
 import { fileURLToPath } from 'node:url'
 import { Extract } from 'unzipper'
+import { createRequire } from 'node:module'
+
+const require = createRequire(import.meta.url)
+const { unsupportedAiLiteHostReason, standalonePlatformSubdir } = require('./ai-lite-platform.cjs')
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const manifestPath = path.join(repoRoot, 'tools', 'realesrgan', 'MANIFEST.json')
@@ -70,9 +76,29 @@ async function findFileRecursive(root, baseName) {
   return walk(root)
 }
 
+async function ensureModels(modelDir, manifest) {
+  await mkdirSync(modelDir, { recursive: true })
+  const urls = manifest.upscaylLite4xModel.files
+  const paramPath = path.join(modelDir, 'upscayl-lite-4x.param')
+  const binPath = path.join(modelDir, 'upscayl-lite-4x.bin')
+  if (!existsSync(paramPath)) {
+    console.log('Downloading', urls.param)
+    await downloadToFile(urls.param, paramPath)
+  } else {
+    console.log('Reusing', paramPath)
+  }
+  if (!existsSync(binPath)) {
+    console.log('Downloading', urls.bin)
+    await downloadToFile(urls.bin, binPath)
+  } else {
+    console.log('Reusing', binPath)
+  }
+}
+
 async function main() {
-  if (process.platform !== 'win32') {
-    console.error('This script only unpacks the Windows NCNN zip. Use Linux assets manually or extend the script.')
+  const hostReason = unsupportedAiLiteHostReason(process.platform, process.arch)
+  if (hostReason) {
+    console.error(hostReason)
     process.exit(1)
   }
   if (!existsSync(manifestPath)) {
@@ -80,36 +106,46 @@ async function main() {
     process.exit(1)
   }
   const manifest = JSON.parse(readFileSync(manifestPath, 'utf8'))
+  const platformKey = process.platform === 'win32' ? 'win32' : 'linux'
+  const platManifest = manifest.platforms?.[platformKey]
+  if (!platManifest?.ncnnExecutable?.source) {
+    console.error('No NCNN executable entry for', platformKey, 'in MANIFEST.json')
+    process.exit(1)
+  }
 
+  const sub = standalonePlatformSubdir(process.platform, process.arch)
+  const exeName = platManifest.ncnnExecutable.binaryName
   const tmp = await mkdtemp(path.join(os.tmpdir(), 'vvr-ai-lite-'))
   const zipPath = path.join(tmp, 'ncnn.zip')
   try {
-    console.log('Downloading', manifest.ncnnExecutable.source)
-    await downloadToFile(manifest.ncnnExecutable.source, zipPath)
+    console.log('Downloading', platManifest.ncnnExecutable.source)
+    await downloadToFile(platManifest.ncnnExecutable.source, zipPath)
     const extractRoot = path.join(tmp, 'zip')
     await extractZip(zipPath, extractRoot)
 
-    const exeName = path.basename(manifest.layout.binaryRelative)
     const foundExe = await findFileRecursive(extractRoot, exeName)
     if (!foundExe) throw new Error(`Could not find ${exeName} inside the zip`)
 
     const sourceDir = path.dirname(foundExe)
-    const winDir = path.join(layoutRoot, 'win-x64')
-    await rm(winDir, { recursive: true, force: true }).catch(() => undefined)
-    await mkdirSync(path.dirname(winDir), { recursive: true })
-    await cp(sourceDir, winDir, { recursive: true })
+    const platDir = path.join(layoutRoot, sub)
+    await rm(platDir, { recursive: true, force: true }).catch(() => undefined)
+    await mkdirSync(path.dirname(platDir), { recursive: true })
+    await cp(sourceDir, platDir, { recursive: true })
+
+    const installedExe = path.join(platDir, exeName)
+    if (process.platform === 'linux') {
+      chmodSync(installedExe, 0o755)
+      console.log('Set executable bit on', installedExe)
+    }
 
     const modelDir = path.join(layoutRoot, 'models')
-    await mkdirSync(modelDir, { recursive: true })
-    const urls = manifest.upscaylLite4xModel.files
-    const paramUrl = urls.param
-    const binUrl = urls.bin
-    console.log('Downloading', paramUrl)
-    await downloadToFile(paramUrl, path.join(modelDir, 'upscayl-lite-4x.param'))
-    console.log('Downloading', binUrl)
-    await downloadToFile(binUrl, path.join(modelDir, 'upscayl-lite-4x.bin'))
+    await ensureModels(modelDir, manifest)
 
-    console.log('\nDone. Engine:', winDir)
+    if (platManifest.ncnnExecutable.compatibilityNotes) {
+      console.log('\nCompatibility:', platManifest.ncnnExecutable.compatibilityNotes)
+    }
+
+    console.log('\nDone. Engine:', platDir)
     console.log('Models:', modelDir)
     console.log('Read tools/realesrgan/THIRD_PARTY_NOTICES.md before redistributing these files.')
   } finally {

@@ -126,15 +126,16 @@ AI Lite can run from a **project-local** copy of the NCNN Vulkan runner and the 
 
 ```text
 tools/realesrgan/
-  win-x64/           # full folder from the official zip (exe + DLLs)
-  models/
+  win-x64/           # Windows — full folder from the official zip (exe + DLLs)
+  linux-x64/         # Ubuntu Linux x64 — official ubuntu zip (realesrgan-ncnn-vulkan)
+  models/            # shared by Windows and Linux
     upscayl-lite-4x.param
     upscayl-lite-4x.bin
   MANIFEST.json
   THIRD_PARTY_NOTICES.md
 ```
 
-On Linux, use `linux-x64/realesrgan-ncnn-vulkan` instead of `win-x64/`.
+The server picks `win-x64` or `linux-x64` from **`process.platform`** and requires **`process.arch === 'x64'`**. Model files live once under `models/` for both OSes.
 
 ### Obtain dependencies (reproducible)
 
@@ -144,10 +145,38 @@ From the repo root:
 npm run setup:ai-lite
 ```
 
-This script downloads:
+This script reads `tools/realesrgan/MANIFEST.json`, detects the host, and downloads:
 
-- The official **Windows** portable build `realesrgan-ncnn-vulkan-20220424-windows.zip` from [Real-ESRGAN v0.2.5.0](https://github.com/xinntao/Real-ESRGAN/releases/tag/v0.2.5.0) and unpacks the whole directory into `tools/realesrgan/win-x64/` (so required DLLs stay next to the executable).
-- `upscayl-lite-4x.param` and `upscayl-lite-4x.bin` from the [Upscayl repository](https://github.com/upscayl/upscayl/tree/main/resources/models) (raw URLs are listed in `tools/realesrgan/MANIFEST.json`).
+- **Windows x64:** `realesrgan-ncnn-vulkan-20220424-windows.zip` → `tools/realesrgan/win-x64/`
+- **Linux x64:** `realesrgan-ncnn-vulkan-20220424-ubuntu.zip` → `tools/realesrgan/linux-x64/` (sets `chmod +x` on `realesrgan-ncnn-vulkan`)
+- **Both:** `upscayl-lite-4x.param` and `upscayl-lite-4x.bin` into `tools/realesrgan/models/` (same pair on every platform)
+
+Release pin: [Real-ESRGAN v0.2.5.0](https://github.com/xinntao/Real-ESRGAN/releases/tag/v0.2.5.0). Model URLs: [Upscayl `resources/models`](https://github.com/upscayl/upscayl/tree/main/resources/models).
+
+**Linux binary and `upscayl-lite-4x`:** the official Ubuntu NCNN build accepts the same `-n upscayl-lite-4x` id as Windows when the `.param`/`.bin` files are in `models/`. The zip also ships official Real-ESRGAN NCNN weights; only `upscayl-lite-4x` is Upscayl Lite. Output can still differ from the Upscayl desktop app because this app Lanczos-fits to exact preset pixels afterward.
+
+### Ubuntu setup (22.04 / 24.04, x86-64)
+
+1. Install **Node.js** `^20.19.0 || >=22.12.0` and build tooling for Sharp (see Sharp Linux docs if `npm install` fails on `sharp`).
+2. Install **Vulkan** user-space libraries and a working GPU stack (no CUDA, Python, or Upscayl required):
+
+   ```bash
+   sudo apt update
+   sudo apt install -y libvulkan1 mesa-vulkan-drivers vulkan-tools
+   # NVIDIA: use the vendor driver + its Vulkan ICD; verify with: vulkaninfo | head
+   ```
+
+3. From the repo root: `npm install`, then `npm run setup:ai-lite` (network required once).
+4. Start dev (either works):
+
+   ```bash
+   npm run launch          # node scripts/launch-dev.cjs
+   npm run launch:linux    # bash scripts/launch-linux.sh — may auto-run setup:ai-lite
+   ```
+
+5. Open Image Upscaler. If Vulkan is missing, capabilities reports a clear reason and **Standard (Lanczos3)** stays available.
+
+Native libs: the official ubuntu zip is built for glibc (typical Ubuntu). It needs `libvulkan.so.1` and compatible GPU drivers at runtime; you do not install Upscayl, Python, or CUDA.
 
 **Licensing:** `THIRD_PARTY_NOTICES.md` summarizes upstream licenses. The Upscayl **app** is AGPL-3.0; the model pair is published in that tree—confirm redistribution terms before you ship those files in a product. This repo does **not** commit binaries or weights (they are gitignored).
 
@@ -155,7 +184,7 @@ This script downloads:
 
 ### Automatic enable (development)
 
-**`npm run launch`** and **`Video Factory.exe`** set the same environment when the standalone files exist and you have not set both `VVR_REALESRGAN_BINARY` and `VVR_REALESRGAN_MODEL_DIR` yourself:
+**`npm run launch`**, **`npm run launch:linux`**, and **`Video Factory.exe`** (Windows only) set the same environment when the standalone files exist and you have not set both `VVR_REALESRGAN_BINARY` and `VVR_REALESRGAN_MODEL_DIR` yourself (existing env vars are never overwritten):
 
 - `VVR_AI_UPSCALER_ENABLED=true`
 - `VVR_REALESRGAN_BINARY` → `tools/realesrgan/<platform>/realesrgan-ncnn-vulkan[.exe]`
@@ -172,7 +201,9 @@ The server discovers `tools/realesrgan` when AI is enabled and you leave **both*
 
 Optional **repo-root `.env`**: copy **`.env.example`** (at the repo root) to **`.env`** and set `VVR_*` variables there. The **server loads `.env` on startup** (via `server/src/loadEnv.ts`); values already set in the OS environment are **not** overridden. **`npm run launch`** and **`Video factory.exe`** also merge `.env` into the dev process before starting `npm run dev`. Lines such as `VVR_REALESRGAN_BINARY=` with **no value** are treated as **unset** so standalone **`tools/realesrgan/`** can be auto-detected; omit those keys entirely if you rely on auto-detect.
 
-### Manual PowerShell (absolute paths)
+### Manual env (absolute paths)
+
+**Windows (PowerShell):**
 
 ```powershell
 $env:VVR_AI_UPSCALER_ENABLED = 'true'
@@ -182,7 +213,17 @@ $env:VVR_REALESRGAN_MODEL_NAME = 'upscayl-lite-4x'
 npm run dev
 ```
 
-To use a different NCNN build with **official** Real-ESRGAN weights instead, download the Windows zip from [Real-ESRGAN releases](https://github.com/xinntao/Real-ESRGAN/releases), point `VVR_REALESRGAN_BINARY` and `VVR_REALESRGAN_MODEL_DIR` at that tree, and set `VVR_REALESRGAN_MODEL_NAME` to `realesrgan-x4plus` (or another allowlisted official name). The panel will say this is not the Upscayl Lite model.
+**Linux (bash):**
+
+```bash
+export VVR_AI_UPSCALER_ENABLED=true
+export VVR_REALESRGAN_BINARY=/path/to/VVR_APP/tools/realesrgan/linux-x64/realesrgan-ncnn-vulkan
+export VVR_REALESRGAN_MODEL_DIR=/path/to/VVR_APP/tools/realesrgan/models
+export VVR_REALESRGAN_MODEL_NAME=upscayl-lite-4x
+npm run dev
+```
+
+To use a different NCNN build with **official** Real-ESRGAN weights instead, download the platform zip from [Real-ESRGAN releases](https://github.com/xinntao/Real-ESRGAN/releases), point `VVR_REALESRGAN_BINARY` and `VVR_REALESRGAN_MODEL_DIR` at that tree, and set `VVR_REALESRGAN_MODEL_NAME` to `realesrgan-x4plus` (or another allowlisted official name). The panel will say this is not the Upscayl Lite model.
 
 Allowed program file names: `realesrgan-ncnn-vulkan.exe`, `upscayl-bin.exe`, and `upscayl-ncnn.exe` (and the same names without `.exe` on Linux). Paths must be absolute unless `VVR_REALESRGAN_PROJECT_ROOT` is set. A shortcut to another program is rejected.
 
@@ -208,7 +249,7 @@ Arguments passed to the program are a fixed list: input, output, scale, model di
 
 ## Production
 
-`npm run build:prod` bundles the server with esbuild and leaves Sharp external. The Real-ESRGAN executable is not part of the npm bundle; place it under `tools/realesrgan` on the deployment host if you use AI there. The Hostinger deploy archive **excludes** `tools/realesrgan/win-x64` so Windows binaries are not uploaded to Linux shared hosting. On Hostinger, leave `VVR_AI_UPSCALER_ENABLED` unset. Shared hosting is not assumed to have Vulkan, and a missing AI setup must not break Standard.
+`npm run build:prod` bundles the server with esbuild and leaves Sharp external. The Real-ESRGAN executable is not part of the npm bundle; place it under `tools/realesrgan` on the deployment host if you use AI there. The Hostinger deploy archive **excludes foreign-platform** `tools/realesrgan/win-x64` or `linux-x64` folders (Linux builds omit Windows NCNN binaries). On Hostinger, leave `VVR_AI_UPSCALER_ENABLED` unset. Shared hosting is not assumed to have Vulkan, and a missing AI setup must not break Standard.
 
 Image work waits while a Shorts or Screensaver FFmpeg job is active, then continues. It does not join the video render queue.
 

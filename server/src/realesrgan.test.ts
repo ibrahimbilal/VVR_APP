@@ -77,10 +77,11 @@ function arg(args: readonly string[], flag: string): string {
   return index >= 0 ? args[index + 1] ?? '' : ''
 }
 
-function scaleRun(scale = 4): (command: string, args: readonly string[], options: NativeRunOptions) => Promise<NativeRunResult> {
+function scaleRun(scale = 4, platform: NodeJS.Platform = 'win32'): (command: string, args: readonly string[], options: NativeRunOptions) => Promise<NativeRunResult> {
+  const expectedBase = platform === 'linux' ? 'realesrgan-ncnn-vulkan' : 'realesrgan-ncnn-vulkan.exe'
   return async (command, args) => {
     assert.equal(path.isAbsolute(command), true)
-    assert.equal(path.basename(command).toLowerCase(), 'realesrgan-ncnn-vulkan.exe')
+    assert.equal(path.basename(command).toLowerCase(), expectedBase)
     assert.equal(args.includes('-x'), false)
     assert.equal(arg(args, '-f'), 'png')
     assert.equal(arg(args, '-s'), String(scale))
@@ -117,30 +118,45 @@ async function settle(runtime: UpscalerRuntime, id: string) {
 }
 
 describe('standalone engine paths', () => {
-  it('fills binary and model dir from tools/realesrgan when env omits paths', async () => {
-    const tools = path.join(root, 'fake-repo', 'tools', 'realesrgan')
-    const binDir = path.join(tools, 'win-x64')
-    await mkdir(binDir, { recursive: true })
-    const standaloneExe = path.join(binDir, 'realesrgan-ncnn-vulkan.exe')
-    await writeFile(standaloneExe, 'stub')
-    const modelHome = path.join(tools, 'models')
-    await mkdir(modelHome, { recursive: true })
-    await writeFile(path.join(modelHome, 'upscayl-lite-4x.param'), 'param')
-    await writeFile(path.join(modelHome, 'upscayl-lite-4x.bin'), 'bin')
+  for (const plat of ['win32', 'linux'] as const) {
+    it(`fills binary and model dir from tools/realesrgan on ${plat}`, async () => {
+      const tools = path.join(root, `fake-repo-${plat}`, 'tools', 'realesrgan')
+      const sub = plat === 'win32' ? 'win-x64' : 'linux-x64'
+      const exeName = plat === 'win32' ? 'realesrgan-ncnn-vulkan.exe' : 'realesrgan-ncnn-vulkan'
+      const binDir = path.join(tools, sub)
+      await mkdir(binDir, { recursive: true })
+      const standaloneExe = path.join(binDir, exeName)
+      await writeFile(standaloneExe, 'stub')
+      if (plat === 'linux') {
+        const { chmod } = await import('node:fs/promises')
+        await chmod(standaloneExe, 0o755)
+      }
+      const modelHome = path.join(tools, 'models')
+      await mkdir(modelHome, { recursive: true })
+      await writeFile(path.join(modelHome, 'upscayl-lite-4x.param'), 'param')
+      await writeFile(path.join(modelHome, 'upscayl-lite-4x.bin'), 'bin')
 
-    const read = readRealesrgan(
-      {
-        VVR_AI_UPSCALER_ENABLED: 'true',
-        VVR_REALESRGAN_PROJECT_ROOT: path.join(root, 'fake-repo'),
-      },
-      'win32',
-      pathToFileURL(path.join(root, 'server', 'src', 'dummy.ts')).href,
-    )
-    assert.equal(read.ok, true)
-    if (read.ok) {
-      assert.equal(read.config.binary, standaloneExe)
-      assert.equal(read.config.modelDir, modelHome)
-    }
+      const read = readRealesrgan(
+        {
+          VVR_AI_UPSCALER_ENABLED: 'true',
+          VVR_REALESRGAN_PROJECT_ROOT: path.join(root, `fake-repo-${plat}`),
+        },
+        plat,
+        pathToFileURL(path.join(root, 'server', 'src', 'dummy.ts')).href,
+        'x64',
+      )
+      assert.equal(read.ok, true)
+      if (read.ok) {
+        assert.equal(read.config.binary, standaloneExe)
+        assert.equal(read.config.modelDir, modelHome)
+      }
+    })
+  }
+
+  it('rejects non-x64 architectures', async () => {
+    const read = readRealesrgan({ VVR_AI_UPSCALER_ENABLED: 'true' }, 'linux', testMetaUrl(), 'arm64')
+    assert.equal(read.ok, false)
+    if (!read.ok) assert.match(read.reason, /x64/)
   })
 
   it('accepts project-relative paths when VVR_REALESRGAN_PROJECT_ROOT is set', async () => {
@@ -212,6 +228,16 @@ describe('realesrgan configuration', () => {
     assert.equal(other.ok, false)
   })
 
+  it('rejects a Linux binary without execute permission', { skip: process.platform !== 'linux' }, async () => {
+    const linuxBin = path.join(root, 'realesrgan-ncnn-vulkan')
+    await writeFile(linuxBin, 'stub')
+    const files = await resolveRealesrganFiles(
+      readOrThrow(enabledEnv({ VVR_REALESRGAN_BINARY: linuxBin }), 'linux'),
+    )
+    assert.equal(files.ok, false)
+    if (!files.ok) assert.match(files.reason, /executable/)
+  })
+
   it('reports an unsupported platform and a program that cannot start', async () => {
     const darwin = await assessRealesrgan(enabledEnv(), async () => ({ ok: true, vulkanFailed: false }), 'darwin')
     assert.equal(darwin.capability.available, false)
@@ -246,6 +272,23 @@ describe('realesrgan configuration', () => {
 })
 
 describe('realesrgan engine', () => {
+  it('writes an exact 3840×2160 PNG after a native 4× pass on Linux paths', async () => {
+    const source = path.join(root, 'art-linux.png')
+    const output = path.join(root, 'art-linux-4k.png')
+    const linuxBin = path.join(root, 'realesrgan-ncnn-vulkan')
+    await writeFile(linuxBin, 'stub')
+    const { chmod } = await import('node:fs/promises')
+    await chmod(linuxBin, 0o755)
+    await solid(source, 160, 90)
+    const engine = createRealesrganEngine({
+      env: () => enabledEnv({ VVR_REALESRGAN_BINARY: linuxBin }),
+      run: scaleRun(4, 'linux'),
+      platform: 'linux',
+    })
+    const result = await engine.process(source, output, options({ preset: 'uhd4k', paddingColor: '#123456' }), limits)
+    assert.deepEqual([result.width, result.height, result.format], [3840, 2160, 'png'])
+  })
+
   it('writes an exact 3840×2160 PNG after a native 4× pass', async () => {
     const source = path.join(root, 'art.png')
     const output = path.join(root, 'art-4k.png')
@@ -647,8 +690,8 @@ describe('installed realesrgan binary', { skip: process.env.VVR_AI_UPSCALER_INTE
   })
 })
 
-function readOrThrow(env: AppEnv) {
-  const read = readRealesrgan(env, 'win32', testMetaUrl())
+function readOrThrow(env: AppEnv, platform: NodeJS.Platform = 'win32') {
+  const read = readRealesrgan(env, platform, testMetaUrl(), 'x64')
   if (!read.ok) throw new Error(read.reason)
   return read.config
 }

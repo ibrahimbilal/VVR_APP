@@ -1,12 +1,27 @@
 {
-  "ncnnExecutable": {
-    "description": "Official portable Windows build of Real-ESRGAN-ncnn-vulkan (pin this release for reproducible installs).",
-    "source": "https://github.com/xinntao/Real-ESRGAN/releases/download/v0.2.5.0/realesrgan-ncnn-vulkan-20220424-windows.zip",
-    "releaseTag": "v0.2.5.0",
-    "license": "MIT (Real-ESRGAN-ncnn-vulkan); ncnn is BSD 3-Clause; see THIRD_PARTY_NOTICES.md"
+  "platforms": {
+    "win32": {
+      "ncnnExecutable": {
+        "description": "Official portable Windows build of Real-ESRGAN-ncnn-vulkan (pin this release for reproducible installs).",
+        "source": "https://github.com/xinntao/Real-ESRGAN/releases/download/v0.2.5.0/realesrgan-ncnn-vulkan-20220424-windows.zip",
+        "releaseTag": "v0.2.5.0",
+        "platformDir": "win-x64",
+        "binaryName": "realesrgan-ncnn-vulkan.exe"
+      }
+    },
+    "linux": {
+      "ncnnExecutable": {
+        "description": "Official portable Ubuntu Linux build of Real-ESRGAN-ncnn-vulkan (glibc; x86-64). Requires Vulkan + Mesa or proprietary GPU drivers on the host.",
+        "source": "https://github.com/xinntao/Real-ESRGAN/releases/download/v0.2.5.0/realesrgan-ncnn-vulkan-20220424-ubuntu.zip",
+        "releaseTag": "v0.2.5.0",
+        "platformDir": "linux-x64",
+        "binaryName": "realesrgan-ncnn-vulkan",
+        "compatibilityNotes": "Supports the same custom NCNN model ids as Windows, including upscayl-lite-4x when the .param/.bin pair is present under models/. Official release weights (realesrgan-x4plus, etc.) ship inside the zip; Upscayl Lite is downloaded separately."
+      }
+    }
   },
   "upscaylLite4xModel": {
-    "description": "NCNN model pair upscayl-lite-4x (.param + .bin). Distributed in the Upscayl app repository.",
+    "description": "NCNN model pair upscayl-lite-4x (.param + .bin). Shared by Windows and Linux installs.",
     "files": {
       "param": "https://raw.githubusercontent.com/upscayl/upscayl/main/resources/models/upscayl-lite-4x.param",
       "bin": "https://raw.githubusercontent.com/upscayl/upscayl/main/resources/models/upscayl-lite-4x.bin"
@@ -14,7 +29,6 @@
     "license": "Upscayl project is AGPL-3.0; model provenance is Upscayl. Verify redistribution terms before shipping this pair."
   },
   "layout": {
-    "binaryRelative": "win-x64/realesrgan-ncnn-vulkan.exe",
     "modelDirRelative": "models"
   }
 }

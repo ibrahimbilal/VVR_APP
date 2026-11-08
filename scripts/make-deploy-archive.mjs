@@ -24,8 +24,14 @@ function shouldSkip(rel, entryName, isDirectory) {
   if (parts.includes('.git')) return true
   if (parts.includes('node_modules')) return true
   if (parts[0] === 'server' && parts[1] === 'tmp') return true
-  // Windows NCNN runner + DLLs — do not ship to Linux shared hosting
-  if (parts[0] === 'tools' && parts[1] === 'realesrgan' && parts[2] === 'win-x64') return true
+  // Do not bundle foreign-platform NCNN runners (Linux deploy on Linux, Windows build on Windows)
+  if (parts[0] === 'tools' && parts[1] === 'realesrgan') {
+    if (process.platform === 'linux' && parts[2] === 'win-x64') return true
+    if (process.platform === 'win32' && parts[2] === 'linux-x64') return true
+    if (process.platform !== 'linux' && process.platform !== 'win32' && (parts[2] === 'win-x64' || parts[2] === 'linux-x64')) {
+      return true
+    }
+  }
   if (!isDirectory && /\.exe$/i.test(entryName)) return true
   return false
 }

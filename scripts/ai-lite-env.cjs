@@ -3,6 +3,10 @@
 const { execFileSync } = require('node:child_process')
 const fs = require('node:fs')
 const path = require('node:path')
+const {
+  unsupportedAiLiteHostReason,
+  resolveStandaloneLayout,
+} = require('./ai-lite-platform.cjs')
 
 const DEFAULT_MODEL = 'upscayl-lite-4x'
 
@@ -14,22 +18,16 @@ function isAiExplicitlyDisabled(value) {
 /**
  * Standalone layout: tools/realesrgan/<platform>/realesrgan-ncnn-vulkan[.exe] and tools/realesrgan/models/
  */
-function detectStandaloneEngine(projectRoot, env = process.env) {
+function detectStandaloneEngine(projectRoot, env = process.env, host = { platform: process.platform, arch: process.arch }) {
   if (isAiExplicitlyDisabled(env.VVR_AI_UPSCALER_ENABLED)) return null
-  const plat = process.platform
-  if (plat !== 'win32' && plat !== 'linux') return null
+  if (unsupportedAiLiteHostReason(host.platform, host.arch)) return null
 
-  const engineRoot = env.VVR_REALESRGAN_ENGINE_DIR
-    ? path.resolve(env.VVR_REALESRGAN_ENGINE_DIR)
-    : path.join(projectRoot, 'tools', 'realesrgan')
-  const sub = plat === 'win32' ? 'win-x64' : 'linux-x64'
-  const exe = plat === 'win32' ? 'realesrgan-ncnn-vulkan.exe' : 'realesrgan-ncnn-vulkan'
-  const defaultBinary = path.join(engineRoot, sub, exe)
-  const defaultModelDir = path.join(engineRoot, 'models')
+  const layout = resolveStandaloneLayout(projectRoot, env, host)
+  if (!layout.ok) return null
+
   const modelName = (env.VVR_REALESRGAN_MODEL_NAME || DEFAULT_MODEL).trim()
-
-  const binary = env.VVR_REALESRGAN_BINARY ? path.resolve(env.VVR_REALESRGAN_BINARY) : defaultBinary
-  const modelDir = env.VVR_REALESRGAN_MODEL_DIR ? path.resolve(env.VVR_REALESRGAN_MODEL_DIR) : defaultModelDir
+  const binary = env.VVR_REALESRGAN_BINARY ? path.resolve(env.VVR_REALESRGAN_BINARY) : layout.defaultBinary
+  const modelDir = env.VVR_REALESRGAN_MODEL_DIR ? path.resolve(env.VVR_REALESRGAN_MODEL_DIR) : layout.defaultModelDir
 
   const hasBin = fs.existsSync(binary)
   const hasModels =
@@ -56,12 +54,15 @@ function probeBinaryHelp(binary) {
     if (/usage|realesrgan|upscayl|-i input/i.test(text)) return { ok: true, vulkanFailed: false }
     return { ok: false, vulkanFailed: false }
   } catch (err) {
-    const e = /** @type {{ stderr?: Buffer | string; stdout?: Buffer | string; message?: string }} */ (err)
+    const e = /** @type {{ stderr?: Buffer | string; stdout?: Buffer | string; message?: string; code?: string }} */ (err)
     const stderr = typeof e.stderr === 'string' ? e.stderr : e.stderr?.toString?.('utf8') ?? ''
     const stdout = typeof e.stdout === 'string' ? e.stdout : e.stdout?.toString?.('utf8') ?? ''
     const text = `${stderr}\n${stdout}\n${e.message ?? ''}`
     if (/no vulkan|vulkan.*not (?:available|found)|vkEnumeratePhysicalDevices failed|failed to create .*vulkan/i.test(text)) {
       return { ok: false, vulkanFailed: true }
+    }
+    if (e.code === 'EACCES') {
+      return { ok: false, vulkanFailed: false, permissionDenied: true }
     }
     return { ok: false, vulkanFailed: false }
   }
