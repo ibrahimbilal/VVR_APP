@@ -11,7 +11,7 @@ export interface StageThumbnailInput {
   sourceApp: ThumbnailSourceApp
   sourceProjectId?: string
   linkMode: ThumbnailLinkMode
-  returnPath: '/' | '/ranking-videos' | '/frame-screensaver' | '/thumbnail-studio'
+  returnPath: '/' | '/ranking-videos' | '/frame-screensaver' | '/screensaver' | '/thumbnail-studio'
   title?: string
   artwork: Blob
   artworkName?: string

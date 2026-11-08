@@ -22,11 +22,12 @@ export const router = createRouter({
       meta: { title: 'Shorts' },
     },
     {
-      path: '/frame-screensaver',
-      name: 'frame-screensaver',
+      path: '/screensaver',
+      name: 'screensaver',
       component: FrameScreensaverView,
       meta: { title: 'Screensaver' },
     },
+    { path: '/frame-screensaver', redirect: '/screensaver' },
     {
       path: '/thumbnail-studio',
       name: 'thumbnail-studio',

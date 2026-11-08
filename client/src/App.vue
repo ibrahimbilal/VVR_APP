@@ -27,7 +27,7 @@ function onCloseNav() {
 </script>
 
 <template>
-  <div class="flex h-[100dvh] overflow-hidden bg-app text-zinc-100">
+  <div class="studio-shell flex h-[100dvh] overflow-hidden text-zinc-100">
     <AppSidebar />
     <div class="flex min-w-0 flex-1 flex-col">
       <AppHeader @open-nav="onOpenNav" />

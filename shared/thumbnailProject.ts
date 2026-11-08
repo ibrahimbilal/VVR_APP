@@ -487,7 +487,7 @@ function parseAppearance(raw: unknown, fallback: BadgeAppearance): BadgeAppearan
 function parseSource(raw: unknown): ThumbnailSource {
   const data = raw && typeof raw === 'object' ? (raw as Record<string, unknown>) : {}
   const app: ThumbnailSourceApp = data.app === 'frame-screensaver' || data.app === 'ranking-videos' ? data.app : 'standalone'
-  const returnPath = data.returnPath === '/' || data.returnPath === '/ranking-videos' || data.returnPath === '/frame-screensaver' || data.returnPath === '/thumbnail-studio'
+  const returnPath = data.returnPath === '/' || data.returnPath === '/ranking-videos' || data.returnPath === '/frame-screensaver' || data.returnPath === '/screensaver' || data.returnPath === '/thumbnail-studio'
     ? data.returnPath
     : null
   return {

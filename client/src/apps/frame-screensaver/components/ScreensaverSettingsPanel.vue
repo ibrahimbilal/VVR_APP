@@ -101,11 +101,97 @@ function resetOne(key: (typeof ADJUSTMENT_FIELDS)[number]['key']) {
 function onCustomMinutes() {
   store.setCustomDurationMinutes(customMinutes.value)
 }
+
+const inspector = ref<'content' | 'output' | 'sound' | 'style'>('content')
 </script>
 
 <template>
-  <div class="space-y-4">
-    <SettingsAccordion title="Subscribe Animation" :open="false">
+  <div class="flex h-full min-h-0 flex-col">
+    <div class="shrink-0 border-b border-zinc-800">
+      <h2 class="px-4 pt-4 text-sm font-bold text-zinc-100">Settings</h2>
+      <div class="grid grid-cols-4 gap-1 px-3 py-3" role="tablist">
+        <button class="btn cursor-pointer px-1 text-xs" :class="inspector === 'content' ? 'btn-primary' : 'btn-ghost'" type="button" role="tab" :aria-selected="inspector === 'content'" @click="inspector = 'content'">Content</button>
+        <button class="btn cursor-pointer px-1 text-xs" :class="inspector === 'output' ? 'btn-primary' : 'btn-ghost'" type="button" role="tab" :aria-selected="inspector === 'output'" @click="inspector = 'output'">Output</button>
+        <button class="btn cursor-pointer px-1 text-xs" :class="inspector === 'sound' ? 'btn-primary' : 'btn-ghost'" type="button" role="tab" :aria-selected="inspector === 'sound'" @click="inspector = 'sound'">Sound</button>
+        <button class="btn cursor-pointer px-1 text-xs" :class="inspector === 'style' ? 'btn-primary' : 'btn-ghost'" type="button" role="tab" :aria-selected="inspector === 'style'" @click="inspector = 'style'">Style</button>
+      </div>
+    </div>
+    <div class="min-h-0 flex-1 space-y-4 overflow-y-auto">
+    <SettingsAccordion v-show="inspector === 'content'" title="Frames" :open="true">
+      <div v-if="DEFAULT_FRAMES.length > 0" class="grid grid-cols-2 gap-2">
+        <div v-for="frame in DEFAULT_FRAMES" :key="frame.id" class="group/frame relative">
+          <button
+            class="block w-full cursor-pointer overflow-hidden rounded-md border bg-inset"
+            :class="store.composition.frameId === frame.id ? 'border-brand ring-1 ring-brand' : 'border-zinc-700 hover:border-zinc-500'"
+            type="button"
+            :aria-pressed="store.composition.frameId === frame.id"
+            :title="frame.name"
+            @click="store.selectFrame(frame.id)"
+          >
+            <img
+              :src="frame.thumbUrl"
+              :alt="frame.name"
+              width="150"
+              loading="lazy"
+              decoding="async"
+              class="aspect-video w-full object-contain"
+            />
+          </button>
+          <button
+            v-if="store.composition.frameId === frame.id"
+            class="absolute inset-0 flex cursor-pointer items-center justify-center rounded-md bg-black/55 opacity-0 transition-opacity duration-150 group-hover/frame:opacity-100"
+            type="button"
+            :aria-label="`Remove ${frame.name} from preview`"
+            :title="`Remove ${frame.name}`"
+            @click.stop="clearSelectedFrame(frame.id)"
+          >
+            <X :size="22" class="text-white drop-shadow" aria-hidden="true" />
+          </button>
+        </div>
+      </div>
+      <FileDropZone
+        class="mt-3"
+        compact
+        accept="image/png,.png"
+        multiple
+        :disabled="store.frameUploading"
+        label="Upload PNG frames"
+        drop-label="Drop PNG frames"
+        busy-label="Uploading…"
+        :hint="`PNG only, up to ${frameLimitMb} MB`"
+        @files="onFrameFiles"
+      />
+      <p v-if="store.frames.length === 0" class="mt-2 text-xs text-zinc-500">
+        Choose a frame above or upload your own PNG. Click a frame to select it. Hover the selected frame and use the remove control to clear or delete it.
+      </p>
+      <div v-else class="mt-3 grid grid-cols-2 gap-2">
+        <div v-for="frame in store.frames" :key="frame.id" class="group/frame relative min-w-0">
+          <button
+            class="block w-full cursor-pointer overflow-hidden rounded-md border bg-inset"
+            :class="store.composition.frameId === frame.id ? 'border-brand ring-1 ring-brand' : 'border-zinc-700 hover:border-zinc-500'"
+            type="button"
+            :aria-pressed="store.composition.frameId === frame.id"
+            :title="frame.name"
+            @click="store.selectFrame(frame.id)"
+          >
+            <img :src="`/api/screensaver/frames/${frame.id}`" :alt="frame.name" class="aspect-video w-full object-contain" />
+          </button>
+          <p class="mt-1 truncate px-0.5 text-xs font-semibold text-zinc-200" :title="frame.name">{{ frame.name }}</p>
+          <button
+            v-if="store.composition.frameId === frame.id"
+            class="absolute inset-0 flex cursor-pointer items-center justify-center rounded-md bg-black/55 opacity-0 transition-opacity duration-150 group-hover/frame:opacity-100"
+            type="button"
+            :aria-label="`Remove ${frame.name}`"
+            :title="`Remove ${frame.name}`"
+            @click.stop="removeUploadedFrame(frame.id)"
+          >
+            <Trash2 :size="20" class="text-white drop-shadow" aria-hidden="true" />
+          </button>
+        </div>
+      </div>
+    </SettingsAccordion>
+    
+    <SettingsAccordion v-show="inspector === 'content'" title="Subscribe Animation" :open="false">
       <div class="flex items-center justify-between gap-3">
         <span class="text-sm">Enable subscribe animation</span>
         <ToggleSwitch
@@ -209,81 +295,7 @@ function onCustomMinutes() {
       </template>
     </SettingsAccordion>
 
-    <SettingsAccordion title="Frames" :open="true">
-      <div v-if="DEFAULT_FRAMES.length > 0" class="grid grid-cols-2 gap-2">
-        <div v-for="frame in DEFAULT_FRAMES" :key="frame.id" class="group/frame relative">
-          <button
-            class="block w-full cursor-pointer overflow-hidden rounded-md border bg-inset"
-            :class="store.composition.frameId === frame.id ? 'border-brand ring-1 ring-brand' : 'border-zinc-700 hover:border-zinc-500'"
-            type="button"
-            :aria-pressed="store.composition.frameId === frame.id"
-            :title="frame.name"
-            @click="store.selectFrame(frame.id)"
-          >
-            <img
-              :src="frame.thumbUrl"
-              :alt="frame.name"
-              width="150"
-              loading="lazy"
-              decoding="async"
-              class="aspect-video w-full object-contain"
-            />
-          </button>
-          <button
-            v-if="store.composition.frameId === frame.id"
-            class="absolute inset-0 flex cursor-pointer items-center justify-center rounded-md bg-black/55 opacity-0 transition-opacity duration-150 group-hover/frame:opacity-100"
-            type="button"
-            :aria-label="`Remove ${frame.name} from preview`"
-            :title="`Remove ${frame.name}`"
-            @click.stop="clearSelectedFrame(frame.id)"
-          >
-            <X :size="22" class="text-white drop-shadow" aria-hidden="true" />
-          </button>
-        </div>
-      </div>
-      <FileDropZone
-        class="mt-3"
-        compact
-        accept="image/png,.png"
-        multiple
-        :disabled="store.frameUploading"
-        label="Upload PNG frames"
-        drop-label="Drop PNG frames"
-        busy-label="Uploading…"
-        :hint="`PNG only, up to ${frameLimitMb} MB`"
-        @files="onFrameFiles"
-      />
-      <p v-if="store.frames.length === 0" class="mt-2 text-xs text-zinc-500">
-        Choose a frame above or upload your own PNG. Click a frame to select it. Hover the selected frame and use the remove control to clear or delete it.
-      </p>
-      <div v-else class="mt-3 grid grid-cols-2 gap-2">
-        <div v-for="frame in store.frames" :key="frame.id" class="group/frame relative min-w-0">
-          <button
-            class="block w-full cursor-pointer overflow-hidden rounded-md border bg-inset"
-            :class="store.composition.frameId === frame.id ? 'border-brand ring-1 ring-brand' : 'border-zinc-700 hover:border-zinc-500'"
-            type="button"
-            :aria-pressed="store.composition.frameId === frame.id"
-            :title="frame.name"
-            @click="store.selectFrame(frame.id)"
-          >
-            <img :src="`/api/screensaver/frames/${frame.id}`" :alt="frame.name" class="aspect-video w-full object-contain" />
-          </button>
-          <p class="mt-1 truncate px-0.5 text-xs font-semibold text-zinc-200" :title="frame.name">{{ frame.name }}</p>
-          <button
-            v-if="store.composition.frameId === frame.id"
-            class="absolute inset-0 flex cursor-pointer items-center justify-center rounded-md bg-black/55 opacity-0 transition-opacity duration-150 group-hover/frame:opacity-100"
-            type="button"
-            :aria-label="`Remove ${frame.name}`"
-            :title="`Remove ${frame.name}`"
-            @click.stop="removeUploadedFrame(frame.id)"
-          >
-            <Trash2 :size="20" class="text-white drop-shadow" aria-hidden="true" />
-          </button>
-        </div>
-      </div>
-    </SettingsAccordion>
-
-    <SettingsAccordion title="Duration" :open="true">
+    <SettingsAccordion v-show="inspector === 'output'" title="Duration" :open="true">
       <div class="grid grid-cols-2 gap-2">
         <button
           v-for="preset in DURATION_PRESETS"
@@ -306,7 +318,7 @@ function onCustomMinutes() {
       </div>
     </SettingsAccordion>
 
-    <SettingsAccordion title="Output" :open="false">
+    <SettingsAccordion v-show="inspector === 'output'" title="Output" :open="false">
       <label class="text-xs text-zinc-500">Resolution</label>
       <select
         class="field mt-1"
@@ -363,7 +375,7 @@ function onCustomMinutes() {
       </select>
     </SettingsAccordion>
 
-    <SettingsAccordion title="Adjustments">
+    <SettingsAccordion v-show="inspector === 'style'" title="Adjustments">
       <div
         @pointerdown="store.setPreviewInteracting(true)"
         @pointerup="store.setPreviewInteracting(false)"
@@ -404,7 +416,7 @@ function onCustomMinutes() {
       </div>
     </SettingsAccordion>
 
-    <SettingsAccordion title="Background">
+    <SettingsAccordion v-show="inspector === 'style'" title="Background">
       <select v-model="store.composition.background.mode" class="field" @change="store.commitComposition()">
         <option value="color">Custom color</option>
         <option value="black">Black</option>
@@ -430,7 +442,7 @@ function onCustomMinutes() {
       <p class="text-xs text-zinc-500">MP4 files flatten transparency onto this color.</p>
     </SettingsAccordion>
 
-    <SettingsAccordion title="Mode" :open="false">
+    <SettingsAccordion v-show="inspector === 'output'" title="Mode" :open="false">
       <div class="space-y-2">
         <label class="flex cursor-pointer items-center gap-2 text-sm">
           <input v-model="store.mode" type="radio" value="static" />
@@ -443,7 +455,7 @@ function onCustomMinutes() {
       </div>
     </SettingsAccordion>
 
-    <SettingsAccordion v-if="store.mode === 'loop'" title="Loop">
+    <SettingsAccordion v-show="inspector === 'output'" v-if="store.mode === 'loop'" title="Loop">
       <label class="flex cursor-pointer items-center gap-2 text-sm">
         <input v-model="store.loopType" type="radio" value="hard" />
         Hard loop
@@ -464,7 +476,7 @@ function onCustomMinutes() {
       />
     </SettingsAccordion>
 
-    <SettingsAccordion title="Transform">
+    <SettingsAccordion v-show="inspector === 'style'" title="Transform">
       <div class="grid grid-cols-2 gap-2">
         <label class="text-xs text-zinc-500">X<input class="field mt-1" type="number" :value="Math.round(store.composition.x * store.outputWidth)" @change="setPixel('x', $event)" /></label>
         <label class="text-xs text-zinc-500">Y<input class="field mt-1" type="number" :value="Math.round(store.composition.y * store.outputHeight)" @change="setPixel('y', $event)" /></label>
@@ -479,7 +491,7 @@ function onCustomMinutes() {
       </div>
     </SettingsAccordion>
 
-    <SettingsAccordion title="Audio">
+    <SettingsAccordion v-show="inspector === 'sound'" title="Audio">
       <select v-model="store.audioMode" class="field">
         <option value="none">No audio</option>
         <option value="source" :disabled="!store.hasAudio">Original video audio</option>
@@ -506,8 +518,9 @@ function onCustomMinutes() {
       />
     </SettingsAccordion>
 
-    <p class="text-xs text-zinc-500">
+    <p class="px-4 pb-4 text-xs text-zinc-500">
       Approximate output size: ~{{ (store.sizeEstimate / (1024 * 1024 * 1024)).toFixed(2) }} GB (estimate only)
     </p>
+    </div>
   </div>
 </template>

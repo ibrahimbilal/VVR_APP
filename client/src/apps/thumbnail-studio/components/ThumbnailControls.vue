@@ -2,18 +2,15 @@
 import { ANCHORS, maxBadgeMarginPx } from '@shared/thumbnailLayout'
 import { DURATION_BADGE_OPTIONS, RESOLUTION_BADGE_OPTIONS } from '@shared/thumbnailBadges'
 import { BADGE_STYLES, THUMBNAIL_OUTPUTS, type BadgeStyleId } from '@shared/thumbnailProject'
-import { computed } from 'vue'
+import { Download } from '@lucide/vue'
+import { computed, ref } from 'vue'
 import { stylePreviewSvgUrl } from '../lib/badgeAssets'
-import FileDropZone from '../../../components/FileDropZone.vue'
-import FileStatusBox from '../../../components/FileStatusBox.vue'
 import SliderField from '../../../components/SliderField.vue'
 import ToggleSwitch from '../../../components/ToggleSwitch.vue'
-import { formatBytes } from '../../../lib/format'
-import { fileStatusBoxLabel } from '../../../lib/fileStatusBox'
-import { audioFormatLabel } from '../../../lib/media'
 import { useThumbnailStore } from '../stores/thumbnail'
 
 const store = useThumbnailStore()
+const group = ref<'content' | 'output' | 'style'>('content')
 
 const badges = [
   { id: 'resolution' as const, title: 'Resolution Badge' },
@@ -23,18 +20,6 @@ const badges = [
 const marginMaxPx = computed(() => maxBadgeMarginPx(store.doc.export.width, store.doc.export.height))
 
 const anyBadgeEnabled = computed(() => store.doc.resolution.enabled || store.doc.duration.enabled)
-
-function onFiles(files: File[]): void {
-  const file = files[0]
-  if (file) void store.uploadImage(file)
-}
-
-async function updateFromScreensaver(): Promise<void> {
-  store.requestReplaceOnNextTransfer()
-  const { createThumbnailFromScreensaver } = await import('../../frame-screensaver/lib/createThumbnail')
-  await createThumbnailFromScreensaver(store.doc.source.linkMode === 'linked' ? 'linked' : 'snapshot')
-  store.clearReplaceOnNextTransfer()
-}
 
 function onResolution(event: Event): void {
   store.setResolutionLabel((event.target as HTMLSelectElement).value)
@@ -57,73 +42,20 @@ function onExportSize(event: Event): void {
   const [width, height] = value.split('x').map(Number)
   store.setExportSize(width, height)
 }
-
-const showImageStatusBox = computed(() => Boolean(store.imageFileName))
-
-const imageMetaParts = computed(() => {
-  const parts: string[] = []
-  const name = store.imageFileName
-  if (name && store.imageFileStatus === 'ready') parts.push(audioFormatLabel(name))
-  if (store.imageFileSize != null && store.imageFileSize > 0) parts.push(formatBytes(store.imageFileSize))
-  const w = store.doc.image.sourceWidth
-  const h = store.doc.image.sourceHeight
-  if (w > 0 && h > 0) parts.push(`${w}×${h}`)
-  return parts
-})
-
-const imageStatusLabel = computed(() =>
-  fileStatusBoxLabel(store.imageFileStatus, { processingMessage: 'Reading image…' }),
-)
 </script>
 
 <template>
-  <aside class="flex min-h-0 w-full max-h-[55vh] min-w-0 shrink-0 flex-col border-t border-zinc-800 lg:max-h-none lg:w-[400px] lg:border-t-0 lg:border-l">
+  <aside class="studio-panel flex min-h-0 w-full shrink-0 flex-col lg:h-full lg:w-[360px] lg:max-w-[360px] lg:flex-none">
+    <div class="shrink-0 border-b border-zinc-800">
+      <h2 class="px-4 pt-4 text-sm font-bold text-zinc-100">Settings</h2>
+      <div class="grid grid-cols-3 gap-1 px-3 py-3" role="tablist">
+        <button class="btn cursor-pointer px-1 text-xs" :class="group === 'content' ? 'btn-primary' : 'btn-ghost'" type="button" role="tab" :aria-selected="group === 'content'" @click="group = 'content'">Content</button>
+        <button class="btn cursor-pointer px-1 text-xs" :class="group === 'output' ? 'btn-primary' : 'btn-ghost'" type="button" role="tab" :aria-selected="group === 'output'" @click="group = 'output'">Output</button>
+        <button class="btn cursor-pointer px-1 text-xs" :class="group === 'style' ? 'btn-primary' : 'btn-ghost'" type="button" role="tab" :aria-selected="group === 'style'" @click="group = 'style'">Style</button>
+      </div>
+    </div>
     <div class="min-h-0 flex-1 overflow-y-auto">
-      <section class="border-b border-zinc-800 px-4 py-4">
-        <label class="block">
-          <span class="mb-1 block section-label">Project</span>
-          <input
-            class="field text-sm font-semibold"
-            maxlength="80"
-            type="text"
-            :value="store.doc.name"
-            @input="store.setName(($event.target as HTMLInputElement).value)"
-          />
-        </label>
-      </section>
-      <section class="space-y-3 border-b border-zinc-800 px-4 py-4">
-        <h2 class="section-label">Image</h2>
-        <FileDropZone
-          compact
-          accept="image/png,image/jpeg,image/webp"
-          :label="store.hasImage ? 'Replace image' : 'Upload image'"
-          formats="PNG, JPEG, WebP"
-          @files="onFiles"
-        />
-        <FileStatusBox
-          v-if="showImageStatusBox && store.imageFileName"
-          :file-name="store.imageFileName"
-          :status="store.imageFileStatus"
-          :status-label="imageStatusLabel"
-          remove-label="Remove image"
-          @remove="void store.clearImage()"
-        >
-          <template #meta>
-            <span v-if="imageMetaParts.length > 0">{{ imageMetaParts.join(' · ') }}</span>
-            <span v-if="store.imageFileError" class="text-red-300">
-              <span v-if="imageMetaParts.length > 0"> · </span>{{ store.imageFileError }}
-            </span>
-          </template>
-        </FileStatusBox>
-        <p v-if="store.hasComposition" class="text-xs leading-5 text-zinc-400">
-          Screensaver crop, placement, and frame are already in this image.
-        </p>
-        <button v-if="store.doc.source.app === 'frame-screensaver'" class="btn btn-ghost w-full cursor-pointer" type="button" @click="updateFromScreensaver">
-          Update from Screensaver
-        </button>
-      </section>
-
-      <section v-for="section in badges" :key="section.id" class="space-y-3 border-b border-zinc-800 px-4 py-4">
+      <section v-for="section in badges" v-show="group === 'content'" :key="section.id" class="space-y-3 border-b border-zinc-800 px-4 py-4">
         <h2 class="section-label">{{ section.title }}</h2>
         <div class="flex items-center justify-between gap-3">
           <span class="text-sm text-zinc-200">Show badge</span>
@@ -188,8 +120,10 @@ const imageStatusLabel = computed(() =>
         </template>
       </section>
 
-      <section v-if="anyBadgeEnabled" class="space-y-3 border-b border-zinc-800 px-4 py-4">
+      <section v-show="group === 'style'" class="space-y-3 border-b border-zinc-800 px-4 py-4">
         <h2 class="section-label">Badge style</h2>
+        <p v-if="!anyBadgeEnabled" class="text-xs text-zinc-500">Turn on a resolution or duration badge in Content to choose a style.</p>
+        <template v-if="anyBadgeEnabled">
         <p class="text-xs text-zinc-500">Same look on the resolution and duration badges. Previews show the 4K artwork.</p>
         <SliderField
           label="Badge size"
@@ -213,35 +147,40 @@ const imageStatusLabel = computed(() =>
             <img v-if="swatchUrl(style.id)" :src="swatchUrl(style.id)!" alt="" class="pointer-events-none h-10 w-auto max-w-full object-contain" />
           </button>
         </div>
+        </template>
+      </section>
+      <section v-show="group === 'output'" class="space-y-3 border-b border-zinc-800 px-4 py-4">
+        <h2 class="section-label">Export</h2>
+        <label class="block text-xs text-zinc-400">
+          Size
+          <select class="field mt-1" :value="`${store.doc.export.width}x${store.doc.export.height}`" @change="onExportSize">
+            <option v-for="size in THUMBNAIL_OUTPUTS" :key="size.label" :value="`${size.width}x${size.height}`">{{ size.label }}</option>
+          </select>
+        </label>
+        <div class="grid grid-cols-2 gap-2">
+          <button class="btn cursor-pointer" :class="store.doc.export.format === 'png' ? 'btn-primary' : 'btn-ghost'" type="button" @click="store.setExportFormat('png')">PNG</button>
+          <button class="btn cursor-pointer" :class="store.doc.export.format === 'jpeg' ? 'btn-primary' : 'btn-ghost'" type="button" @click="store.setExportFormat('jpeg')">JPEG</button>
+        </div>
+        <SliderField
+          v-if="store.doc.export.format === 'jpeg'"
+          label="JPEG quality"
+          :model-value="Math.round(store.doc.export.jpegQuality * 100)"
+          :min="50"
+          :max="100"
+          suffix="%"
+          @update:model-value="store.setJpegQuality($event / 100)"
+        />
       </section>
     </div>
 
     <div class="shrink-0 space-y-3 border-t border-zinc-800 p-4">
-      <label class="block text-xs text-zinc-400">
-        Size
-        <select class="field mt-1" :value="`${store.doc.export.width}x${store.doc.export.height}`" @change="onExportSize">
-          <option v-for="size in THUMBNAIL_OUTPUTS" :key="size.label" :value="`${size.width}x${size.height}`">{{ size.label }}</option>
-        </select>
-      </label>
-      <div class="grid grid-cols-2 gap-2">
-        <button class="btn cursor-pointer" :class="store.doc.export.format === 'png' ? 'btn-primary' : 'btn-ghost'" type="button" @click="store.setExportFormat('png')">PNG</button>
-        <button class="btn cursor-pointer" :class="store.doc.export.format === 'jpeg' ? 'btn-primary' : 'btn-ghost'" type="button" @click="store.setExportFormat('jpeg')">JPEG</button>
-      </div>
-      <SliderField
-        v-if="store.doc.export.format === 'jpeg'"
-        label="JPEG quality"
-        :model-value="Math.round(store.doc.export.jpegQuality * 100)"
-        :min="50"
-        :max="100"
-        suffix="%"
-        @update:model-value="store.setJpegQuality($event / 100)"
-      />
       <button
-        class="btn btn-primary w-full cursor-pointer"
+        class="btn btn-primary w-full cursor-pointer py-3 text-sm"
         type="button"
         :disabled="Boolean(store.exportDuplicateBlocker)"
         @click="store.download()"
       >
+        <Download :size="16" />
         Download Thumbnail
       </button>
       <p v-if="store.exportDuplicateBlocker" class="text-xs text-zinc-500">{{ store.exportDuplicateBlocker }}</p>

@@ -11,56 +11,53 @@ function isActive(path: string): boolean {
   if (path === '/') return route.path === '/'
   return route.path.startsWith(path)
 }
+
+function railLabel(label: string): string {
+  if (label === 'Dashboard') return 'Home'
+  if (label === 'Thumbnail Studio') return 'Thumbs'
+  if (label === 'Image Upscaler') return 'Upscale'
+  if (label === 'Audio Looper') return 'Looper'
+  return label
+}
 </script>
 
 <template>
   <aside
-    class="hidden h-full shrink-0 flex-col border-r border-zinc-800 bg-chrome transition-[width] duration-200 ease-out xl:flex"
-    :class="platform.sidebarCollapsed ? 'w-14' : 'w-[240px]'"
+    class="studio-shell hidden h-full shrink-0 flex-col border-r border-white/5 transition-[width] duration-200 ease-out xl:flex"
+    :class="platform.sidebarCollapsed ? 'w-16' : 'w-[5.5rem]'"
   >
-    <div
-      class="flex h-14 items-center border-b border-zinc-800"
-      :class="platform.sidebarCollapsed ? 'justify-center px-1' : 'px-3'"
-    >
+    <div class="flex h-16 items-center justify-center">
       <RouterLink
         :to="{ name: 'dashboard' }"
-        class="focus-ring flex min-w-0 items-center gap-2 rounded-sm text-zinc-100 transition-colors"
-        :class="platform.sidebarCollapsed ? 'justify-center' : undefined"
+        class="focus-ring grid h-11 w-11 place-items-center rounded-2xl bg-elevated"
         aria-label="Video's Factory, go to dashboard"
-        :title="platform.sidebarCollapsed ? 'Dashboard' : undefined"
+        title="Dashboard"
       >
-        <img src="/logo.png" alt="" class="h-8 w-8 shrink-0 object-contain" />
-        <span v-if="!platform.sidebarCollapsed" class="min-w-0 truncate text-sm font-black tracking-[0.06em]">Video's Factory</span>
+        <img src="/logo.png" alt="" class="h-7 w-7 object-contain" />
       </RouterLink>
     </div>
-    <nav class="flex flex-1 flex-col gap-1 p-2" aria-label="Main">
+    <nav class="flex flex-1 flex-col gap-1 px-2" aria-label="Main">
       <RouterLink
         v-for="item in navItems"
         :key="item.path"
         :to="item.path"
-        class="focus-ring flex items-center gap-3 rounded-md py-2.5 text-sm font-semibold transition-colors"
-        :class="[
-          isActive(item.path) ? 'bg-brand/15 text-brand' : 'text-zinc-400 hover:bg-zinc-800/80 hover:text-zinc-100',
-          platform.sidebarCollapsed ? 'justify-center px-0' : 'px-3',
-        ]"
+        class="focus-ring flex flex-col items-center gap-1 rounded-xl px-1 py-2 text-[10px] font-semibold leading-none transition-colors"
+        :class="isActive(item.path) ? 'bg-brand text-white' : 'text-zinc-500 hover:bg-white/5 hover:text-zinc-100'"
         :aria-label="item.label"
-        :title="platform.sidebarCollapsed ? item.label : undefined"
+        :title="item.label"
       >
         <component :is="item.icon" class="shrink-0" :size="18" />
-        <span v-if="!platform.sidebarCollapsed">{{ item.label }}</span>
+        <span v-if="!platform.sidebarCollapsed" class="max-w-full truncate">{{ railLabel(item.label) }}</span>
       </RouterLink>
     </nav>
     <button
-      class="focus-ring m-2 flex cursor-pointer items-center justify-center gap-2 rounded-md border border-zinc-800 py-2 text-xs text-zinc-500 hover:bg-zinc-800/60 hover:text-zinc-300"
+      class="focus-ring mx-2 mb-3 flex cursor-pointer items-center justify-center rounded-xl py-2 text-zinc-500 hover:bg-white/5 hover:text-zinc-200"
       type="button"
       :aria-label="platform.sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'"
       @click="platform.toggleSidebarCollapsed()"
     >
       <ChevronRight v-if="platform.sidebarCollapsed" :size="16" />
-      <template v-else>
-        <ChevronLeft :size="16" />
-        <span>Collapse</span>
-      </template>
+      <ChevronLeft v-else :size="16" />
     </button>
   </aside>
 </template>

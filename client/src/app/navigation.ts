@@ -18,7 +18,7 @@ export const navItems: NavItem[] = [
       'Create vertical ranking and compilation videos with customizable titles, numbered clips, transitions, and audio.',
   },
   {
-    path: '/frame-screensaver',
+    path: '/screensaver',
     label: 'Screensaver',
     icon: MonitorPlay,
     description:

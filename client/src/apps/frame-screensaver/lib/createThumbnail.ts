@@ -30,7 +30,7 @@ export async function createThumbnailFromScreensaver(linkMode: 'snapshot' | 'lin
       sourceApp: 'frame-screensaver',
       sourceProjectId: 'frame-screensaver',
       linkMode,
-      returnPath: '/frame-screensaver',
+      returnPath: '/screensaver',
       title: store.name,
       artwork,
       artworkName: store.fileName || 'artwork',

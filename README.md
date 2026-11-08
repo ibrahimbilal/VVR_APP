@@ -4,7 +4,7 @@ A local web platform for video production. It hosts independent editor apps in o
 
 - **Shorts** — 9:16 ranking and compilation videos (the original VVR editor).
 - **Screensaver** — long-form 16:9 ambient videos from a single image or looping video clip.
-- **Thumbnail Studio** — browser-only YouTube thumbnails: upload an image or pull one from Shorts or Screensaver, place resolution and duration badges, download PNG or JPEG (no FFmpeg).
+- **Thumbnail Studio** — browser-only YouTube thumbnails: upload an image or pull one from Screensaver, place resolution and duration badges, download PNG or JPEG (no FFmpeg).
 - **Image Upscaler** — PNG, JPEG, and WebP to exact Full HD, 2K, 4K, or 8K pixels. Standard is Lanczos3 on the local server. Optional **AI Lite** uses a local Real-ESRGAN NCNN Vulkan build plus the `upscayl-lite-4x` model under `tools/realesrgan/` (no separate Upscayl app). Run `npm run setup:ai-lite` to fetch artifacts. Details: `docs/image-upscaler.md`.
 - **Audio Looper** — repeat one short audio file to an exact duration (1 minute to 12 hours) as MP3, WAV, or FLAC. Simple mode uses FFmpeg stream looping; Seamless mode equal-power crossfades adjacent repeats.
 
@@ -54,7 +54,7 @@ More scripts (benchmarks, visual tests) are listed in `.cursor/skills/vvr-projec
 ```
 client/src/
   App.vue                 Platform shell (sidebar, header, notifications, toasts)
-  app/router.ts           Routes: /, /ranking-videos, /frame-screensaver, /thumbnail-studio, /image-upscaler, /audio-looper
+  app/router.ts           Routes: /, /ranking-videos, /screensaver, /thumbnail-studio, /image-upscaler, /audio-looper
   apps/ranking-videos/    Ranking editor view + components
   apps/frame-screensaver/ Screensaver editor
   apps/thumbnail-studio/  Thumbnail editor (canvas + badge SVGs)
@@ -80,7 +80,7 @@ shared/
 
 - `/` — Dashboard with app cards
 - `/ranking-videos` — Shorts editor
-- `/frame-screensaver` — Screensaver editor
+- `/screensaver` — Screensaver editor
 - `/thumbnail-studio` — Thumbnail editor
 - `/image-upscaler` — Image Upscaler
 - `/audio-looper` — Audio Looper
@@ -124,11 +124,11 @@ Long 4K exports can still take a long time. The size estimate is an extrapolatio
 
 ## Thumbnail Studio
 
-1. Open an image (PNG, JPEG, or WebP) or use **Create Thumbnail** from Screensaver or a still from Shorts.
+1. Open an image (PNG, JPEG, or WebP) or use **Create Thumbnail** from Screensaver.
 2. Toggle resolution and duration badges, pick catalog labels, style, size, and position (drag or presets).
 3. **Download Thumbnail** as PNG or JPEG at 720p, 1080p, or 4K. No server render.
 
-Transfers from screensaver or ranking can pre-fill badge text from output resolution and duration. Badge artwork is SVG under `client/src/assets/thumbnail-badges/`.
+Transfers from Screensaver can pre-fill badge text from output resolution and duration. Badge artwork is SVG under `client/src/assets/thumbnail-badges/`.
 
 ## Audio Looper
 

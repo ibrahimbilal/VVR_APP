@@ -1,25 +1,41 @@
 <script setup lang="ts">
 import { ListVideo, MonitorPlay, SlidersHorizontal } from '@lucide/vue'
-import { onMounted, onBeforeUnmount, ref } from 'vue'
+import { computed, onMounted, onBeforeUnmount, ref } from 'vue'
 import AppMobileTabs from '../../components/ui/AppMobileTabs.vue'
+import AppStudioExportBar from '../../components/ui/AppStudioExportBar.vue'
 import ClipSidebar from '../../components/ClipSidebar.vue'
+import ExportActionButton from '../../components/ExportActionButton.vue'
 import PreviewStage from '../../components/PreviewStage.vue'
 import SelectedClipPanel from '../../components/SelectedClipPanel.vue'
 import StylePanel from '../../components/StylePanel.vue'
 import RankingExportDetails from '../../components/RankingExportDetails.vue'
-import TimelineBar from '../../components/TimelineBar.vue'
-import CreateThumbnailButton from './CreateThumbnailButton.vue'
 import { usePlayback } from '../../composables/usePlayback'
+import { formatClock } from '../../lib/format'
 import { useProjectStore } from '../../stores/project'
 
 const store = useProjectStore()
 const playback = usePlayback()
-const tab = ref<'clips' | 'preview' | 'style'>('preview')
+const tab = ref<'clips' | 'preview' | 'edit'>('preview')
+const inspector = ref<'clip' | 'look' | 'sound'>('look')
 const tabs = [
   { id: 'clips' as const, label: 'Clips', icon: ListVideo },
   { id: 'preview' as const, label: 'Preview', icon: MonitorPlay },
-  { id: 'style' as const, label: 'Style', icon: SlidersHorizontal },
+  { id: 'edit' as const, label: 'Edit', icon: SlidersHorizontal },
 ]
+
+const exportStatus = computed(() => {
+  if (store.exporting) {
+    const queue = store.activeExportCount > 1 ? ` · ${store.activeExportCount} in queue` : ''
+    return `${store.exportState.message}${queue}`
+  }
+  if (store.exportState.phase === 'error') return store.exportState.error ?? 'Export failed.'
+  if (store.exportState.phase === 'done') {
+    const warning = store.exportState.warning ? `. ${store.exportState.warning}` : '.'
+    return `Export ready${warning} Tap download when you are ready.`
+  }
+  if (store.exportBlocker) return store.exportBlocker
+  return `${store.clips.length} clips · ${formatClock(playback.duration.value)}`
+})
 
 function onKeyDown(event: KeyboardEvent) {
   if (event.code !== 'Space') return
@@ -43,36 +59,47 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <div class="relative flex h-full min-h-0 flex-col overflow-hidden bg-app text-zinc-100">
+  <div class="relative flex h-full min-h-0 flex-col gap-3 overflow-hidden p-3 text-zinc-100">
     <AppMobileTabs v-model="tab" :items="tabs" hide-from="xl" />
 
-    <div class="flex min-h-0 min-w-0 flex-1 overflow-hidden">
+    <div class="flex min-h-0 min-w-0 flex-1 gap-3 overflow-hidden">
       <div
-        class="grid min-h-0 min-w-0 flex-1 auto-rows-[minmax(0,1fr)] grid-cols-1"
-        :class="store.selectedPanelOpen && store.selectedClip ? 'xl:grid-cols-[350px_280px_minmax(0,1fr)_350px]' : 'xl:grid-cols-[350px_minmax(0,1fr)_350px]'"
+        class="grid min-h-0 min-w-0 flex-1 gap-3 xl:grid-cols-[300px_minmax(0,1fr)_360px]"
       >
-        <div class="min-h-0 xl:flex" :class="tab === 'clips' ? 'flex' : 'hidden'">
+        <div class="studio-panel min-h-0 overflow-hidden xl:flex" :class="tab === 'clips' ? 'flex' : 'hidden'">
           <ClipSidebar class="h-full w-full" />
         </div>
+
         <div
-          v-if="store.selectedPanelOpen && store.selectedClip"
-          class="min-h-0 xl:flex"
-          :class="tab === 'clips' ? 'flex' : 'hidden'"
+          class="flex min-h-0 min-w-0 flex-col gap-3 overflow-hidden"
+          :class="tab === 'preview' ? 'flex' : 'hidden xl:flex'"
         >
-          <SelectedClipPanel class="h-full w-full" />
+          <div class="studio-stage flex min-h-0 min-w-0 flex-1 basis-0 overflow-hidden">
+            <PreviewStage class="h-full w-full" />
+          </div>
+          <AppStudioExportBar :status="exportStatus" :error="store.exportState.phase === 'error'">
+            <ExportActionButton />
+          </AppStudioExportBar>
         </div>
-        <div class="min-h-[70vh] xl:min-h-0 xl:flex" :class="tab === 'preview' ? 'flex' : 'hidden'">
-          <PreviewStage class="h-full w-full" />
-        </div>
-        <div class="min-h-0 xl:flex" :class="tab === 'style' ? 'flex' : 'hidden'">
-          <StylePanel class="h-full w-full" />
+
+        <div class="studio-panel flex min-h-0 flex-col overflow-hidden xl:flex" :class="tab === 'edit' ? 'flex' : 'hidden'">
+          <div class="shrink-0 border-b border-zinc-800">
+            <h2 class="px-4 pt-4 text-sm font-bold text-zinc-100">Settings</h2>
+            <div class="grid grid-cols-3 gap-1 px-3 py-3" role="tablist">
+              <button class="btn cursor-pointer px-1 text-xs" :class="inspector === 'clip' ? 'btn-primary' : 'btn-ghost'" type="button" @click="inspector = 'clip'">Clip</button>
+              <button class="btn cursor-pointer px-1 text-xs" :class="inspector === 'look' ? 'btn-primary' : 'btn-ghost'" type="button" @click="inspector = 'look'">Style</button>
+              <button class="btn cursor-pointer px-1 text-xs" :class="inspector === 'sound' ? 'btn-primary' : 'btn-ghost'" type="button" @click="inspector = 'sound'">Sound</button>
+            </div>
+          </div>
+          <div class="min-h-0 flex-1 overflow-y-auto">
+            <SelectedClipPanel v-show="inspector === 'clip'" class="h-full w-full" />
+            <p v-if="inspector === 'clip' && !store.selectedClip" class="px-4 pb-4 text-sm text-zinc-400">Select a clip to trim it, recolor it, or play it last.</p>
+            <StylePanel v-show="inspector !== 'clip'" class="h-full w-full" :focus="inspector === 'sound' ? 'sound' : 'look'" />
+          </div>
         </div>
       </div>
       <RankingExportDetails />
     </div>
-
-    <CreateThumbnailButton class="relative shrink-0" />
-    <TimelineBar class="shrink-0" />
 
     <div v-if="!store.hydrated" class="scrim">
       Restoring saved project…
