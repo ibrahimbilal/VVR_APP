@@ -20,19 +20,19 @@ const audioLooper = useAudioLooperStore()
 
 const title = computed(() => (route.meta.title as string) || "Video's Factory")
 const showNewProject = computed(() =>
-  route.name === 'ranking-videos' ||
+  route.name === 'shorts' ||
   route.name === 'screensaver' ||
-  route.name === 'thumbnail-studio' ||
-  route.name === 'image-upscaler' ||
-  route.name === 'audio-looper',
+  route.name === 'thumbnails' ||
+  route.name === 'upscale' ||
+  route.name === 'looper',
 )
 
 function startNewProject(): void {
-  if (route.name === 'ranking-videos') void project.newProject()
+  if (route.name === 'shorts') void project.newProject()
   else if (route.name === 'screensaver') void screensaver.newProject()
-  else if (route.name === 'thumbnail-studio') void thumbnail.newProject()
-  else if (route.name === 'image-upscaler') void upscaler.newProject()
-  else if (route.name === 'audio-looper') audioLooper.newProject()
+  else if (route.name === 'thumbnails') void thumbnail.newProject()
+  else if (route.name === 'upscale') void upscaler.newProject()
+  else if (route.name === 'looper') audioLooper.newProject()
 }
 
 const emit = defineEmits<{ openNav: [trigger: HTMLElement] }>()

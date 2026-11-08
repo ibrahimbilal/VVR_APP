@@ -36,6 +36,16 @@ Reuse these instead of copying color and radius values:
 - `.empty-state` — used by `AppEmptyState`.
 - `.toast`, `.toast-error`, `.toast-success` — header toasts.
 - `.toggle-switch` — used by `ToggleSwitch`.
+- `.nav-link` / `.nav-link--active` — sidebar and mobile nav items; active gets a one-shot brand pulse.
+- `.dash-enter` / `.dash-enter-delay-*` — dashboard card and hero entrance.
+- `.page-enter-*` / `.page-leave-*` — `RouterView` transition in `App.vue`.
+- `.drawer-scrim-enter` / `.drawer-panel-enter` — mobile nav open.
+- `.settings-accordion__*` — expand/collapse used by `SettingsAccordion`.
+- `.settings-reveal` / `.settings-reveal__inner` — toggle-driven expand/collapse (Thumbnail Show badge, Screensaver Enable subscribe animation).
+- `.settings-tab` / `.settings-tab--active` — settings and mobile tab buttons.
+- `.settings-pane-*` — settings tab pane enter/leave (`Transition name="settings-pane"`).
+
+Motion tokens: `--ease-out-soft`, `--duration-fast` / `--duration-base` / `--duration-slow`. All of the above respect `prefers-reduced-motion: reduce`.
 
 ## Components
 
@@ -43,9 +53,12 @@ Reuse these instead of copying color and radius values:
 | --- | --- | --- |
 | `AppDialog` | Modal title, body slot, actions slot. Escape and the backdrop emit `cancel`. | What cancel and confirm do |
 | `AppMobileTabs` | Settings / Preview / Clips rows. `v-model` is the tab id. `hide-from` is `lg` or `xl`. | Which panels that id shows |
+| `AppSettingsTabs` | Settings strip (Shorts: Clip / Style / Output / Sound). `v-model` is the tab id; optional `cols` `3` or `4`. | Which panels that id shows; wrap pane content in `Transition name="settings-pane"` |
 | `AppExportAction` | Primary export button, blocker text, optional hint, extra slot | Store handler, queue label, CPU fallback, status copy |
 | `AppEmptyState` | Title and short guidance when nothing is loaded | When the empty state is allowed to show |
 | `AppPanel` | Titled elevated card | — |
+
+`SettingsAccordion` expands and collapses with a height + fade animation (chevron rotates). Do not reintroduce native `<details>` for settings sections.
 
 Also reuse `FileDropZone`, `FileStatusBox`, `SliderField`, `ToggleSwitch`, `SettingsAccordion`, `ColorField`, and `components/audio/` before adding a new control.
 

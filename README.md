@@ -54,7 +54,7 @@ More scripts (benchmarks, visual tests) are listed in `.cursor/skills/vvr-projec
 ```
 client/src/
   App.vue                 Platform shell (sidebar, header, notifications, toasts)
-  app/router.ts           Routes: /, /ranking-videos, /screensaver, /thumbnail-studio, /image-upscaler, /audio-looper
+  app/router.ts           Routes: /, /shorts, /screensaver, /thumbnails, /upscale, /looper
   apps/ranking-videos/    Ranking editor view + components
   apps/frame-screensaver/ Screensaver editor
   apps/thumbnail-studio/  Thumbnail editor (canvas + badge SVGs)
@@ -79,11 +79,11 @@ shared/
 ### Routes
 
 - `/` — Dashboard with app cards
-- `/ranking-videos` — Shorts editor
+- `/shorts` — Shorts editor
 - `/screensaver` — Screensaver editor
-- `/thumbnail-studio` — Thumbnail editor
-- `/image-upscaler` — Image Upscaler
-- `/audio-looper` — Audio Looper
+- `/thumbnails` — Thumbnails
+- `/upscale` — Image Upscaler
+- `/looper` — Audio Looper
 
 Direct URLs and refresh work in production; Express serves `client/dist` with SPA fallback.
 
@@ -140,7 +140,7 @@ Transfers from Screensaver can pre-fill badge text from output resolution and du
 
 If the source is already longer than the target, the file is trimmed rather than looped. Seamless joins are meant for ambient beds; they will not hide cuts in speech or strongly rhythmic music.
 
-Manual check: open `/audio-looper`, drop a few-second WAV, export 10s in Simple (set `VVR_AUDIO_LOOPER_TEST=1` on the server to allow targets under 60s), confirm the header download extension matches the format, then repeat with Seamless and listen at the first join.
+Manual check: open `/looper`, drop a few-second WAV, export 10s in Simple (set `VVR_AUDIO_LOOPER_TEST=1` on the server to allow targets under 60s), confirm the header download extension matches the format, then repeat with Seamless and listen at the first join.
 
 ## Adding another app
 
@@ -152,7 +152,7 @@ Manual check: open `/audio-looper`, drop a few-second WAV, export 10s in Simple 
 ## Migration from single-app VVR
 
 - Saved ranking projects load automatically (`current` → `ranking-videos`).
-- Bookmark `/ranking-videos` instead of `/` for the editor.
+- Bookmark `/shorts` instead of `/` for the editor. Old `/ranking-videos` redirects.
 - No change to ranking export API (`POST /api/export`).
 
 ## Limitations

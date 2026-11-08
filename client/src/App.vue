@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { onMounted, ref } from 'vue'
-import { RouterView } from 'vue-router'
+import { RouterView, useRoute } from 'vue-router'
 import { X } from '@lucide/vue'
 import AppHeader from './components/layout/AppHeader.vue'
 import AppSidebar from './components/layout/AppSidebar.vue'
@@ -9,6 +9,7 @@ import { resumePersistedRenderJobs } from './lib/resumePersistedRenderJobs'
 import { usePlatformStore } from './stores/platform'
 
 const platform = usePlatformStore()
+const route = useRoute()
 const navTrigger = ref<HTMLElement | null>(null)
 
 onMounted(() => {
@@ -31,8 +32,12 @@ function onCloseNav() {
     <AppSidebar />
     <div class="flex min-w-0 flex-1 flex-col">
       <AppHeader @open-nav="onOpenNav" />
-      <main class="min-h-0 flex-1 overflow-hidden">
-        <RouterView />
+      <main class="relative min-h-0 flex-1 overflow-hidden">
+        <RouterView v-slot="{ Component }">
+          <Transition name="page" mode="out-in">
+            <component :is="Component" :key="route.path" class="h-full" />
+          </Transition>
+        </RouterView>
       </main>
     </div>
     <MobileNavDrawer :open="platform.mobileNavOpen" :trigger="navTrigger" @close="onCloseNav" />

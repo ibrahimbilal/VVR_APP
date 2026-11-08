@@ -14,7 +14,6 @@ function isActive(path: string): boolean {
 
 function railLabel(label: string): string {
   if (label === 'Dashboard') return 'Home'
-  if (label === 'Thumbnail Studio') return 'Thumbs'
   if (label === 'Image Upscaler') return 'Upscale'
   if (label === 'Audio Looper') return 'Looper'
   return label
@@ -41,8 +40,13 @@ function railLabel(label: string): string {
         v-for="item in navItems"
         :key="item.path"
         :to="item.path"
-        class="focus-ring flex flex-col items-center gap-1 rounded-xl px-1 py-2 text-[10px] font-semibold leading-none transition-colors"
-        :class="isActive(item.path) ? 'bg-brand text-white' : 'text-zinc-500 hover:bg-white/5 hover:text-zinc-100'"
+        class="nav-link focus-ring flex flex-col items-center gap-1 rounded-xl px-1 py-2 text-[10px] font-semibold leading-none"
+        :class="
+          isActive(item.path)
+            ? 'nav-link--active bg-brand text-white'
+            : 'text-zinc-500 hover:bg-white/5 hover:text-zinc-100'
+        "
+        :aria-current="isActive(item.path) ? 'page' : undefined"
         :aria-label="item.label"
         :title="item.label"
       >

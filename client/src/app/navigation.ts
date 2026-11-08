@@ -11,7 +11,7 @@ export interface NavItem {
 export const navItems: NavItem[] = [
   { path: '/', label: 'Dashboard', icon: LayoutDashboard },
   {
-    path: '/ranking-videos',
+    path: '/shorts',
     label: 'Shorts',
     icon: ListVideo,
     description:
@@ -25,20 +25,20 @@ export const navItems: NavItem[] = [
       'Create long-form 16:9 ambient videos, digital art displays, and TV screensavers from images and videos.',
   },
   {
-    path: '/thumbnail-studio',
-    label: 'Thumbnail Studio',
+    path: '/thumbnails',
+    label: 'Thumbnails',
     icon: ThumbnailIcon,
     description: 'Design YouTube thumbnails from your own images or from a Shorts or Screensaver project.',
   },
   {
-    path: '/image-upscaler',
+    path: '/upscale',
     label: 'Image Upscaler',
     icon: Sparkles,
     description:
       'Resize PNG, JPEG, and WebP images to exact Full HD, 2K, 4K, or 8K pixels with Lanczos3 resampling. It interpolates existing pixels and does not invent missing detail.',
   },
   {
-    path: '/audio-looper',
+    path: '/looper',
     label: 'Audio Looper',
     icon: AudioLines,
     description:

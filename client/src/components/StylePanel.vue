@@ -29,9 +29,10 @@ const presets = [
 const store = useProjectStore()
 const playback = usePlayback()
 
-const props = withDefaults(defineProps<{ focus?: 'look' | 'sound' | 'all' }>(), { focus: 'all' })
-const showLook = computed(() => props.focus !== 'sound')
-const showSound = computed(() => props.focus !== 'look')
+const props = withDefaults(defineProps<{ focus?: 'look' | 'sound' | 'output' | 'all' }>(), { focus: 'all' })
+const showLook = computed(() => props.focus === 'look' || props.focus === 'all')
+const showSound = computed(() => props.focus === 'sound' || props.focus === 'all')
+const showOutput = computed(() => props.focus === 'output' || props.focus === 'all')
 const exampleIndex = computed(() => {
   if (playback.activeIndex.value >= 0) return playback.activeIndex.value
   const selected = store.clips.findIndex((clip) => clip.id === store.selectedClipId)
@@ -380,7 +381,7 @@ function setTitleHideAfterEnabled(enabled: boolean) {
         </template>
     </SettingsAccordion>
 
-    <SettingsAccordion v-show="showLook" title="Video">
+    <SettingsAccordion v-show="showOutput" title="Video" open>
         <label class="block text-xs text-zinc-400">
           Output
           <select class="field mt-1" :value="`${store.style.video.width}x${store.style.video.height}`" @change="onResolution">

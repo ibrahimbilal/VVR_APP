@@ -2,6 +2,7 @@
 import { ListVideo, MonitorPlay, SlidersHorizontal } from '@lucide/vue'
 import { computed, onMounted, onBeforeUnmount, ref } from 'vue'
 import AppMobileTabs from '../../components/ui/AppMobileTabs.vue'
+import AppSettingsTabs from '../../components/ui/AppSettingsTabs.vue'
 import AppStudioExportBar from '../../components/ui/AppStudioExportBar.vue'
 import ClipSidebar from '../../components/ClipSidebar.vue'
 import ExportActionButton from '../../components/ExportActionButton.vue'
@@ -16,12 +17,24 @@ import { useProjectStore } from '../../stores/project'
 const store = useProjectStore()
 const playback = usePlayback()
 const tab = ref<'clips' | 'preview' | 'edit'>('preview')
-const inspector = ref<'clip' | 'look' | 'sound'>('look')
+const inspector = ref<'clip' | 'look' | 'output' | 'sound'>('look')
 const tabs = [
   { id: 'clips' as const, label: 'Clips', icon: ListVideo },
   { id: 'preview' as const, label: 'Preview', icon: MonitorPlay },
   { id: 'edit' as const, label: 'Edit', icon: SlidersHorizontal },
 ]
+const inspectorTabs = [
+  { id: 'clip' as const, label: 'Clip' },
+  { id: 'look' as const, label: 'Style' },
+  { id: 'sound' as const, label: 'Sound' },
+  { id: 'output' as const, label: 'Output' },
+]
+
+function styleFocus(): 'look' | 'sound' | 'output' {
+  if (inspector.value === 'sound') return 'sound'
+  if (inspector.value === 'output') return 'output'
+  return 'look'
+}
 
 const exportStatus = computed(() => {
   if (store.exporting) {
@@ -85,16 +98,21 @@ onBeforeUnmount(() => {
         <div class="studio-panel flex min-h-0 flex-col overflow-hidden xl:flex" :class="tab === 'edit' ? 'flex' : 'hidden'">
           <div class="shrink-0 border-b border-zinc-800">
             <h2 class="px-4 pt-4 text-sm font-bold text-zinc-100">Settings</h2>
-            <div class="grid grid-cols-3 gap-1 px-3 py-3" role="tablist">
-              <button class="btn cursor-pointer px-1 text-xs" :class="inspector === 'clip' ? 'btn-primary' : 'btn-ghost'" type="button" @click="inspector = 'clip'">Clip</button>
-              <button class="btn cursor-pointer px-1 text-xs" :class="inspector === 'look' ? 'btn-primary' : 'btn-ghost'" type="button" @click="inspector = 'look'">Style</button>
-              <button class="btn cursor-pointer px-1 text-xs" :class="inspector === 'sound' ? 'btn-primary' : 'btn-ghost'" type="button" @click="inspector = 'sound'">Sound</button>
-            </div>
+            <AppSettingsTabs v-model="inspector" :items="inspectorTabs" :cols="4" />
           </div>
           <div class="min-h-0 flex-1 overflow-y-auto">
-            <SelectedClipPanel v-show="inspector === 'clip'" class="h-full w-full" />
-            <p v-if="inspector === 'clip' && !store.selectedClip" class="px-4 pb-4 text-sm text-zinc-400">Select a clip to trim it, recolor it, or play it last.</p>
-            <StylePanel v-show="inspector !== 'clip'" class="h-full w-full" :focus="inspector === 'sound' ? 'sound' : 'look'" />
+            <Transition name="settings-pane" mode="out-in">
+              <div v-if="inspector === 'clip'" key="clip" class="h-full w-full">
+                <SelectedClipPanel class="h-full w-full" />
+                <p v-if="!store.selectedClip" class="px-4 pb-4 mt-3 text-xs text-zinc-500">Select a clip to trim it, recolor it, or play it last.</p>
+              </div>
+              <StylePanel
+                v-else
+                :key="inspector"
+                class="h-full w-full"
+                :focus="styleFocus()"
+              />
+            </Transition>
           </div>
         </div>
       </div>

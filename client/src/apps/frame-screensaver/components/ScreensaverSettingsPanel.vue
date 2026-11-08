@@ -9,6 +9,7 @@ import AdvancedAudioControls from '../../../components/audio/AdvancedAudioContro
 import AudioFileField from '../../../components/audio/AudioFileField.vue'
 import FileDropZone from '../../../components/FileDropZone.vue'
 import SettingsAccordion from '../../../components/SettingsAccordion.vue'
+import AppSettingsTabs from '../../../components/ui/AppSettingsTabs.vue'
 import SliderField from '../../../components/SliderField.vue'
 import ToggleSwitch from '../../../components/ToggleSwitch.vue'
 import { webGl2Available } from '../lib/render/createScreensaverRenderer'
@@ -103,20 +104,23 @@ function onCustomMinutes() {
 }
 
 const inspector = ref<'content' | 'output' | 'sound' | 'style'>('content')
+const inspectorTabs = [
+  { id: 'content' as const, label: 'Content' },
+  { id: 'output' as const, label: 'Output' },
+  { id: 'sound' as const, label: 'Sound' },
+  { id: 'style' as const, label: 'Style' },
+]
 </script>
 
 <template>
   <div class="flex h-full min-h-0 flex-col">
     <div class="shrink-0 border-b border-zinc-800">
       <h2 class="px-4 pt-4 text-sm font-bold text-zinc-100">Settings</h2>
-      <div class="grid grid-cols-4 gap-1 px-3 py-3" role="tablist">
-        <button class="btn cursor-pointer px-1 text-xs" :class="inspector === 'content' ? 'btn-primary' : 'btn-ghost'" type="button" role="tab" :aria-selected="inspector === 'content'" @click="inspector = 'content'">Content</button>
-        <button class="btn cursor-pointer px-1 text-xs" :class="inspector === 'output' ? 'btn-primary' : 'btn-ghost'" type="button" role="tab" :aria-selected="inspector === 'output'" @click="inspector = 'output'">Output</button>
-        <button class="btn cursor-pointer px-1 text-xs" :class="inspector === 'sound' ? 'btn-primary' : 'btn-ghost'" type="button" role="tab" :aria-selected="inspector === 'sound'" @click="inspector = 'sound'">Sound</button>
-        <button class="btn cursor-pointer px-1 text-xs" :class="inspector === 'style' ? 'btn-primary' : 'btn-ghost'" type="button" role="tab" :aria-selected="inspector === 'style'" @click="inspector = 'style'">Style</button>
-      </div>
+      <AppSettingsTabs v-model="inspector" :items="inspectorTabs" :cols="4" />
     </div>
-    <div class="min-h-0 flex-1 space-y-4 overflow-y-auto">
+    <div class="min-h-0 flex-1 overflow-y-auto">
+    <Transition name="settings-pane" mode="out-in">
+    <div :key="inspector">
     <SettingsAccordion v-show="inspector === 'content'" title="Frames" :open="true">
       <div v-if="DEFAULT_FRAMES.length > 0" class="grid grid-cols-2 gap-2">
         <div v-for="frame in DEFAULT_FRAMES" :key="frame.id" class="group/frame relative">
@@ -201,98 +205,114 @@ const inspector = ref<'content' | 'output' | 'sound' | 'style'>('content')
         />
       </div>
       <p class="mt-1 text-xs text-zinc-500">Static image exports only. Adds a {{ SUBSCRIBE_ANIMATION_FPS }} fps overlay for {{ SUBSCRIBE_ANIMATION_DURATION_SEC }} seconds (1 s pause between each click).</p>
-      <template v-if="store.subscribeAnimation.enabled">
-        <label class="mt-3 block text-xs text-zinc-500">Style</label>
-        <select
-          class="field mt-1"
-          :value="store.subscribeAnimation.style"
-          @change="onSubscribeStyleChange"
-        >
-          <option v-for="item in SUBSCRIBE_ANIMATION_STYLES" :key="item.id" :value="item.id">{{ item.label }}</option>
-        </select>
-        <template v-if="store.subscribeAnimation.style === 'channel-card'">
-          <label class="mt-3 block text-xs text-zinc-500">Channel card theme</label>
-          <select
-            class="field mt-1"
-            :value="store.subscribeAnimation.channelCardTheme"
-            @change="store.replaceSubscribeAnimation({ channelCardTheme: ($event.target as HTMLSelectElement).value as never })"
-          >
-            <option v-for="item in SUBSCRIBE_CHANNEL_CARD_THEMES" :key="item" :value="item">{{ item === 'light' ? 'Light' : 'Dark' }}</option>
-          </select>
-          <label class="mt-3 block text-xs text-zinc-500">YouTube channel or video URL</label>
-          <div class="mt-1 flex gap-2">
-            <input
-              v-model="channelUrlDraft"
-              class="field min-w-0 flex-1"
-              type="url"
-              placeholder="https://www.youtube.com/@…"
-              @change="store.replaceSubscribeAnimation({ channelUrl: channelUrlDraft.trim() })"
-            />
-            <button
-              class="btn btn-ghost shrink-0 cursor-pointer text-xs"
-              type="button"
-              :disabled="store.subscribeChannelLookupLoading"
-              @click="void store.fetchSubscribeChannelFromUrl(channelUrlDraft)"
+      <div
+        class="settings-reveal"
+        :class="{ 'is-open': store.subscribeAnimation.enabled }"
+        :inert="!store.subscribeAnimation.enabled"
+      >
+        <div class="settings-reveal__inner">
+          <div class="space-y-0 pt-3">
+            <label class="block text-xs text-zinc-500">Style</label>
+            <select
+              class="field mt-1"
+              :value="store.subscribeAnimation.style"
+              @change="onSubscribeStyleChange"
             >
-              {{ store.subscribeChannelLookupLoading ? 'Loading…' : 'Fetch' }}
-            </button>
+              <option v-for="item in SUBSCRIBE_ANIMATION_STYLES" :key="item.id" :value="item.id">{{ item.label }}</option>
+            </select>
+            <div
+              class="settings-reveal"
+              :class="{ 'is-open': store.subscribeAnimation.style === 'channel-card' }"
+              :inert="store.subscribeAnimation.style !== 'channel-card'"
+            >
+              <div class="settings-reveal__inner">
+                <div class="pt-3">
+                  <label class="block text-xs text-zinc-500">Channel card theme</label>
+                  <select
+                    class="field mt-1"
+                    :value="store.subscribeAnimation.channelCardTheme"
+                    @change="store.replaceSubscribeAnimation({ channelCardTheme: ($event.target as HTMLSelectElement).value as never })"
+                  >
+                    <option v-for="item in SUBSCRIBE_CHANNEL_CARD_THEMES" :key="item" :value="item">{{ item === 'light' ? 'Light' : 'Dark' }}</option>
+                  </select>
+                  <label class="mt-3 block text-xs text-zinc-500">YouTube channel or video URL</label>
+                  <div class="mt-1 flex gap-2">
+                    <input
+                      v-model="channelUrlDraft"
+                      class="field min-w-0 flex-1"
+                      type="url"
+                      placeholder="https://www.youtube.com/@…"
+                      @change="store.replaceSubscribeAnimation({ channelUrl: channelUrlDraft.trim() })"
+                    />
+                    <button
+                      class="btn btn-ghost shrink-0 cursor-pointer text-xs"
+                      type="button"
+                      :disabled="store.subscribeChannelLookupLoading"
+                      @click="void store.fetchSubscribeChannelFromUrl(channelUrlDraft)"
+                    >
+                      {{ store.subscribeChannelLookupLoading ? 'Loading…' : 'Fetch' }}
+                    </button>
+                  </div>
+                  <p class="mt-1 text-xs text-zinc-500">Fetch loads channel name, avatar, and subscriber count when YouTube returns them.</p>
+                  <p
+                    v-if="store.subscribeAnimation.channelName"
+                    class="mt-2 text-xs text-zinc-400"
+                  >
+                    {{ store.subscribeAnimation.channelName
+                    }}<span v-if="store.subscribeAnimation.channelSubscriberCount"> · {{ store.subscribeAnimation.channelSubscriberCount }}</span>
+                  </p>
+                </div>
+              </div>
+            </div>
+            <label class="mt-3 block text-xs text-zinc-500">Start time (seconds)</label>
+            <input
+              class="field mt-1"
+              type="number"
+              min="0"
+              :max="Math.max(0, store.durationSeconds - SUBSCRIBE_ANIMATION_DURATION_SEC)"
+              step="1"
+              :value="store.subscribeAnimation.startSec"
+              @change="store.replaceSubscribeAnimation({ startSec: Number(($event.target as HTMLInputElement).value) })"
+            />
+            <label class="mt-3 block text-xs text-zinc-500">Position</label>
+            <select
+              class="field mt-1"
+              :value="store.subscribeAnimation.position"
+              @change="store.replaceSubscribeAnimation({ position: ($event.target as HTMLSelectElement).value as never })"
+            >
+              <option v-for="item in SUBSCRIBE_ANIMATION_POSITIONS" :key="item" :value="item">{{ positionLabel(item) }}</option>
+            </select>
+            <SliderField
+              class="mt-3"
+              label="Size (% of output width)"
+              :min="MIN_SUBSCRIBE_SIZE_PERCENT"
+              :max="MAX_SUBSCRIBE_SIZE_PERCENT"
+              :step="1"
+              :model-value="store.subscribeAnimation.sizePercent"
+              @update:model-value="(v) => store.replaceSubscribeAnimation({ sizePercent: v })"
+            />
+            <SliderField
+              class="mt-3"
+              label="Distance from edges"
+              :min="MIN_SUBSCRIBE_EDGE_DISTANCE"
+              :max="MAX_SUBSCRIBE_EDGE_DISTANCE"
+              :step="4"
+              :model-value="store.subscribeAnimation.edgeDistance"
+              @update:model-value="(v) => store.replaceSubscribeAnimation({ edgeDistance: v })"
+            />
+            <p class="mt-1 text-xs text-zinc-500">Export pixels: inset from the left/right edges; adds the same amount as transparent space below the UI inside the animation (for slide-out).</p>
+            <div class="mt-3 flex items-center justify-between gap-3">
+              <span class="text-sm">Show on preview canvas</span>
+              <ToggleSwitch
+                :model-value="store.subscribeAnimation.previewOnCanvas"
+                aria-label="Show subscribe animation on preview canvas"
+                @update:model-value="(value) => store.replaceSubscribeAnimation({ previewOnCanvas: value })"
+              />
+            </div>
+            <p class="mt-1 text-xs text-zinc-500">Loops on the main canvas so you can tune position, size, and edge distance while editing.</p>
           </div>
-          <p class="mt-1 text-xs text-zinc-500">Fetch loads channel name, avatar, and subscriber count when YouTube returns them.</p>
-          <p
-            v-if="store.subscribeAnimation.channelName && store.subscribeAnimation.style === 'channel-card'"
-            class="mt-2 text-xs text-zinc-400"
-          >
-            {{ store.subscribeAnimation.channelName
-            }}<span v-if="store.subscribeAnimation.channelSubscriberCount"> · {{ store.subscribeAnimation.channelSubscriberCount }}</span>
-          </p>
-        </template>
-        <label class="mt-3 block text-xs text-zinc-500">Start time (seconds)</label>
-        <input
-          class="field mt-1"
-          type="number"
-          min="0"
-          :max="Math.max(0, store.durationSeconds - SUBSCRIBE_ANIMATION_DURATION_SEC)"
-          step="1"
-          :value="store.subscribeAnimation.startSec"
-          @change="store.replaceSubscribeAnimation({ startSec: Number(($event.target as HTMLInputElement).value) })"
-        />
-        <label class="mt-3 block text-xs text-zinc-500">Position</label>
-        <select
-          class="field mt-1"
-          :value="store.subscribeAnimation.position"
-          @change="store.replaceSubscribeAnimation({ position: ($event.target as HTMLSelectElement).value as never })"
-        >
-          <option v-for="item in SUBSCRIBE_ANIMATION_POSITIONS" :key="item" :value="item">{{ positionLabel(item) }}</option>
-        </select>
-        <SliderField
-          class="mt-3"
-          label="Size (% of output width)"
-          :min="MIN_SUBSCRIBE_SIZE_PERCENT"
-          :max="MAX_SUBSCRIBE_SIZE_PERCENT"
-          :step="1"
-          :model-value="store.subscribeAnimation.sizePercent"
-          @update:model-value="(v) => store.replaceSubscribeAnimation({ sizePercent: v })"
-        />
-        <SliderField
-          class="mt-3"
-          label="Distance from edges"
-          :min="MIN_SUBSCRIBE_EDGE_DISTANCE"
-          :max="MAX_SUBSCRIBE_EDGE_DISTANCE"
-          :step="4"
-          :model-value="store.subscribeAnimation.edgeDistance"
-          @update:model-value="(v) => store.replaceSubscribeAnimation({ edgeDistance: v })"
-        />
-        <p class="mt-1 text-xs text-zinc-500">Export pixels: inset from the left/right edges; adds the same amount as transparent space below the UI inside the animation (for slide-out).</p>
-        <div class="mt-3 flex items-center justify-between gap-3">
-          <span class="text-sm">Show on preview canvas</span>
-          <ToggleSwitch
-            :model-value="store.subscribeAnimation.previewOnCanvas"
-            aria-label="Show subscribe animation on preview canvas"
-            @update:model-value="(value) => store.replaceSubscribeAnimation({ previewOnCanvas: value })"
-          />
         </div>
-        <p class="mt-1 text-xs text-zinc-500">Loops on the main canvas so you can tune position, size, and edge distance while editing.</p>
-      </template>
+      </div>
     </SettingsAccordion>
 
     <SettingsAccordion v-show="inspector === 'output'" title="Duration" :open="true">
@@ -439,7 +459,7 @@ const inspector = ref<'content' | 'output' | 'sound' | 'style'>('content')
         @update:model-value="(value) => (store.composition.background.blur = value)"
         @change="store.commitComposition()"
       />
-      <p class="text-xs text-zinc-500">MP4 files flatten transparency onto this color.</p>
+      <p class="mt-2 text-xs text-zinc-500">MP4 files flatten transparency onto this color.</p>
     </SettingsAccordion>
 
     <SettingsAccordion v-show="inspector === 'output'" title="Mode" :open="false">
@@ -518,9 +538,11 @@ const inspector = ref<'content' | 'output' | 'sound' | 'style'>('content')
       />
     </SettingsAccordion>
 
-    <p class="px-4 pb-4 text-xs text-zinc-500">
+    <p class="px-4 pb-4 mt-3 text-xs text-zinc-500">
       Approximate output size: ~{{ (store.sizeEstimate / (1024 * 1024 * 1024)).toFixed(2) }} GB (estimate only)
     </p>
+    </div>
+    </Transition>
     </div>
   </div>
 </template>

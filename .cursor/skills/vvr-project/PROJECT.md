@@ -39,8 +39,8 @@ Workspaces: root `vvr-app` **2.0.0**, `client` (`vvr-client`), `server` (`vvr-se
 ```
 client/src/App.vue                      platform shell (sidebar, header, toasts)
 client/src/style.css                    design tokens and shared control classes (see docs/ui-design-system.md)
-client/src/components/ui/               AppDialog, AppMobileTabs, AppExportAction, AppStudioExportBar, AppEmptyState, AppPanel
-client/src/app/router.ts                /, /ranking-videos, /screensaver, /thumbnail-studio, /image-upscaler, /audio-looper
+client/src/components/ui/               AppDialog, AppMobileTabs, AppSettingsTabs, AppExportAction, AppStudioExportBar, AppEmptyState, AppPanel
+client/src/app/router.ts                /, /shorts, /screensaver, /thumbnails, /upscale, /looper
 client/src/stores/platform.ts           renderer health, global toasts, nav UI
 client/src/stores/project.ts            ranking editor state
 client/src/apps/ranking-videos/         RankingVideosView (editor layout)
@@ -77,9 +77,9 @@ Stack: Vue 3, **vue-router**, Pinia, Tailwind 4, Lucide. Client aliases `@shared
 
 ## Platform shell
 
-`App.vue`: left sidebar (desktop). The logo, **Video's Factory** name, and header page title link to the dashboard. Header also has **notifications** (bell, left of renderer status), renderer status (`GET /api/health`), **New project** on Shorts, Screensaver, Thumbnail Studio, Image Upscaler, and Audio Looper (`AppHeader.vue`, `AppNotifications.vue`), `router-view`, global toasts (`usePlatformStore`). Finished Shorts, Screensaver, and Audio Looper renders are listed in the header notification panel (`renderNotifications.ts`, `platform.ts`). In-progress rows have **Cancel** (per export: client abort + server `POST /api/jobs/:id/cancel` when submitted; `renderJobTracking.ts`). After a full page reload, active server jobs are restored from `localStorage` (`persistedRenderJobs.ts`) and from `GET /api/jobs/active`, then polling resumes in `resumePersistedRenderJobs.ts` (header bell shows progress again; finished-while-away jobs appear as ready downloads).
+`App.vue`: left sidebar (desktop). The logo, **Video's Factory** name, and header page title link to the dashboard. Header also has **notifications** (bell, left of renderer status), renderer status (`GET /api/health`), **New project** on Shorts, Screensaver, Thumbnail Studio, Image Upscaler, and Audio Looper (`AppHeader.vue`, `AppNotifications.vue`), `router-view` with a short page fade/slide (`Transition` name `page`), global toasts (`usePlatformStore`). The active sidebar/mobile nav item uses `.nav-link--active` (one-shot brand pulse). Dashboard cards stagger in with `.dash-enter`. Motion lives in `client/src/style.css` and respects `prefers-reduced-motion`. Finished Shorts, Screensaver, and Audio Looper renders are listed in the header notification panel (`renderNotifications.ts`, `platform.ts`). In-progress rows have **Cancel** (per export: client abort + server `POST /api/jobs/:id/cancel` when submitted; `renderJobTracking.ts`). After a full page reload, active server jobs are restored from `localStorage` (`persistedRenderJobs.ts`) and from `GET /api/jobs/active`, then polling resumes in `resumePersistedRenderJobs.ts` (header bell shows progress again; finished-while-away jobs appear as ready downloads).
 
-- Routes: `/` dashboard, `/ranking-videos`, `/screensaver`, `/thumbnail-studio`, `/image-upscaler`, `/audio-looper`. `/frame-screensaver` redirects to `/screensaver`. SPA fallback in production. Dashboard cards read `description` from `navItems` in `client/src/app/navigation.ts`.
+- Routes: `/` dashboard, `/shorts`, `/screensaver`, `/thumbnails`, `/upscale`, `/looper` (one-word paths matching the sidebar labels). Legacy `/ranking-videos`, `/frame-screensaver`, `/thumbs`, `/thumbnail-studio`, `/image-upscaler`, and `/audio-looper` redirect. SPA fallback in production. Dashboard cards read `description` from `navItems` in `client/src/app/navigation.ts`. Sidebar label for the thumbnail app is **Thumbnails**.
 - Mobile: hamburger opens left drawer. Desktop navigation is a compact icon rail (`AppSidebar.vue`). Shorts uses Clips / Preview / Edit tabs below `xl`, and the editor inspector switches Clip, Look, and Sound. Screensaver and the other editors keep their own workspace panels.
 - Surfaces, buttons, fields, dialogs, and toasts use the tokens and classes in `client/src/style.css`. Confirmations that replace an open picture use `AppDialog` (Escape and the backdrop call the existing keep/cancel action). Export buttons share `AppExportAction`; each app still calls its own store. Shorts, Screensaver, and Audio Looper put status + export under the preview with `AppStudioExportBar`.
 
@@ -87,7 +87,7 @@ Stack: Vue 3, **vue-router**, Pinia, Tailwind 4, Lucide. Client aliases `@shared
 
 `RankingVideosView.vue`: optional mobile tabs, editor grid. The center column is preview stage plus a `studio-panel` under it (clip/export status, Export MP4), same pattern as Screensaver and Audio Looper. New project lives in the platform header.
 
-- `xl` and up: clips `300px`, preview flex, style `360px`. The right panel is titled Settings and switches Clip, Style, and Sound. The selected clip panel sits in that column.
+- `xl` and up: clips `300px`, preview flex, style `360px`. The right panel is titled Settings and switches Clip, Style, Output, and Sound. Video settings (resolution, fps, encoder, scaling, transition) live under Output; Style keeps presets, colors, title, and ranking. The selected clip panel sits in that column.
 - Space toggles play on the ranking route only (not in inputs).
 - Hydration overlay until ranking `hydrated`.
 - Dev: `window.__vvr` is the ranking Pinia store.
@@ -131,7 +131,7 @@ Defined in `client/src/types.ts`.
 - `PersistedClip` is the clip without objectUrl, upload progress, and error. `playAtEnd` is persisted.
 - `ProjectStyle`: `banner`, `ranking`, `caption`, `video`.
 - Banner: visible (off = no banner, video fills the frame), background, height, font, size, weight, align, lineHeight, outline, shadow.
-- Ranking: **visible** (off = hide rank numbers on the overlay; clip titles can still show), font, size, weight, color, itemSpacing (0–100, treated as a percent of font size), positionX/Y, outline, shadow, opacity, format (`dot | plain | hash | pad` → `1.` / `1` / `#1` / `01`), display (`stack` = all numbers, `page` = current only), pageStyle (`fraction` = `1 / N`, `number` = the format), showPreviousTitles, **titleHideAfter** (seconds; 0 = off — hides only the **current** clip title after that time in preview and export), sort (`list | reverse | title | titleDesc`). Style panel: master toggles stay visible; dependent controls hide when off (**Title** banner, **Ranking** numbers/titles, **Presets** number display, **Video** crossfade — same pattern as **Audio** keep-original). Export with **titleHideAfter** sends a second PNG per clip (`overlay-N-late.png`); FFmpeg switches overlays at that timestamp (`render.ts`).
+- Ranking: **visible** (off = hide rank numbers on the overlay; clip titles can still show), font, size, weight, color, itemSpacing (0–100, treated as a percent of font size), positionX/Y, outline, shadow, opacity, format (`dot | plain | hash | pad` → `1.` / `1` / `#1` / `01`), display (`stack` = all numbers, `page` = current only), pageStyle (`fraction` = `1 / N`, `number` = the format), showPreviousTitles, **titleHideAfter** (seconds; 0 = off — hides only the **current** clip title after that time in preview and export), sort (`list | reverse | title | titleDesc`). Style / Output panels: master toggles stay visible; dependent controls hide when off (**Title** banner, **Ranking** numbers/titles, **Presets** number display, **Video** crossfade under Output — same pattern as **Audio** keep-original). Export with **titleHideAfter** sends a second PNG per clip (`overlay-N-late.png`); FFmpeg switches overlays at that timestamp (`render.ts`).
 - Caption styles the clip title drawn beside the rank number. `caption.bottom` is stored and scaled on resolution change. The canvas does not read it.
 - Video: width, height, fps, scaleMode (`crop | fit | blur`), backgroundColor, transition (`cut | fade`), fadeDuration, keepAudio, normalize, originalVolume, musicVolume (0–1), encoder (`auto` default, same choices as Screensaver).
 - Presets: `classic | tier | minimal | custom`. Definitions and default video (1080×1920, 30 fps, crop, cut, fade 0.35, keep audio, normalize, music 0.35) are in `client/src/lib/presets.ts`. Fonts: Oswald, Anton, Bebas Neue, Montserrat, Inter.
@@ -291,7 +291,8 @@ Sweep every 10 minutes: outputs older than 2 hours, jobs and incoming older than
 | Task | Open |
 | --- | --- |
 | Layout, tabs, header, toasts, render-ready notifications | `client/src/App.vue`, `client/src/style.css`, `client/src/components/layout/AppNotifications.vue`, `client/src/lib/renderNotifications.ts`, `docs/ui-design-system.md` |
-| Shared dialogs, mobile tabs, export button, studio export bar, empty state, panels | `client/src/components/ui/` |
+| Shared dialogs, mobile tabs, settings tabs, export button, studio export bar, empty state, panels | `client/src/components/ui/` |
+| Settings accordion expand/collapse | `client/src/components/SettingsAccordion.vue`, `client/src/style.css` |
 | Shared file drop / browse upload | `client/src/components/FileDropZone.vue` |
 | Create Thumbnail + link toggle | `client/src/components/CreateThumbnailAction.vue` (Screensaver) |
 | Shared audio upload + advanced sliders | `client/src/components/audio/` (`AudioFileField.vue`, `AdvancedAudioControls.vue`, `SourceClipAudioControls.vue`) |
@@ -434,6 +435,13 @@ Verify slack: `max(0.25s, min(1.5s, 1% of target))`. Source Preview and Loop Pla
 
 ## Changelog
 
+- 2026-11-08 — Thumbnail app menu label is Thumbnails; route is `/thumbnails` (`navigation.ts`, `router.ts`, `AppSidebar.vue`).
+- 2026-11-08 — App routes are one-word paths matching the sidebar labels: `/shorts`, `/screensaver`, `/thumbnails`, `/upscale`, `/looper` (`router.ts`, `navigation.ts`, `renderNotifications.ts`, thumbnail return paths).
+- 2026-11-08 — Shorts Settings add an Output tab for Video settings (resolution, fps, encoder, scaling, transition); Style no longer includes Video (`RankingVideosView.vue`, `StylePanel.vue`).
+- 2026-11-08 — Screensaver Enable subscribe animation toggle uses `.settings-reveal` (`ScreensaverSettingsPanel.vue`).
+- 2026-11-08 — Thumbnail Show badge toggle expands/collapses controls with `.settings-reveal` (`ThumbnailControls.vue`, `style.css`).
+- 2026-11-08 — Settings motion: animated accordions, shared `AppSettingsTabs`, pane transitions on Shorts/Screensaver/Looper/Thumbnail (`SettingsAccordion.vue`, `AppSettingsTabs.vue`, settings panels, `style.css`).
+- 2026-11-08 — Shell motion: route page transition, active-nav pulse, dashboard stagger, drawer/toast/button transitions (`style.css`, `App.vue`, `AppSidebar.vue`, `DashboardView.vue`, `MobileNavDrawer.vue`, `docs/ui-design-system.md`).
 - 2026-11-08 — Remove Create Thumbnail from Shorts (`RankingVideosView.vue`, `CreateThumbnailButton.vue`, `createThumbnail.ts`).
 - 2026-11-08 — Shared Create Thumbnail + Link control for Shorts and Screensaver (`CreateThumbnailAction.vue`, `CreateThumbnailButton.vue`, `FrameScreensaverView.vue`).
 - 2026-11-08 — Shared `AppStudioExportBar` under the preview for Shorts, Screensaver, and Audio Looper (`AppStudioExportBar.vue`, `RankingVideosView.vue`, `FrameScreensaverView.vue`, `AudioLooperView.vue`).
