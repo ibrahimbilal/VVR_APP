@@ -40,6 +40,8 @@ Reuse these instead of copying color and radius values:
 - `.dash-enter` / `.dash-enter-delay-*` — dashboard card and hero entrance.
 - `.page-enter-*` / `.page-leave-*` — `RouterView` transition in `App.vue`.
 - `.drawer-scrim-enter` / `.drawer-panel-enter` — mobile nav open.
+- `.notif-panel-enter` — header notification panel open.
+- `.notif-item-*` — notification row enter/leave/move (`TransitionGroup name="notif-item"`); leave is fade-left with dark red background.
 - `.settings-accordion__*` — expand/collapse used by `SettingsAccordion`.
 - `.settings-reveal` / `.settings-reveal__inner` — toggle-driven expand/collapse (Thumbnail Show badge, Screensaver Enable subscribe animation).
 - `.settings-tab` / `.settings-tab--active` — settings and mobile tab buttons.

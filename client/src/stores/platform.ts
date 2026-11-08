@@ -97,7 +97,9 @@ export const usePlatformStore = defineStore('platform', () => {
   }
 
   function cancelActiveRenderJob(trackId: string): void {
-    cancelTrackedRender(trackId)
+    if (!cancelTrackedRender(trackId)) {
+      removeActiveRenderJob(trackId)
+    }
   }
 
   function addRenderReadyNotification(input: {

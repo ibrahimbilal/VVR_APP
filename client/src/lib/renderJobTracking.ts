@@ -18,13 +18,14 @@ export function unregisterRenderCancel(trackId: string): void {
   cancelRegistry.delete(trackId)
 }
 
-/** Cancel one tracked export (client abort + server job when known). */
-export function cancelTrackedRender(trackId: string): void {
+/** Cancel one tracked export (client abort + server job when known). Returns false if the id was not registered. */
+export function cancelTrackedRender(trackId: string): boolean {
   const entry = cancelRegistry.get(trackId)
-  if (!entry) return
+  if (!entry) return false
   const serverId = entry.getServerJobId()
   if (serverId) void cancelJob(serverId)
   entry.abort()
+  return true
 }
 
 export function beginTrackedRender(app: RenderAppId, projectName: string): string {

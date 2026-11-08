@@ -446,6 +446,58 @@ button:disabled {
   animation: vf-drawer-in var(--duration-base) var(--ease-out-soft) both;
 }
 
+@keyframes vf-notif-panel-in {
+  from {
+    opacity: 0;
+    transform: translateY(-6px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.notif-panel-enter {
+  transform-origin: top right;
+  animation: vf-notif-panel-in var(--duration-base) var(--ease-out-soft) both;
+}
+
+.notif-item-list {
+  display: flex;
+  flex-direction: column;
+  overflow-x: hidden;
+}
+
+.notif-item-enter-active {
+  transition:
+    opacity var(--duration-base) var(--ease-out-soft),
+    transform var(--duration-base) var(--ease-out-soft);
+}
+
+.notif-item-leave-active {
+  overflow: hidden;
+  pointer-events: none;
+  background-color: #3a1215 !important;
+  transition:
+    opacity 550ms var(--ease-out-soft),
+    transform 550ms var(--ease-out-soft),
+    background-color 180ms ease;
+}
+
+.notif-item-enter-from {
+  opacity: 0;
+  transform: translateX(12px);
+}
+
+.notif-item-leave-to {
+  opacity: 0;
+  transform: translateX(-100%);
+}
+
+.notif-item-move {
+  transition: transform 550ms var(--ease-out-soft);
+}
+
 .settings-accordion__chevron {
   transition: transform var(--duration-base) var(--ease-out-soft);
 }
@@ -541,6 +593,9 @@ button:disabled {
   .page-leave-active,
   .settings-pane-enter-active,
   .settings-pane-leave-active,
+  .notif-item-enter-active,
+  .notif-item-leave-active,
+  .notif-item-move,
   .btn,
   .nav-link,
   .toast,
@@ -556,9 +611,15 @@ button:disabled {
   .page-enter-from,
   .page-leave-to,
   .settings-pane-enter-from,
-  .settings-pane-leave-to {
+  .settings-pane-leave-to,
+  .notif-item-enter-from,
+  .notif-item-leave-to {
     opacity: 1;
     transform: none;
+  }
+
+  .notif-item-leave-active {
+    background-color: transparent !important;
   }
 
   .settings-accordion__collapse,
@@ -586,6 +647,7 @@ button:disabled {
   .dash-enter,
   .drawer-scrim-enter,
   .drawer-panel-enter,
+  .notif-panel-enter,
   .settings-tab--active {
     animation: none !important;
   }

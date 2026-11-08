@@ -12,6 +12,24 @@ const router = useRouter()
 const open = ref(false)
 const root = ref<HTMLElement | null>(null)
 const cancellingIds = ref<string[]>([])
+const leavingJobCount = ref(0)
+const leavingReadyCount = ref(0)
+
+function onJobLeaveStart(): void {
+  leavingJobCount.value += 1
+}
+
+function onJobLeaveEnd(): void {
+  leavingJobCount.value = Math.max(0, leavingJobCount.value - 1)
+}
+
+function onReadyLeaveStart(): void {
+  leavingReadyCount.value += 1
+}
+
+function onReadyLeaveEnd(): void {
+  leavingReadyCount.value = Math.max(0, leavingReadyCount.value - 1)
+}
 
 const operationCount = computed(() => platform.notificationOperationCount)
 const ringProgress = computed(() => platform.notificationRingProgress)
@@ -110,7 +128,7 @@ onBeforeUnmount(() => document.removeEventListener('pointerdown', onDocumentPoin
 
     <div
       v-if="open"
-      class="absolute right-0 top-[calc(100%+0.35rem)] z-50 flex w-[min(20rem,calc(100vw-2rem))] flex-col overflow-hidden rounded-lg border border-zinc-800 bg-elevated shadow-xl"
+      class="notif-panel-enter absolute right-0 top-[calc(100%+0.35rem)] z-50 flex w-[min(20rem,calc(100vw-2rem))] flex-col overflow-hidden rounded-lg border border-zinc-800 bg-elevated shadow-xl"
       role="dialog"
       aria-label="Notifications"
     >
@@ -121,17 +139,36 @@ onBeforeUnmount(() => document.removeEventListener('pointerdown', onDocumentPoin
         </button>
       </div>
 
-      <div
-        v-if="platform.activeRenderJobs.length === 0 && platform.renderNotifications.length === 0"
-        class="px-3 py-8 text-center text-sm text-zinc-500"
-      >
-        No notifications yet. Renders in progress and finished exports appear here.
-      </div>
+      <div class="relative max-h-80 overflow-y-auto">
+        <div
+          v-if="
+            platform.activeRenderJobs.length === 0 &&
+            platform.renderNotifications.length === 0 &&
+            leavingJobCount === 0 &&
+            leavingReadyCount === 0
+          "
+          class="px-3 py-8 text-center text-sm text-zinc-500"
+        >
+          No notifications yet. Renders in progress and finished exports appear here.
+        </div>
 
-      <div v-else class="max-h-80 overflow-y-auto">
-        <section v-if="platform.activeRenderJobs.length > 0" class="border-b border-zinc-800/80">
-          <p class="px-3 pb-1 pt-2.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-zinc-500">Rendering</p>
-          <ul>
+        <section
+          class="border-b border-zinc-800/80"
+          :class="{ hidden: platform.activeRenderJobs.length === 0 && leavingJobCount === 0 }"
+        >
+          <p
+            v-if="platform.activeRenderJobs.length > 0"
+            class="px-3 pb-1 pt-2.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-zinc-500"
+          >
+            Rendering
+          </p>
+          <TransitionGroup
+            name="notif-item"
+            tag="ul"
+            class="notif-item-list"
+            @before-leave="onJobLeaveStart"
+            @after-leave="onJobLeaveEnd"
+          >
             <li
               v-for="job in platform.activeRenderJobs"
               :key="job.id"
@@ -170,12 +207,23 @@ onBeforeUnmount(() => document.removeEventListener('pointerdown', onDocumentPoin
                 </button>
               </div>
             </li>
-          </ul>
+          </TransitionGroup>
         </section>
 
-        <section v-if="platform.renderNotifications.length > 0">
-          <p class="px-3 pb-1 pt-2.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-zinc-500">Ready</p>
-          <ul>
+        <section :class="{ hidden: platform.renderNotifications.length === 0 && leavingReadyCount === 0 }">
+          <p
+            v-if="platform.renderNotifications.length > 0"
+            class="px-3 pb-1 pt-2.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-zinc-500"
+          >
+            Ready
+          </p>
+          <TransitionGroup
+            name="notif-item"
+            tag="ul"
+            class="notif-item-list"
+            @before-leave="onReadyLeaveStart"
+            @after-leave="onReadyLeaveEnd"
+          >
             <li
               v-for="item in platform.renderNotifications"
               :key="item.id"
@@ -205,7 +253,7 @@ onBeforeUnmount(() => document.removeEventListener('pointerdown', onDocumentPoin
                 </button>
               </div>
             </li>
-          </ul>
+          </TransitionGroup>
         </section>
       </div>
     </div>
