@@ -1,11 +1,16 @@
-import { randomUUID } from 'node:crypto'
+import { createHash, randomUUID } from 'node:crypto'
+import { createReadStream } from 'node:fs'
 import { createWriteStream } from 'node:fs'
 import { mkdir, readdir, rename, rm, stat, statfs } from 'node:fs/promises'
 import path from 'node:path'
 import type { Writable } from 'node:stream'
 import {
   limitsFromEnv,
+  resolveEffectiveScale,
+  resolveExportDimensions,
+  serializeUpscaleParamsForHash,
   uniqueOutputName,
+  type ExportStageStatus,
   type ImageUpscaleEngine,
   type OutputFormat,
   type PublicUpscaleItem,
@@ -15,6 +20,7 @@ import {
   type UpscaleJobStatus,
   type UpscaleLimits,
   type UpscaleOptions,
+  type UpscaleStageStatus,
   type UpscalerCapabilities,
 } from '../../shared/imageUpscaler'
 import { jobIdsInUse } from './jobs'
@@ -22,6 +28,7 @@ import {
   createLanczosEngine,
   inspectImage,
   publicError,
+  runExportStage,
   UpscaleError,
   verifyOutputFile,
   writeComparisonPreview,
@@ -32,6 +39,7 @@ interface ItemRecord {
   id: string
   name: string
   inputPath: string
+  intermediatePath: string | null
   outputPath: string | null
   previewPath: string | null
   outputName: string | null
@@ -39,12 +47,23 @@ interface ItemRecord {
   error: string | null
   warning: string | null
   outputBytes: number | null
+  outputRevision: number | null
   inputWidth: number | null
   inputHeight: number | null
+  intermediateWidth: number | null
+  intermediateHeight: number | null
+  effectiveScale: number | null
   width: number | null
   height: number | null
   format: OutputFormat | null
   skippedResize: boolean
+  upscaleStage: UpscaleStageStatus
+  exportStage: ExportStageStatus
+  intermediateReused: boolean
+  aiRan: boolean
+  contentSha256: string | null
+  upscaleHash: string | null
+  exportOnly: boolean
 }
 
 interface JobRecord {
@@ -72,6 +91,7 @@ export interface UpscaleEngineRegistry {
 export interface UpscalerRuntime {
   limits: UpscaleLimits
   submit(files: SubmittedFile[], options: UpscaleOptions, warnings?: string[]): Promise<PublicUpscaleJob>
+  reexportExportOnly(id: string, options: UpscaleOptions, warnings?: string[]): Promise<PublicUpscaleJob>
   get(id: string): PublicUpscaleJob | null
   requestCancel(id: string): PublicUpscaleJob | null
   remove(id: string): Promise<boolean>
@@ -101,11 +121,29 @@ export function createUpscalerRuntime(
   let idleWaiters: Array<() => void> = []
   let renderWait: ReturnType<typeof setTimeout> | null = null
 
+  async function tryReuseIntermediate(intermediatePath: string, item: ItemRecord): Promise<boolean> {
+    try {
+      const info = await stat(intermediatePath)
+      if (!info.isFile()) return false
+      const meta = await inspectImage(intermediatePath, limits, {
+        maxEdge: limits.maxIntermediateEdge,
+        maxPixels: limits.maxIntermediatePixels,
+      })
+      item.intermediateWidth = meta.width
+      item.intermediateHeight = meta.height
+      item.aiRan = false
+      return true
+    } catch {
+      return false
+    }
+  }
+
   function view(job: JobRecord): PublicUpscaleJob {
     return {
       id: job.id,
       status: job.status,
       engine: job.options.engine,
+      options: job.options,
       createdAt: job.createdAt,
       items: job.items.map(publicItem),
     }
@@ -160,7 +198,6 @@ export function createUpscalerRuntime(
     if (!job || !item) return
     if (job.cancelRequested || item.status === 'cancelled') {
       item.status = 'cancelled'
-      await rm(item.inputPath, { force: true }).catch(() => undefined)
       return
     }
     item.status = 'processing'
@@ -169,23 +206,78 @@ export function createUpscalerRuntime(
     const outputPath = path.join(job.dir, 'out', `${item.id}.${ext}`)
     const previewPath = path.join(job.dir, 'out', `${item.id}.preview.webp`)
     const signal = activeAborts.get(job.id)?.signal
+    const midDir = path.join(job.dir, 'mid')
     try {
-      const info = await inspectImage(item.inputPath, limits)
-      item.inputWidth = info.width
-      item.inputHeight = info.height
-      if (job.options.format === 'jpeg' && info.hasAlpha) {
-        item.warning = appendWarning(item.warning, 'JPEG cannot store transparency. Transparent pixels were flattened onto the background color.')
+      if (!item.inputWidth || !item.inputHeight) {
+        const info = await inspectImage(item.inputPath, limits)
+        item.inputWidth = info.width
+        item.inputHeight = info.height
+        if (job.options.format === 'jpeg' && info.hasAlpha) {
+          item.warning = appendWarning(item.warning, 'JPEG cannot store transparency. Transparent pixels were flattened onto the background color.')
+        }
       }
+      const srcW = item.inputWidth ?? 0
+      const srcH = item.inputHeight ?? 0
       for (const warning of job.warnings) item.warning = appendWarning(item.warning, warning)
-      const selected = engineFor(job)
-      const result = await selected.process(item.inputPath, outputPath, job.options, limits, { signal })
+      if (!item.contentSha256) item.contentSha256 = await sha256File(item.inputPath)
+      if (!item.exportOnly) {
+        const { effectiveScale, autoReason } = resolveEffectiveScale(job.options, srcW, srcH, limits)
+        item.effectiveScale = effectiveScale
+        if (autoReason) item.warning = appendWarning(item.warning, autoReason)
+        item.upscaleHash = hashUpscale(job.options.engine, job.options.scaleFactor, effectiveScale, item.contentSha256)
+        const sharedIntermediate = path.join(midDir, `${item.upscaleHash}.png`)
+        const reused = await tryReuseIntermediate(sharedIntermediate, item)
+        if (reused) {
+          item.intermediatePath = sharedIntermediate
+          item.upscaleStage = 'reused'
+          item.intermediateReused = true
+        } else {
+          item.upscaleStage = 'processing'
+          item.intermediateReused = false
+          await mkdir(midDir, { recursive: true })
+          const selected = engineFor(job)
+          const stage = await selected.runUpscaleStage(item.inputPath, sharedIntermediate, job.options, effectiveScale, limits, { signal })
+          if (job.cancelRequested || signal?.aborted) {
+            item.status = 'cancelled'
+            item.upscaleStage = 'failed'
+            await rm(sharedIntermediate, { force: true }).catch(() => undefined)
+            return
+          }
+          if (stage.note) item.warning = appendWarning(item.warning, stage.note)
+          item.intermediatePath = sharedIntermediate
+          item.intermediateWidth = stage.width
+          item.intermediateHeight = stage.height
+          item.aiRan = stage.aiRan
+          item.upscaleStage = stage.skippedUpscale ? 'skipped' : 'completed'
+        }
+      } else if (!item.intermediatePath) {
+        throw new UpscaleError('The upscaled intermediate is missing. Run a full upscale first.')
+      }
+
+      item.exportStage = 'processing'
+      await rm(outputPath, { force: true }).catch(() => undefined)
+      await rm(previewPath, { force: true }).catch(() => undefined)
+      const interW = item.intermediateWidth ?? srcW
+      const interH = item.intermediateHeight ?? srcH
+      const exportDims = resolveExportDimensions(srcW, srcH, interW, interH, job.options)
+      const result = await runExportStage(
+        item.intermediatePath!,
+        outputPath,
+        job.options,
+        srcW,
+        srcH,
+        interW,
+        interH,
+        limits,
+      )
       if (job.cancelRequested || signal?.aborted) {
         item.status = 'cancelled'
+        item.exportStage = 'failed'
         await rm(outputPath, { force: true }).catch(() => undefined)
         return
       }
-      if (selected.id !== 'lanczos3') await verifyOutputFile(outputPath, job.options)
-      if (result.note) item.warning = appendWarning(item.warning, result.note)
+      const exportOptions = { ...job.options, width: exportDims.width, height: exportDims.height }
+      await verifyOutputFile(outputPath, exportOptions)
       try {
         const preview = await writeComparisonPreview(outputPath, previewPath, limits.previewMaxEdge)
         if (preview.width > result.width || preview.height > result.height) {
@@ -198,19 +290,23 @@ export function createUpscalerRuntime(
       }
       item.outputPath = outputPath
       item.outputBytes = result.bytes
+      item.outputRevision = (item.outputRevision ?? 0) + 1
       item.width = result.width
       item.height = result.height
       item.format = result.format
       item.skippedResize = result.skippedResize
+      item.outputName = allocateOutputName(job, item, job.options, result.width, result.height)
+      item.exportStage = 'completed'
       item.status = 'completed'
+      item.exportOnly = false
     } catch (error) {
       const aborted = job.cancelRequested || Boolean(signal?.aborted)
       item.status = aborted ? 'cancelled' : 'failed'
       item.error = item.status === 'failed' ? publicError(error, 'This image could not be processed.') : null
+      if (item.upscaleStage === 'processing') item.upscaleStage = 'failed'
+      if (item.exportStage === 'processing') item.exportStage = 'failed'
       await rm(outputPath, { force: true }).catch(() => undefined)
       await rm(previewPath, { force: true }).catch(() => undefined)
-    } finally {
-      await rm(item.inputPath, { force: true }).catch(() => undefined)
     }
   }
 
@@ -232,7 +328,7 @@ export function createUpscalerRuntime(
       const dir = path.join(rootDir, id)
       await mkdir(path.join(dir, 'in'), { recursive: true })
       await mkdir(path.join(dir, 'out'), { recursive: true })
-      const used = new Set<string>()
+      await mkdir(path.join(dir, 'mid'), { recursive: true })
       const items: ItemRecord[] = []
       try {
         for (const file of files) {
@@ -248,19 +344,31 @@ export function createUpscalerRuntime(
             id: itemId,
             name: display,
             inputPath,
+            intermediatePath: null,
             outputPath: null,
             previewPath: null,
-            outputName: uniqueOutputName(display, options, used),
+            outputName: null,
             status: 'pending',
             error: null,
             warning: null,
             outputBytes: null,
+            outputRevision: null,
             inputWidth: null,
             inputHeight: null,
+            intermediateWidth: null,
+            intermediateHeight: null,
+            effectiveScale: null,
             width: null,
             height: null,
             format: null,
             skippedResize: false,
+            upscaleStage: 'pending',
+            exportStage: 'pending',
+            intermediateReused: false,
+            aiRan: false,
+            contentSha256: null,
+            upscaleHash: null,
+            exportOnly: false,
           })
         }
       } catch (error) {
@@ -280,6 +388,37 @@ export function createUpscalerRuntime(
       jobs.set(id, job)
       activeAborts.set(id, new AbortController())
       for (const item of items) queue.push({ jobId: id, itemId: item.id })
+      pump()
+      return view(job)
+    },
+    async reexportExportOnly(id, options, warnings = []) {
+      const job = jobs.get(id)
+      if (!job) throw new UpscaleError('Unknown upscale job.')
+      if (job.items.some((item) => item.status === 'processing')) {
+        throw new UpscaleError('Wait until the current upscale finishes before re-exporting.')
+      }
+      job.options = options
+      job.warnings = warnings
+      job.cancelRequested = false
+      activeAborts.set(id, new AbortController())
+      for (const item of job.items) {
+        if (!item.intermediatePath) continue
+        item.status = 'pending'
+        item.error = null
+        item.exportStage = 'pending'
+        item.exportOnly = true
+        item.outputPath = null
+        item.previewPath = null
+        item.outputBytes = null
+        item.outputRevision = null
+        item.width = null
+        item.height = null
+        item.format = null
+        item.skippedResize = false
+        item.outputName = null
+        queue.push({ jobId: id, itemId: item.id })
+      }
+      job.status = 'queued'
       pump()
       return view(job)
     },
@@ -403,13 +542,54 @@ function publicItem(item: ItemRecord): PublicUpscaleItem {
     warning: item.warning,
     outputName: item.status === 'completed' ? item.outputName : null,
     outputBytes: item.outputBytes,
+    outputRevision: item.outputRevision,
     inputWidth: item.inputWidth,
     inputHeight: item.inputHeight,
     width: item.width,
     height: item.height,
     format: item.format,
     skippedResize: item.skippedResize,
+    intermediateWidth: item.intermediateWidth,
+    intermediateHeight: item.intermediateHeight,
+    effectiveScale: item.effectiveScale,
+    upscaleStage: item.upscaleStage,
+    exportStage: item.exportStage,
+    intermediateReused: item.intermediateReused,
+    aiRan: item.aiRan,
   }
+}
+
+function allocateOutputName(
+  job: JobRecord,
+  item: ItemRecord,
+  options: UpscaleOptions,
+  exportWidth: number,
+  exportHeight: number,
+): string {
+  const used = new Set<string>()
+  for (const other of job.items) {
+    if (other.id === item.id) continue
+    if (other.outputName) used.add(other.outputName.toLowerCase())
+  }
+  return uniqueOutputName(item.name, options, used, exportWidth, exportHeight)
+}
+
+function hashUpscale(engine: UpscaleEngineId, scaleFactor: UpscaleOptions['scaleFactor'], effectiveScale: number, contentSha256: string): string {
+  return createHash('sha256')
+    .update(contentSha256)
+    .update(serializeUpscaleParamsForHash(engine, scaleFactor, effectiveScale))
+    .digest('hex')
+    .slice(0, 32)
+}
+
+async function sha256File(filePath: string): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const hash = createHash('sha256')
+    createReadStream(filePath)
+      .on('data', (chunk) => hash.update(chunk))
+      .on('end', () => resolve(hash.digest('hex')))
+      .on('error', reject)
+  })
 }
 
 function appendWarning(current: string | null, next: string): string {

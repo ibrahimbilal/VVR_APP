@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
-import { itemInlineUrl, itemPreviewUrl } from '../lib/upscalerApi'
+import { itemInlineUrl, itemPreviewUrl, upscaleOutputCacheStamp } from '../lib/upscalerApi'
 import { useImageUpscalerStore } from '../stores/imageUpscaler'
 
 const store = useImageUpscalerStore()
@@ -28,13 +28,21 @@ watch(
 const fullUrl = computed(() => {
   const item = store.selected
   if (!showFull.value || !item || item.status !== 'completed' || !store.jobId || !item.serverItemId) return ''
-  return itemInlineUrl(store.jobId, item.serverItemId)
+  return itemInlineUrl(store.jobId, item.serverItemId, upscaleOutputCacheStamp(item.outputRevision, item.outputBytes))
+})
+
+const afterKey = computed(() => {
+  const item = store.selected
+  if (!item) return 'after-empty'
+  return `after-${store.outputGeneration}-${item.outputRevision ?? 0}-${item.outputBytes ?? 0}`
 })
 
 const afterUrl = computed(() => {
   const item = store.selected
   if (!item || item.status !== 'completed' || !store.jobId || !item.serverItemId) return ''
-  return itemPreviewUrl(store.jobId, item.serverItemId)
+  const stamp = upscaleOutputCacheStamp(item.outputRevision, item.outputBytes)
+  const base = itemPreviewUrl(store.jobId, item.serverItemId, stamp)
+  return `${base}${base.includes('?') ? '&' : '?'}g=${store.outputGeneration}`
 })
 
 const layerStyle = computed(() => ({
@@ -171,6 +179,7 @@ onUnmounted(() => {
       <div class="absolute inset-0 bg-black select-none" :style="layerStyle">
         <img :src="store.selected?.previewUrl" alt="Before" class="pointer-events-none absolute inset-0 h-full w-full object-contain" />
         <img
+          :key="afterKey"
           :src="afterUrl"
           alt="After"
           class="pointer-events-none absolute inset-0 h-full w-full object-contain"
@@ -214,7 +223,7 @@ onUnmounted(() => {
       <p class="sticky top-0 z-10 bg-black/80 px-3 py-2 text-[11px] leading-relaxed text-zinc-300">
         Full-resolution output at 100%. This is the processed file, not the comparison preview.
       </p>
-      <img :src="fullUrl" alt="Full resolution output" class="max-w-none" />
+      <img :key="afterKey" :src="fullUrl" alt="Full resolution output" class="max-w-none" />
     </div>
   </div>
 </template>

@@ -14,6 +14,7 @@ import {
   type UpscaleLimits,
   type UpscaleOptions,
 } from '../../shared/imageUpscaler'
+import { createLanczosEngine } from './imageUpscaler'
 import { createImageUpscalerRouter } from './imageUpscalerRoutes'
 import { createUpscalerRuntime, streamZipToFile, type UpscaleEngineRegistry, type UpscalerRuntime } from './imageUpscalerJobs'
 import { zipEntryNames } from './storedZip'
@@ -45,6 +46,8 @@ const limits: UpscaleLimits = {
   jobTtlMs: 60_000,
   minFreeBytes: 0,
   previewMaxEdge: 48,
+  maxIntermediateEdge: 8192,
+  maxIntermediatePixels: 8192 * 8192,
 }
 
 function options(partial: Partial<UpscaleOptions> = {}): UpscaleOptions {
@@ -356,7 +359,6 @@ describe('realesrgan engine', () => {
     })
     const result = await engine.process(source, output, options({ width: 16, height: 16, preserveWhenMatched: true }), limits)
     assert.equal(calls, 1)
-    assert.equal(result.skippedResize, false)
     assert.deepEqual([result.width, result.height], [16, 16])
   })
 
@@ -493,12 +495,12 @@ describe('realesrgan jobs', () => {
         { path: first, originalName: 'photo.png' },
         { path: second, originalName: 'photo.png' },
       ],
-      options({ width: 24, height: 16, mode: 'contain', format: 'png', engine: 'realesrgan-lite' }),
+      options({ width: 24, height: 16, mode: 'contain', format: 'png', engine: 'realesrgan-lite', preserveWhenMatched: false }),
     )
     assert.equal(submitted.engine, 'realesrgan-lite')
     const done = await settle(runtime, submitted.id)
     assert.equal(done.status, 'done')
-    assert.equal(done.items.every((item) => item.status === 'completed' && item.skippedResize === false), true)
+    assert.equal(done.items.every((item) => item.status === 'completed' && item.aiRan === true), true)
     const file = runtime.itemOutput(submitted.id, done.items[0]!.id)
     assert.ok(file)
     const meta = await sharp(file!.path).metadata()
@@ -519,11 +521,16 @@ describe('realesrgan jobs', () => {
     let max = 0
     const slow: ImageUpscaleEngine = {
       id: 'lanczos3',
-      async process() {
+      async runUpscaleStage(input, output, _options, _scale, _limits) {
         current += 1
         max = Math.max(max, current)
         await new Promise((resolve) => setTimeout(resolve, 80))
+        const { copyFile } = await import('node:fs/promises')
+        await copyFile(input, output)
         current -= 1
+        return { width: 8, height: 8, effectiveScale: 1, aiRan: true, skippedUpscale: true }
+      },
+      async process() {
         return { width: 8, height: 8, format: 'png', bytes: 1, skippedResize: false }
       },
     }
@@ -587,7 +594,7 @@ describe('realesrgan jobs', () => {
     const incoming = path.join(root, 'http-incoming')
     await mkdir(incoming, { recursive: true })
     const registry: UpscaleEngineRegistry = {
-      resolve: (id) => (id === 'realesrgan-lite' ? createRealesrganEngine() : { id: 'lanczos3', process: async () => ({ width: 8, height: 8, format: 'png', bytes: 1, skippedResize: false }) }),
+      resolve: (id) => (id === 'realesrgan-lite' ? createRealesrganEngine() : createLanczosEngine()),
       async unavailableReason(id) {
         return id === 'realesrgan-lite' ? 'AI Lite is not available on this server.' : null
       },

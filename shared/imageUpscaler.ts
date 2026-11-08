@@ -5,6 +5,8 @@ export const UPSCALE_ENGINES = ['lanczos3', 'realesrgan-lite'] as const
 export type UpscaleEngineId = (typeof UPSCALE_ENGINES)[number]
 
 export const RESOLUTION_PRESETS = [
+  { id: 'original', label: 'Original Dimensions', tag: 'orig', width: null, height: null },
+  { id: 'upscaled', label: 'Upscaled Dimensions', tag: 'up', width: null, height: null },
   { id: 'fhd', label: 'Full HD', tag: 'FHD', width: 1920, height: 1080 },
   { id: 'qhd', label: '2K / QHD', tag: 'QHD', width: 2560, height: 1440 },
   { id: 'uhd4k', label: '4K UHD', tag: '4K', width: 3840, height: 2160 },
@@ -18,6 +20,9 @@ export type CropPosition = 'center' | 'top' | 'bottom' | 'left' | 'right'
 export type PaddingChoice = 'black' | 'white' | 'custom' | 'transparent'
 export type OutputFormat = 'png' | 'jpeg' | 'webp'
 export type SharpenPreset = 'none' | 'subtle' | 'moderate'
+export type ScaleFactor = 'auto' | 1 | 2 | 3 | 4
+export type UpscaleStageStatus = 'pending' | 'processing' | 'completed' | 'failed' | 'skipped' | 'reused'
+export type ExportStageStatus = 'pending' | 'processing' | 'completed' | 'failed' | 'skipped'
 export type UpscaleItemStatus = 'pending' | 'processing' | 'completed' | 'failed' | 'cancelled'
 export type UpscaleJobStatus = 'queued' | 'running' | 'done' | 'error' | 'cancelled'
 
@@ -33,6 +38,8 @@ export interface UpscaleLimits {
   jobTtlMs: number
   minFreeBytes: number
   previewMaxEdge: number
+  maxIntermediateEdge: number
+  maxIntermediatePixels: number
 }
 
 /** Defaults sized for a shared Hostinger Node process that also runs FFmpeg. */
@@ -48,6 +55,8 @@ export const DEFAULT_UPSCALE_LIMITS: UpscaleLimits = {
   jobTtlMs: 2 * 60 * 60 * 1000,
   minFreeBytes: 512 * 1024 * 1024,
   previewMaxEdge: 1440,
+  maxIntermediateEdge: 8192,
+  maxIntermediatePixels: 8192 * 8192,
 }
 
 export interface UpscaleOptions {
@@ -68,6 +77,17 @@ export interface UpscaleOptions {
    * AI Lite still runs the model in that case, then fits the result to the exact size.
    */
   preserveWhenMatched: boolean
+  /** Uniform upscale factor before export. `auto` picks a scale from the export target. */
+  scaleFactor: ScaleFactor
+}
+
+export interface UpscaleStageResult {
+  width: number
+  height: number
+  effectiveScale: number
+  aiRan: boolean
+  skippedUpscale: boolean
+  note?: string | null
 }
 
 export interface UpscaleResult {
@@ -87,6 +107,15 @@ export interface UpscaleProcessContext {
 /** One image transformation. Lanczos3 is the default. AI Lite is optional. */
 export interface ImageUpscaleEngine {
   readonly id: string
+  runUpscaleStage(
+    inputPath: string,
+    intermediatePath: string,
+    options: UpscaleOptions,
+    effectiveScale: number,
+    limits: UpscaleLimits,
+    context?: UpscaleProcessContext,
+  ): Promise<UpscaleStageResult>
+  /** Combined upscale + export for tests and legacy callers. */
   process(
     inputPath: string,
     outputPath: string,
@@ -132,18 +161,29 @@ export interface PublicUpscaleItem {
   warning: string | null
   outputName: string | null
   outputBytes: number | null
+  /** Increments on every successful export so preview URLs change even when byte size is unchanged. */
+  outputRevision: number | null
   inputWidth: number | null
   inputHeight: number | null
   width: number | null
   height: number | null
   format: OutputFormat | null
   skippedResize: boolean
+  intermediateWidth: number | null
+  intermediateHeight: number | null
+  effectiveScale: number | null
+  upscaleStage: UpscaleStageStatus
+  exportStage: ExportStageStatus
+  intermediateReused: boolean
+  aiRan: boolean
 }
 
 export interface PublicUpscaleJob {
   id: string
   status: UpscaleJobStatus
   engine: UpscaleEngineId
+  /** Options used for the last queued run (upscale + export or re-export only). */
+  options: UpscaleOptions
   items: PublicUpscaleItem[]
   createdAt: number
 }
@@ -178,7 +218,162 @@ export function defaultUpscaleOptions(): UpscaleOptions {
     quality: 90,
     sharpen: 'none',
     preserveWhenMatched: true,
+    scaleFactor: 'auto',
   }
+}
+
+export function resolveExportDimensions(
+  sourceWidth: number,
+  sourceHeight: number,
+  intermediateWidth: number,
+  intermediateHeight: number,
+  options: UpscaleOptions,
+): { width: number; height: number } {
+  if (options.preset === 'original') {
+    return { width: sourceWidth, height: sourceHeight }
+  }
+  if (options.preset === 'upscaled') {
+    if (intermediateWidth > 0 && intermediateHeight > 0) {
+      return { width: intermediateWidth, height: intermediateHeight }
+    }
+    return { width: sourceWidth, height: sourceHeight }
+  }
+  return { width: options.width, height: options.height }
+}
+
+/** Scale-to-cover then crop offsets for export-stage Cover mode (object-fit: cover). */
+export function coverCropRect(
+  sourceWidth: number,
+  sourceHeight: number,
+  targetWidth: number,
+  targetHeight: number,
+  cropPosition: CropPosition,
+): { scaledWidth: number; scaledHeight: number; left: number; top: number } {
+  if (sourceWidth < 1 || sourceHeight < 1) {
+    return { scaledWidth: targetWidth, scaledHeight: targetHeight, left: 0, top: 0 }
+  }
+  const scale = Math.max(targetWidth / sourceWidth, targetHeight / sourceHeight)
+  const scaledWidth = Math.max(targetWidth, Math.round(sourceWidth * scale))
+  const scaledHeight = Math.max(targetHeight, Math.round(sourceHeight * scale))
+  const excessW = scaledWidth - targetWidth
+  const excessH = scaledHeight - targetHeight
+  let left = 0
+  let top = 0
+  if (excessW > 0) {
+    if (cropPosition === 'left') left = 0
+    else if (cropPosition === 'right') left = excessW
+    else left = Math.round(excessW / 2)
+  }
+  if (excessH > 0) {
+    if (cropPosition === 'top') top = 0
+    else if (cropPosition === 'bottom') top = excessH
+    else top = Math.round(excessH / 2)
+  }
+  return { scaledWidth, scaledHeight, left, top }
+}
+
+export function resolveIntermediateDimensions(
+  sourceWidth: number,
+  sourceHeight: number,
+  effectiveScale: number,
+): { width: number; height: number } {
+  const scale = Math.min(4, Math.max(1, effectiveScale))
+  return {
+    width: Math.max(1, Math.round(sourceWidth * scale)),
+    height: Math.max(1, Math.round(sourceHeight * scale)),
+  }
+}
+
+/**
+ * Picks a uniform upscale factor before export.
+ * Cover-style `neededScale` drives the target; Standard skips upscaling when export fits in the source.
+ * AI Lite may step down when the intermediate would exceed server limits.
+ */
+export function selectAutoEffectiveScale(input: {
+  sourceWidth: number
+  sourceHeight: number
+  exportWidth: number
+  exportHeight: number
+  engine: UpscaleEngineId
+  limits: Pick<UpscaleLimits, 'maxIntermediateEdge' | 'maxIntermediatePixels'>
+}): { effectiveScale: number; reason: string } {
+  const { sourceWidth, sourceHeight, exportWidth, exportHeight, engine, limits } = input
+  if (sourceWidth < 1 || sourceHeight < 1) {
+    return { effectiveScale: 1, reason: 'Source dimensions are missing; keeping native resolution.' }
+  }
+  if (engine === 'lanczos3' && exportWidth <= sourceWidth && exportHeight <= sourceHeight) {
+    return {
+      effectiveScale: 1,
+      reason: 'Export fits inside the source; Standard keeps native resolution.',
+    }
+  }
+  const needed = Math.max(exportWidth / sourceWidth, exportHeight / sourceHeight)
+  let effective = Math.min(4, Math.max(1, Math.ceil(needed)))
+  while (effective > 1) {
+    const { width, height } = resolveIntermediateDimensions(sourceWidth, sourceHeight, effective)
+    const edge = Math.max(width, height)
+    const pixels = width * height
+    if (edge <= limits.maxIntermediateEdge && pixels <= limits.maxIntermediatePixels) break
+    effective -= 1
+  }
+  if (effective < Math.ceil(needed)) {
+    return {
+      effectiveScale: effective,
+      reason: `Auto scale reduced to ${effective}× so the intermediate stays within the server limit (${limits.maxIntermediateEdge}px edge).`,
+    }
+  }
+  if (effective === 1 && needed < 1) {
+    return { effectiveScale: 1, reason: 'Export is smaller than the source; no enlargement is needed.' }
+  }
+  return {
+    effectiveScale: effective,
+    reason: `Auto chose ${effective}× to cover the ${exportWidth}×${exportHeight} export box.`,
+  }
+}
+
+export function resolveEffectiveScale(
+  options: UpscaleOptions,
+  sourceWidth: number,
+  sourceHeight: number,
+  limits: UpscaleLimits,
+): { effectiveScale: number; autoReason: string | null } {
+  const exportDims = resolveExportDimensions(sourceWidth, sourceHeight, 0, 0, options)
+  if (options.scaleFactor !== 'auto') {
+    return { effectiveScale: options.scaleFactor, autoReason: null }
+  }
+  const auto = selectAutoEffectiveScale({
+    sourceWidth,
+    sourceHeight,
+    exportWidth: exportDims.width,
+    exportHeight: exportDims.height,
+    engine: options.engine,
+    limits,
+  })
+  return { effectiveScale: auto.effectiveScale, autoReason: auto.reason }
+}
+
+export function serializeUpscaleParamsForHash(
+  engine: UpscaleEngineId,
+  scaleFactor: ScaleFactor,
+  effectiveScale: number,
+): string {
+  return JSON.stringify({ engine, scaleFactor, effectiveScale })
+}
+
+export function serializeExportParamsForHash(options: UpscaleOptions, exportWidth: number, exportHeight: number): string {
+  return JSON.stringify({
+    preset: options.preset,
+    width: exportWidth,
+    height: exportHeight,
+    mode: options.mode,
+    cropPosition: options.cropPosition,
+    padding: options.padding,
+    paddingColor: options.paddingColor,
+    format: options.format,
+    quality: options.quality,
+    sharpen: options.sharpen,
+    preserveWhenMatched: options.preserveWhenMatched,
+  })
 }
 
 export function presetById(id: string): (typeof RESOLUTION_PRESETS)[number] | null {
@@ -188,6 +383,14 @@ export function presetById(id: string): (typeof RESOLUTION_PRESETS)[number] | nu
 export function outputExtension(format: OutputFormat): 'png' | 'jpg' | 'webp' {
   if (format === 'jpeg') return 'jpg'
   return format
+}
+
+/** Maps a sniffed image MIME type to the upscaler output format enum. */
+export function outputFormatFromMime(mime: string): OutputFormat | null {
+  if (mime === 'image/png') return 'png'
+  if (mime === 'image/jpeg') return 'jpeg'
+  if (mime === 'image/webp') return 'webp'
+  return null
 }
 
 export function contentTypeForFormat(format: OutputFormat): string {
@@ -214,16 +417,23 @@ export function aspectLabel(width: number, height: number): string {
   return `${width / divisor}:${height / divisor}`
 }
 
-export function resizeSummary(sourceWidth: number, sourceHeight: number, options: UpscaleOptions): ResizeSummary {
-  const scaleX = sourceWidth > 0 ? options.width / sourceWidth : 0
-  const scaleY = sourceHeight > 0 ? options.height / sourceHeight : 0
+export function resizeSummary(
+  sourceWidth: number,
+  sourceHeight: number,
+  options: UpscaleOptions,
+  intermediateWidth = 0,
+  intermediateHeight = 0,
+): ResizeSummary {
+  const exportDims = resolveExportDimensions(sourceWidth, sourceHeight, intermediateWidth, intermediateHeight, options)
+  const scaleX = sourceWidth > 0 ? exportDims.width / sourceWidth : 0
+  const scaleY = sourceHeight > 0 ? exportDims.height / sourceHeight : 0
   const uniform = Math.abs(scaleX - scaleY) < 0.01
   const scaleLabel = uniform ? `${scaleX.toFixed(2)}×` : `${scaleX.toFixed(2)}× wide, ${scaleY.toFixed(2)}× tall`
   return {
     sourceWidth,
     sourceHeight,
-    targetWidth: options.width,
-    targetHeight: options.height,
+    targetWidth: exportDims.width,
+    targetHeight: exportDims.height,
     sourceAspect: aspectLabel(sourceWidth, sourceHeight),
     targetAspect: aspectLabel(options.width, options.height),
     scaleX,
@@ -231,9 +441,9 @@ export function resizeSummary(sourceWidth: number, sourceHeight: number, options
     scaleLabel,
     warning:
       options.engine === 'realesrgan-lite'
-        ? aiScaleWarning(sourceWidth, sourceHeight, options.width, options.height)
-        : enlargementWarning(sourceWidth, sourceHeight, options.width, options.height),
-    matchesTarget: sourceWidth === options.width && sourceHeight === options.height,
+        ? aiScaleWarning(sourceWidth, sourceHeight, exportDims.width, exportDims.height)
+        : enlargementWarning(sourceWidth, sourceHeight, exportDims.width, exportDims.height),
+    matchesTarget: sourceWidth === exportDims.width && sourceHeight === exportDims.height,
   }
 }
 
@@ -270,12 +480,14 @@ export function uniqueOutputName(
   originalName: string,
   options: UpscaleOptions,
   used: Set<string>,
+  exportWidth: number = options.width,
+  exportHeight: number = options.height,
 ): string {
   const preset = presetById(options.preset)
   const tag = preset?.tag ?? 'custom'
   const stem = sanitizeStem(originalName)
   const ext = outputExtension(options.format)
-  const suffix = `_${tag}_${options.width}x${options.height}`
+  const suffix = `_${tag}_${exportWidth}x${exportHeight}`
   let name = `${stem}${suffix}.${ext}`
   let n = 2
   while (used.has(name.toLowerCase())) {
@@ -297,19 +509,32 @@ export function normalizeOptions(
     if (data.engine !== 'lanczos3' && data.engine !== 'realesrgan-lite') throw new Error('Choose an upscaling engine.')
     engine = data.engine
   }
-  const preset = presetById(typeof data.preset === 'string' ? data.preset : '')
+  let presetId = typeof data.preset === 'string' ? data.preset : ''
+  if (!presetId && data.exportPreset === 'original') presetId = 'upscaled'
+  if (!presetId) presetId = 'uhd4k'
+  const preset = presetById(presetId)
   if (!preset) throw new Error('Choose a resolution preset.')
-  let width = preset.width ?? positiveInt(data.width)
-  let height = preset.height ?? positiveInt(data.height)
+  const dynamicPreset = preset.id === 'original' || preset.id === 'upscaled'
+  let width = dynamicPreset ? positiveInt(data.width) ?? limits.minEdge : preset.width ?? positiveInt(data.width)
+  let height = dynamicPreset ? positiveInt(data.height) ?? limits.minEdge : preset.height ?? positiveInt(data.height)
+  if (preset.id === 'custom' && (!width || !height)) throw new Error('Enter a whole-number width and height.')
+  if (!dynamicPreset && preset.id !== 'custom') {
+    width = preset.width ?? width
+    height = preset.height ?? height
+  }
   if (!width || !height) throw new Error('Enter a whole-number width and height.')
-  if (width < limits.minEdge || height < limits.minEdge) {
-    throw new Error(`Width and height must be at least ${limits.minEdge} pixels.`)
+  if (!dynamicPreset) {
+    if (width < limits.minEdge || height < limits.minEdge) {
+      throw new Error(`Width and height must be at least ${limits.minEdge} pixels.`)
+    }
   }
-  if (width > limits.maxOutputEdge || height > limits.maxOutputEdge) {
-    throw new Error(`Width and height cannot exceed ${limits.maxOutputEdge} pixels.`)
-  }
-  if (width * height > limits.maxOutputPixels) {
-    throw new Error('That output size uses more pixels than this server allows.')
+  if (preset.id !== 'original' && preset.id !== 'upscaled') {
+    if (width > limits.maxOutputEdge || height > limits.maxOutputEdge) {
+      throw new Error(`Width and height cannot exceed ${limits.maxOutputEdge} pixels.`)
+    }
+    if (width * height > limits.maxOutputPixels) {
+      throw new Error('That output size uses more pixels than this server allows.')
+    }
   }
   const mode = data.mode
   if (mode !== 'cover' && mode !== 'contain' && mode !== 'fill') throw new Error('Choose contain, cover, or fill.')
@@ -335,6 +560,13 @@ export function normalizeOptions(
   let quality = Math.round(Number(data.quality))
   if (!Number.isFinite(quality)) quality = 90
   quality = Math.min(100, Math.max(60, quality))
+  let scaleFactor: ScaleFactor = 'auto'
+  if (data.scaleFactor != null && data.scaleFactor !== '') {
+    const rawScale = data.scaleFactor === 'auto' ? 'auto' : Number(data.scaleFactor)
+    if (rawScale === 'auto') scaleFactor = 'auto'
+    else if (rawScale === 1 || rawScale === 2 || rawScale === 3 || rawScale === 4) scaleFactor = rawScale
+    else throw new Error('Choose an upscale factor of auto, 1×, 2×, 3×, or 4×.')
+  }
   const warnings: string[] = []
   let resolvedPadding: PaddingChoice = padding
   if (format === 'jpeg' && padding === 'transparent') {
@@ -355,6 +587,7 @@ export function normalizeOptions(
       quality,
       sharpen,
       preserveWhenMatched: data.preserveWhenMatched !== false,
+      scaleFactor,
     },
     warnings,
   }
@@ -376,6 +609,7 @@ export function limitsFromEnv(env: Record<string, string | undefined> = readProc
   const ttlMin = clampInt(env.VVR_UPSCALER_JOB_TTL_MIN, 5, 24 * 60, DEFAULT_UPSCALE_LIMITS.jobTtlMs / 60000)
   const freeMb = clampInt(env.VVR_UPSCALER_MIN_FREE_MB, 64, 8192, DEFAULT_UPSCALE_LIMITS.minFreeBytes / (1024 * 1024))
   const preview = clampInt(env.VVR_UPSCALER_PREVIEW_EDGE, 320, 1920, DEFAULT_UPSCALE_LIMITS.previewMaxEdge)
+  const midEdge = clampInt(env.VVR_REALESRGAN_MAX_INTERMEDIATE_EDGE, 1024, 16384, DEFAULT_UPSCALE_LIMITS.maxIntermediateEdge)
   return {
     maxFileBytes: fileMb * 1024 * 1024,
     maxBatch: batch,
@@ -388,6 +622,8 @@ export function limitsFromEnv(env: Record<string, string | undefined> = readProc
     jobTtlMs: ttlMin * 60 * 1000,
     minFreeBytes: freeMb * 1024 * 1024,
     previewMaxEdge: preview,
+    maxIntermediateEdge: midEdge,
+    maxIntermediatePixels: midEdge * midEdge,
   }
 }
 

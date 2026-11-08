@@ -37,6 +37,21 @@ export function createImageUpscalerRouter(options: ImageUpscalerRouteOptions): R
     await accept(req, res, options.runtime, files)
   })
 
+  router.post('/jobs/:id/re-export', express.json({ limit: '16kb' }), async (req, res) => {
+    if (!UUID.test(req.params.id)) {
+      res.status(400).json({ error: 'Unknown upscale job.' })
+      return
+    }
+    try {
+      const normalized = normalizeOptions(req.body?.options ?? req.body, options.runtime.limits)
+      const job = await options.runtime.reexportExportOnly(req.params.id, normalized.options, normalized.warnings)
+      res.json(job)
+    } catch (error) {
+      const status = error instanceof UpscaleError ? 400 : 500
+      res.status(status).json({ error: publicError(error, 'The job could not be re-exported.') })
+    }
+  })
+
   router.get('/jobs/:id', (req, res) => {
     if (!UUID.test(req.params.id)) {
       res.status(400).json({ error: 'Unknown upscale job.' })

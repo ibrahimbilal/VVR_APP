@@ -4,12 +4,17 @@ import sharp from 'sharp'
 import {
   contentTypeForFormat,
   paddingRgba,
+  coverCropRect,
+  resolveEffectiveScale,
+  resolveExportDimensions,
+  resolveIntermediateDimensions,
   sharpenParams,
   type ImageUpscaleEngine,
   type OutputFormat,
   type UpscaleLimits,
   type UpscaleOptions,
   type UpscaleResult,
+  type UpscaleStageResult,
 } from '../../shared/imageUpscaler'
 
 export class UpscaleError extends Error {
@@ -49,6 +54,7 @@ export function createLanczosEngine(): ImageUpscaleEngine {
   configureSharp()
   return {
     id: 'lanczos3',
+    runUpscaleStage: runUpscaleStageStandard,
     process: processLanczos,
   }
 }
@@ -93,20 +99,67 @@ export async function inspectImage(
   }
 }
 
-export async function processLanczos(
+export async function runUpscaleStageStandard(
   inputPath: string,
-  outputPath: string,
+  intermediatePath: string,
   options: UpscaleOptions,
+  effectiveScale: number,
   limits: UpscaleLimits,
-): Promise<UpscaleResult> {
+): Promise<UpscaleStageResult> {
   configureSharp()
   const info = await inspectImage(inputPath, limits)
   const file = await stat(inputPath)
   if (file.size > limits.maxFileBytes) {
     throw new UpscaleError(`Images must be ${Math.round(limits.maxFileBytes / (1024 * 1024))} MB or smaller.`)
   }
-  const sameSize = info.width === options.width && info.height === options.height
-  const skippedResize = sameSize && options.preserveWhenMatched
+  const { width, height } = resolveIntermediateDimensions(info.width, info.height, effectiveScale)
+  const already = info.width === width && info.height === height
+  if (already) {
+    const { copyFile } = await import('node:fs/promises')
+    const canCopy = info.format === 'png' && info.orientation === 1
+    if (canCopy) await copyFile(inputPath, intermediatePath)
+    else {
+      await sharp(inputPath, { ...sharpOptions(limits), limitInputPixels: limits.maxInputPixels })
+        .rotate()
+        .png({ compressionLevel: 1 })
+        .toFile(intermediatePath)
+    }
+    return { width, height, effectiveScale, aiRan: false, skippedUpscale: true }
+  }
+  await sharp(inputPath, { ...sharpOptions(limits), limitInputPixels: limits.maxInputPixels })
+    .rotate()
+    .resize(width, height, { kernel: sharp.kernel.lanczos3, fit: 'fill', withoutEnlargement: false })
+    .png({ compressionLevel: 1 })
+    .toFile(intermediatePath)
+  const written = await sharp(intermediatePath).metadata()
+  return {
+    width: written.width ?? width,
+    height: written.height ?? height,
+    effectiveScale,
+    aiRan: false,
+    skippedUpscale: false,
+  }
+}
+
+export async function runExportStage(
+  intermediatePath: string,
+  outputPath: string,
+  options: UpscaleOptions,
+  sourceWidth: number,
+  sourceHeight: number,
+  intermediateWidth: number,
+  intermediateHeight: number,
+  limits: UpscaleLimits,
+): Promise<UpscaleResult> {
+  configureSharp()
+  const exportDims = resolveExportDimensions(sourceWidth, sourceHeight, intermediateWidth, intermediateHeight, options)
+  const exportOptions: UpscaleOptions = { ...options, width: exportDims.width, height: exportDims.height }
+  const sameSize = intermediateWidth === exportDims.width && intermediateHeight === exportDims.height
+  const skippedResize = sameSize && options.preserveWhenMatched && options.mode === 'fill'
+  const info = await inspectImage(intermediatePath, limits, {
+    maxEdge: Math.max(limits.maxOutputEdge, limits.maxIntermediateEdge),
+    maxPixels: Math.max(limits.maxOutputPixels, limits.maxIntermediatePixels),
+  })
   const canCopy =
     skippedResize &&
     options.sharpen === 'none' &&
@@ -115,8 +168,8 @@ export async function processLanczos(
     !(options.format === 'jpeg' && info.hasAlpha)
   if (canCopy) {
     const { copyFile } = await import('node:fs/promises')
-    await copyFile(inputPath, outputPath)
-    const verified = await verifyOutputFile(outputPath, options)
+    await copyFile(intermediatePath, outputPath)
+    const verified = await verifyOutputFile(outputPath, exportOptions)
     const outputStat = await stat(outputPath)
     return {
       width: verified.width,
@@ -126,8 +179,31 @@ export async function processLanczos(
       skippedResize: true,
     }
   }
-  const fitted = await writeFittedImage(inputPath, outputPath, options, limits, { skipResize: skippedResize })
+  const fitted = await writeFittedImage(intermediatePath, outputPath, exportOptions, limits, {
+    skipResize: skippedResize,
+    maxEdge: Math.max(limits.maxOutputEdge, limits.maxIntermediateEdge),
+    maxPixels: Math.max(limits.maxOutputPixels, limits.maxIntermediatePixels),
+  })
   return { ...fitted, skippedResize }
+}
+
+export async function processLanczos(
+  inputPath: string,
+  outputPath: string,
+  options: UpscaleOptions,
+  limits: UpscaleLimits,
+): Promise<UpscaleResult> {
+  configureSharp()
+  const info = await inspectImage(inputPath, limits)
+  const { effectiveScale } = resolveEffectiveScale(options, info.width, info.height, limits)
+  const work = `${outputPath}.stage.png`
+  const stage = await runUpscaleStageStandard(inputPath, work, options, effectiveScale, limits)
+  try {
+    return await runExportStage(work, outputPath, options, info.width, info.height, stage.width, stage.height, limits)
+  } finally {
+    const { rm } = await import('node:fs/promises')
+    await rm(work, { force: true }).catch(() => undefined)
+  }
 }
 
 export async function writeFittedImage(
@@ -141,16 +217,27 @@ export async function writeFittedImage(
   const maxEdge = fit?.maxEdge ?? limits.maxInputEdge
   const maxPixels = fit?.maxPixels ?? limits.maxInputPixels
   await inspectImage(inputPath, limits, { maxEdge, maxPixels })
-  const skipResize = fit?.skipResize === true
-  let pipeline = sharp(inputPath, { ...sharpOptions(limits), limitInputPixels: maxPixels }).rotate()
+  let skipResize = fit?.skipResize === true
+  if (options.mode === 'cover' || options.mode === 'contain') skipResize = false
+  const base = sharp(inputPath, { ...sharpOptions(limits), limitInputPixels: maxPixels }).rotate()
+  let pipeline = base
   if (!skipResize) {
-    pipeline = pipeline.resize(options.width, options.height, {
-      kernel: sharp.kernel.lanczos3,
-      fit: options.mode === 'cover' ? 'cover' : options.mode === 'contain' ? 'contain' : 'fill',
-      position: cropPosition(options),
-      background: paddingRgba(options),
-      withoutEnlargement: false,
-    })
+    if (options.mode === 'cover') {
+      const meta = await base.clone().metadata()
+      const srcW = meta.width ?? 1
+      const srcH = meta.height ?? 1
+      const crop = coverCropRect(srcW, srcH, options.width, options.height, options.cropPosition)
+      pipeline = base
+        .resize(crop.scaledWidth, crop.scaledHeight, { kernel: sharp.kernel.lanczos3, fit: 'fill', withoutEnlargement: false })
+        .extract({ left: crop.left, top: crop.top, width: options.width, height: options.height })
+    } else {
+      pipeline = base.resize(options.width, options.height, {
+        kernel: sharp.kernel.lanczos3,
+        fit: options.mode === 'contain' ? 'contain' : 'fill',
+        background: paddingRgba(options),
+        withoutEnlargement: false,
+      })
+    }
   }
   const sharpen = sharpenParams(options.sharpen)
   if (sharpen) pipeline = pipeline.sharpen(sharpen)
@@ -243,12 +330,6 @@ function sharpOptions(limits: UpscaleLimits) {
     animated: false,
     unlimited: false,
   }
-}
-
-function cropPosition(options: UpscaleOptions): string {
-  if (options.mode !== 'cover') return 'centre'
-  if (options.cropPosition === 'center') return 'centre'
-  return options.cropPosition
 }
 
 function encode(pipeline: ReturnType<typeof sharp>, options: UpscaleOptions): ReturnType<typeof sharp> {

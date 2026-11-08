@@ -1,15 +1,30 @@
 import type { PublicUpscaleJob, UpscaleOptions, UpscalerCapabilities } from '@shared/imageUpscaler'
 
-export function itemDownloadUrl(jobId: string, itemId: string): string {
-  return `/api/image-upscaler/jobs/${jobId}/items/${itemId}/download`
+export function upscaleOutputCacheStamp(
+  revision: number | null | undefined,
+  bytes: number | null | undefined,
+): number | null {
+  if (revision != null && Number.isFinite(revision) && revision > 0) return Math.round(revision)
+  if (bytes != null && Number.isFinite(bytes)) return Math.round(bytes)
+  return null
 }
 
-export function itemInlineUrl(jobId: string, itemId: string): string {
-  return `${itemDownloadUrl(jobId, itemId)}?inline=1`
+export function itemDownloadUrl(jobId: string, itemId: string, cacheStamp?: number | null): string {
+  const base = `/api/image-upscaler/jobs/${jobId}/items/${itemId}/download`
+  if (cacheStamp == null || !Number.isFinite(cacheStamp)) return base
+  return `${base}?v=${Math.round(cacheStamp)}`
 }
 
-export function itemPreviewUrl(jobId: string, itemId: string): string {
-  return `/api/image-upscaler/jobs/${jobId}/items/${itemId}/preview`
+export function itemInlineUrl(jobId: string, itemId: string, cacheStamp?: number | null): string {
+  let url = `/api/image-upscaler/jobs/${jobId}/items/${itemId}/download?inline=1`
+  if (cacheStamp != null && Number.isFinite(cacheStamp)) url += `&v=${Math.round(cacheStamp)}`
+  return url
+}
+
+export function itemPreviewUrl(jobId: string, itemId: string, cacheStamp?: number | null): string {
+  const base = `/api/image-upscaler/jobs/${jobId}/items/${itemId}/preview`
+  if (cacheStamp == null || !Number.isFinite(cacheStamp)) return base
+  return `${base}?v=${Math.round(cacheStamp)}`
 }
 
 export function zipDownloadUrl(jobId: string): string {
@@ -43,6 +58,15 @@ export async function startUpscale(files: File[], options: UpscaleOptions): Prom
 
 export async function getUpscaleJob(id: string): Promise<PublicUpscaleJob> {
   return readJob(await fetch(`/api/image-upscaler/jobs/${id}`))
+}
+
+export async function reexportUpscaleJob(id: string, options: UpscaleOptions): Promise<PublicUpscaleJob> {
+  const response = await fetch(`/api/image-upscaler/jobs/${id}/re-export`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ options }),
+  })
+  return readJob(response)
 }
 
 export async function cancelUpscaleJob(id: string, purge = false): Promise<void> {

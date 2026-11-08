@@ -37,7 +37,20 @@ The model id is configured on the server. It is not chosen in the browser.
 
 Other model names are rejected. Community models such as Remacri and Ultrasharp are not in this list.
 
-AI Lite always runs the model at that native scale, then resizes once to the requested width and height. Contain, Cover, and Fill happen on that second step, so the model sees the whole prepared image. Cover crops after the model, it does not crop the original away before it. Sharpen, when enabled, runs once on that final fit.
+## Two stages
+
+Processing is split into an **upscale stage** and an **export stage**:
+
+1. **Original** → upscale (Standard Lanczos or AI Lite) → **intermediate PNG** under `upscaler/<jobId>/mid/` (content-addressed by input hash + upscale settings).
+2. **Intermediate** → export fit (contain / cover / fill, format, sharpen) → **final file** under `out/`.
+
+**Upscale factor** can be **Auto**, **1×**, **2×**, **3×**, or **4×**. Auto picks a uniform factor (up to 4×) from the export target. Standard skips enlargement when the preset already fits inside the source. AI Lite always infers at native **4×**, then Lanczos-resizes the intermediate to the effective factor (including **1×**, which still runs AI at original dimensions).
+
+**Export resolution** presets include **Original Dimensions** (AI/Lanczos result fitted back to the upload size), **Upscaled Dimensions** (intermediate size), plus Full HD through 8K and Custom.
+
+After a job finishes, change export-only settings and use **Re-export** (or **Upscale Images** when only export settings changed) to run stage 2 again without re-running AI or Lanczos upscale. The server exposes `POST /api/image-upscaler/jobs/:id/re-export` with an `options` JSON body. Inputs stay on disk until the job is purged or expires so intermediates can be reused.
+
+AI Lite always runs the model at that native scale on the prepared input, then resizes the intermediate to the effective upscale factor. Contain, Cover, and Fill happen on the export stage. Cover crops after upscale, not on the original. Sharpen, when enabled, runs once on the final export fit.
 
 If a native 4× image would exceed the temporary size cap (`VVR_REALESRGAN_MAX_INTERMEDIATE_EDGE`, default 8192 px), the input is reduced before the model and the job says so. A roughly 1972×1109 image at 4× stays under that cap (7888×4436) and is not reduced.
 
@@ -50,7 +63,7 @@ A failed AI job stays failed. It is not replaced with a Standard file, and a Sta
 | | |
 | --- | --- |
 | Input | PNG, JPEG/JPG, WebP. The server checks the file contents, not only the extension. |
-| Output | PNG (lossless), JPEG, or WebP |
+| Output | PNG (lossless), JPEG, or WebP. Default in the editor follows the first uploaded image until you pick another format. |
 | Transparency | PNG and WebP can keep it. JPEG cannot, so those pixels are flattened onto the padding color. |
 | Animated images | Rejected. Export a single frame first. |
 | Orientation | EXIF orientation is applied before the model or the Lanczos resize. |

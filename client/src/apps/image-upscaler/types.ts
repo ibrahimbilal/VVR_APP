@@ -16,7 +16,11 @@ export interface LocalUpscaleItem {
   serverItemId: string | null
   outputName: string | null
   outputBytes: number | null
+  outputRevision: number | null
   outputWidth: number | null
   outputHeight: number | null
+  intermediateWidth: number | null
+  intermediateHeight: number | null
+  effectiveScale: number | null
   skippedResize: boolean
 }

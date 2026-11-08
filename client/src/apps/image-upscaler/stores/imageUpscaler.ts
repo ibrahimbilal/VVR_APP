@@ -3,10 +3,12 @@ import {
   defaultUpscaleOptions,
   formatBytes,
   normalizeOptions,
+  outputFormatFromMime,
   presetById,
   screensaverTransferAction,
   type OutputFormat,
   type PublicUpscaleJob,
+  type CropPosition,
   type ResolutionPresetId,
   type UpscaleEngineId,
   type UpscaleOptions,
@@ -19,7 +21,17 @@ import { usePlatformStore } from '../../../stores/platform'
 import { useScreensaverStore } from '../../frame-screensaver/stores/screensaver'
 import { readLocalImage } from '../lib/localPreview'
 import { sendFileToScreensaver } from '../lib/sendToScreensaver'
-import { cancelUpscaleJob, fetchUpscaledBlob, fetchUpscalerCapabilities, getUpscaleJob, startUpscale, zipDownloadUrl } from '../lib/upscalerApi'
+import {
+  cancelUpscaleJob,
+  fetchUpscaledBlob,
+  fetchUpscalerCapabilities,
+  getUpscaleJob,
+  itemDownloadUrl,
+  reexportUpscaleJob,
+  upscaleOutputCacheStamp,
+  startUpscale,
+  zipDownloadUrl,
+} from '../lib/upscalerApi'
 import type { LocalUpscaleItem } from '../types'
 
 export const useImageUpscalerStore = defineStore('image-upscaler', () => {
@@ -32,11 +44,43 @@ export const useImageUpscalerStore = defineStore('image-upscaler', () => {
   const jobId = ref<string | null>(null)
   const busy = ref(false)
   const confirmSendId = ref<string | null>(null)
+  const appliedJobOptions = ref<UpscaleOptions | null>(null)
+  /** Bumped on every regenerate so comparison images remount and bypass browser cache. */
+  const outputGeneration = ref(0)
+  const formatFromSource = ref(true)
   let pollTimer = 0
 
   const selected = computed(() => items.value.find((item) => item.localId === selectedId.value) ?? null)
   const completedCount = computed(() => items.value.filter((item) => item.status === 'completed').length)
   const processing = computed(() => busy.value || items.value.some((item) => item.status === 'pending' || item.status === 'processing'))
+  function shouldReexportOnly(options: UpscaleOptions): boolean {
+    if (!jobId.value) return false
+    if (!items.value.some((item) => item.serverItemId)) return false
+    if (!appliedJobOptions.value) return true
+    try {
+      const applied = normalizeOptions(appliedJobOptions.value).options
+      const current = normalizeOptions(options).options
+      return applied.engine === current.engine && applied.scaleFactor === current.scaleFactor
+    } catch {
+      return false
+    }
+  }
+
+  function clearGeneratedOutput(warning: string | null): void {
+    for (const item of items.value) {
+      if (!item.serverItemId) continue
+      item.outputBytes = null
+      item.outputRevision = null
+      item.outputName = null
+      item.outputWidth = null
+      item.outputHeight = null
+      item.error = null
+      item.warning = warning
+      if (item.status === 'completed' || item.status === 'failed' || item.status === 'cancelled') {
+        item.status = 'pending'
+      }
+    }
+  }
 
   function toast(error: unknown, fallback: string): void {
     platform.toast(error instanceof Error ? error.message : fallback)
@@ -52,12 +96,15 @@ export const useImageUpscalerStore = defineStore('image-upscaler', () => {
     if (files.length > batch.length) {
       platform.toast(`Only ${room} more image${room === 1 ? '' : 's'} can be added.`, 'info')
     }
+    const wasEmpty = items.value.length === 0
+    let firstMime: string | null = null
     for (const file of batch) {
       const sniffed = await sniffImageMime(file)
       if (!sniffed) {
         platform.toast(`${file.name} is not a PNG, JPEG, or WebP image.`)
         continue
       }
+      if (!firstMime) firstMime = sniffed
       if (file.size > DEFAULT_UPSCALE_LIMITS.maxFileBytes) {
         platform.toast(`${file.name} is larger than ${formatBytes(DEFAULT_UPSCALE_LIMITS.maxFileBytes)}.`)
         continue
@@ -79,14 +126,22 @@ export const useImageUpscalerStore = defineStore('image-upscaler', () => {
           serverItemId: null,
           outputName: null,
           outputBytes: null,
+          outputRevision: null,
           outputWidth: null,
           outputHeight: null,
           skippedResize: false,
+          intermediateWidth: null,
+          intermediateHeight: null,
+          effectiveScale: null,
         })
         if (!selectedId.value) selectedId.value = localId
       } catch {
         platform.toast(`${file.name} could not be read.`)
       }
+    }
+    if (formatFromSource.value && wasEmpty && firstMime) {
+      const mapped = outputFormatFromMime(firstMime)
+      if (mapped) applyFormat(mapped, true)
     }
   }
 
@@ -98,6 +153,7 @@ export const useImageUpscalerStore = defineStore('image-upscaler', () => {
     URL.revokeObjectURL(item.previewUrl)
     items.value.splice(index, 1)
     if (selectedId.value === localId) selectedId.value = items.value[0]?.localId ?? null
+    if (items.value.length === 0) formatFromSource.value = true
   }
 
   function clearItems(): void {
@@ -107,6 +163,8 @@ export const useImageUpscalerStore = defineStore('image-upscaler', () => {
     jobId.value = null
     jobEngine.value = 'lanczos3'
     confirmSendId.value = null
+    appliedJobOptions.value = null
+    formatFromSource.value = true
     window.clearTimeout(pollTimer)
   }
 
@@ -149,11 +207,38 @@ export const useImageUpscalerStore = defineStore('image-upscaler', () => {
     }
   }
 
-  function setFormat(format: OutputFormat): void {
+  function applyFormat(format: OutputFormat, fromSource: boolean): void {
     settings.value = {
       ...settings.value,
       format,
       padding: format === 'jpeg' && settings.value.padding === 'transparent' ? 'black' : settings.value.padding,
+    }
+    formatFromSource.value = fromSource
+  }
+
+  function setFormat(format: OutputFormat): void {
+    applyFormat(format, false)
+  }
+
+  function setCropPosition(cropPosition: CropPosition): void {
+    settings.value = { ...settings.value, cropPosition }
+  }
+
+  async function runRegenerateExport(normalized: ReturnType<typeof normalizeOptions>): Promise<void> {
+    const id = jobId.value
+    if (!id) return
+    clearGeneratedOutput(normalized.warnings[0] ?? null)
+    outputGeneration.value += 1
+    busy.value = true
+    try {
+      const job = await reexportUpscaleJob(id, normalized.options)
+      if (job.engine) jobEngine.value = job.engine
+      applyJob(job)
+      schedulePoll()
+    } catch (error) {
+      busy.value = false
+      toast(error, 'The images could not be re-exported.')
+      void poll()
     }
   }
 
@@ -167,7 +252,12 @@ export const useImageUpscalerStore = defineStore('image-upscaler', () => {
       return
     }
     settings.value = normalized.options
+    if (shouldReexportOnly(normalized.options)) {
+      await runRegenerateExport(normalized)
+      return
+    }
     jobEngine.value = normalized.options.engine
+    outputGeneration.value += 1
     busy.value = true
     for (const item of items.value) {
       item.status = 'pending'
@@ -176,6 +266,7 @@ export const useImageUpscalerStore = defineStore('image-upscaler', () => {
       item.serverItemId = null
       item.outputName = null
       item.outputBytes = null
+      item.outputRevision = null
       item.outputWidth = null
       item.outputHeight = null
       item.skippedResize = false
@@ -223,6 +314,9 @@ export const useImageUpscalerStore = defineStore('image-upscaler', () => {
   }
 
   function applyJob(job: PublicUpscaleJob): void {
+    if (job.status !== 'queued' && job.status !== 'running') {
+      appliedJobOptions.value = job.options
+    }
     if (job.engine) jobEngine.value = job.engine
     job.items.forEach((serverItem, index) => {
       const local = items.value[index]
@@ -233,9 +327,13 @@ export const useImageUpscalerStore = defineStore('image-upscaler', () => {
       local.warning = serverItem.warning
       local.outputName = serverItem.outputName
       local.outputBytes = serverItem.outputBytes
+      local.outputRevision = serverItem.outputRevision
       local.outputWidth = serverItem.width
       local.outputHeight = serverItem.height
       local.skippedResize = serverItem.skippedResize
+      local.intermediateWidth = serverItem.intermediateWidth
+      local.intermediateHeight = serverItem.intermediateHeight
+      local.effectiveScale = serverItem.effectiveScale
     })
   }
 
@@ -254,7 +352,11 @@ export const useImageUpscalerStore = defineStore('image-upscaler', () => {
     const item = items.value.find((entry) => entry.localId === localId)
     if (!jobId.value || !item?.serverItemId || !item.outputName) return
     const anchor = document.createElement('a')
-    anchor.href = `/api/image-upscaler/jobs/${jobId.value}/items/${item.serverItemId}/download`
+    anchor.href = itemDownloadUrl(
+      jobId.value,
+      item.serverItemId,
+      upscaleOutputCacheStamp(item.outputRevision, item.outputBytes),
+    )
     anchor.download = item.outputName
     anchor.click()
   }
@@ -336,6 +438,7 @@ export const useImageUpscalerStore = defineStore('image-upscaler', () => {
     processing,
     completedCount,
     confirmSendId,
+    formatFromSource,
     limits: DEFAULT_UPSCALE_LIMITS,
     addFiles,
     removeItem,
@@ -345,6 +448,8 @@ export const useImageUpscalerStore = defineStore('image-upscaler', () => {
     setEngine,
     loadCapabilities,
     setFormat,
+    setCropPosition,
+    outputGeneration,
     upscale,
     cancel,
     downloadItem,

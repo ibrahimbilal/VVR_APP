@@ -1,8 +1,9 @@
 import { mkdir, rm, stat } from 'node:fs/promises'
 import path from 'node:path'
 import sharp from 'sharp'
-import type { EngineCapability, ImageUpscaleEngine, UpscalerCapabilities } from '../../shared/imageUpscaler'
-import { createLanczosEngine, inspectImage, UpscaleError, writeFittedImage } from './imageUpscaler'
+import type { EngineCapability, ImageUpscaleEngine, UpscalerCapabilities, UpscaleLimits, UpscaleOptions, UpscaleProcessContext, UpscaleResult, UpscaleStageResult } from '../../shared/imageUpscaler'
+import { resolveEffectiveScale, resolveIntermediateDimensions } from '../../shared/imageUpscaler'
+import { createLanczosEngine, inspectImage, runExportStage, UpscaleError } from './imageUpscaler'
 import type { UpscaleEngineRegistry } from './imageUpscalerJobs'
 import { runNativeProcess, type NativeRunOptions, type NativeRunResult } from './nativeProcess'
 import { assessRealesrgan, readRealesrgan, resolveRealesrganFiles, type AppEnv, type RealesrganConfig } from './realesrganConfig'
@@ -17,105 +18,140 @@ export interface RealesrganEngineDeps {
 }
 
 /**
- * Real-ESRGAN NCNN Vulkan at the model's native scale, then one Lanczos3 fit to the
- * exact requested pixels. The model name comes from configuration, not from the browser.
+ * Real-ESRGAN NCNN Vulkan at the model's native 4× scale, then Lanczos to the effective intermediate size.
+ * Export fitting happens separately in the job pipeline.
  */
 export function createRealesrganEngine(deps: RealesrganEngineDeps = {}): ImageUpscaleEngine {
   const env = deps.env ?? (() => process.env)
   const run = deps.run ?? runNativeProcess
   return {
     id: 'realesrgan-lite',
+    runUpscaleStage: (inputPath, intermediatePath, options, effectiveScale, limits, context) =>
+      runUpscaleStageAi(inputPath, intermediatePath, options, effectiveScale, limits, context, env, run, deps.platform),
     async process(inputPath, outputPath, options, limits, context) {
-      throwIfCancelled(context?.signal)
-      const ready = await runnableConfig(env(), deps.platform)
-      if (!ready.ok) throw new UpscaleError(ready.reason)
-      const config = ready.config
       const info = await inspectImage(inputPath, limits)
-      const file = await stat(inputPath)
-      if (file.size > limits.maxFileBytes) {
-        throw new UpscaleError(`Images must be ${Math.round(limits.maxFileBytes / (1024 * 1024))} MB or smaller.`)
-      }
-      const planned = planAiInputSize(info.width, info.height, config.scale, config.maxIntermediateEdge, config.maxIntermediateEdge * config.maxIntermediateEdge)
-      const work = `${outputPath}.aiwork`
-      await mkdir(work, { recursive: true })
+      const { effectiveScale } = resolveEffectiveScale(options, info.width, info.height, limits)
+      const work = `${outputPath}.stage.png`
+      const stage = await runUpscaleStageAi(inputPath, work, options, effectiveScale, limits, context, env, run, deps.platform)
       try {
-        throwIfCancelled(context?.signal)
-        const prepared = path.join(work, 'input.png')
-        const aiOutput = path.join(work, 'model.png')
-        let pipeline = sharp(inputPath, { failOn: 'error', animated: false, limitInputPixels: limits.maxInputPixels, sequentialRead: true }).rotate()
-        if (planned.reduced) {
-          pipeline = pipeline.resize(planned.width, planned.height, { kernel: sharp.kernel.lanczos3, fit: 'fill', withoutEnlargement: true })
-        }
-        await pipeline.png({ compressionLevel: 1 }).toFile(prepared)
-        throwIfCancelled(context?.signal)
-        const preparedMeta = await sharp(prepared).metadata()
-        const preparedWidth = preparedMeta.width ?? 0
-        const preparedHeight = preparedMeta.height ?? 0
-        if (preparedWidth < 1 || preparedHeight < 1) throw new UpscaleError('The image could not be prepared for AI upscaling.')
-        const args = [
-          '-i',
-          prepared,
-          '-o',
-          aiOutput,
-          '-s',
-          String(config.scale),
-          '-m',
-          config.modelDir,
-          '-n',
-          config.modelName,
-          '-f',
-          'png',
-          '-t',
-          String(config.tile),
-        ]
-        let result: NativeRunResult
-        try {
-          result = await run(config.binary, args, { timeoutMs: config.timeoutMs, signal: context?.signal })
-        } catch {
-          throw new UpscaleError('The Real-ESRGAN program could not be started.')
-        }
-        if (result.cancelled || context?.signal?.aborted) throw new UpscaleError('AI upscaling was cancelled.')
-        if (result.timedOut) throw new UpscaleError('AI upscaling took too long and was stopped.')
-        if (result.code !== 0) {
-          logAiFailure(result.stderr)
-          throw new UpscaleError(failureMessage(result.stderr))
-        }
-        let aiWidth = 0
-        let aiHeight = 0
-        let aiHasAlpha = false
-        try {
-          const aiMeta = await sharp(aiOutput, { failOn: 'error', animated: false, limitInputPixels: false }).metadata()
-          aiWidth = aiMeta.width ?? 0
-          aiHeight = aiMeta.height ?? 0
-          aiHasAlpha = aiMeta.hasAlpha === true
-        } catch {
-          throw new UpscaleError('AI upscaling did not produce an image.')
-        }
-        if (aiWidth !== preparedWidth * config.scale || aiHeight !== preparedHeight * config.scale) {
-          throw new UpscaleError('The AI model returned an unexpected image size.')
-        }
-        const notes: string[] = []
-        if (planned.reduced) {
-          notes.push('The image was reduced before AI upscaling so the temporary image stays within the memory limit, then fitted to the requested size.')
-        }
-        if (info.hasAlpha && !aiHasAlpha) {
-          notes.push('The AI model did not keep transparency. Transparent areas were flattened before the final save.')
-        }
-        throwIfCancelled(context?.signal)
-        const fitted = await writeFittedImage(aiOutput, outputPath, options, limits, {
-          skipResize: aiWidth === options.width && aiHeight === options.height,
-          maxEdge: Math.max(limits.maxOutputEdge, config.maxIntermediateEdge),
-          maxPixels: config.maxIntermediateEdge * config.maxIntermediateEdge,
-        })
-        return {
-          ...fitted,
-          skippedResize: false,
-          note: notes.join(' ') || null,
-        }
+        const fitted = await runExportStage(work, outputPath, options, info.width, info.height, stage.width, stage.height, limits)
+        return { ...fitted, note: stage.note ?? null, skippedResize: fitted.skippedResize }
       } finally {
-        await rm(work, { recursive: true, force: true }).catch(() => undefined)
+        await rm(work, { force: true }).catch(() => undefined)
       }
     },
+  }
+}
+
+async function runUpscaleStageAi(
+  inputPath: string,
+  intermediatePath: string,
+  _options: UpscaleOptions,
+  effectiveScale: number,
+  limits: UpscaleLimits,
+  context: UpscaleProcessContext | undefined,
+  env: () => AppEnv,
+  run: (command: string, args: readonly string[], options: NativeRunOptions) => Promise<NativeRunResult>,
+  platform?: NodeJS.Platform,
+): Promise<UpscaleStageResult> {
+  throwIfCancelled(context?.signal)
+  const ready = await runnableConfig(env(), platform)
+  if (!ready.ok) throw new UpscaleError(ready.reason)
+  const config = ready.config
+  const info = await inspectImage(inputPath, limits)
+  const file = await stat(inputPath)
+  if (file.size > limits.maxFileBytes) {
+    throw new UpscaleError(`Images must be ${Math.round(limits.maxFileBytes / (1024 * 1024))} MB or smaller.`)
+  }
+  const target = resolveIntermediateDimensions(info.width, info.height, effectiveScale)
+  const planned = planAiInputSize(info.width, info.height, config.scale, config.maxIntermediateEdge, config.maxIntermediateEdge * config.maxIntermediateEdge)
+  const work = `${intermediatePath}.aiwork`
+  await mkdir(work, { recursive: true })
+  const notes: string[] = []
+  try {
+    throwIfCancelled(context?.signal)
+    const prepared = path.join(work, 'input.png')
+    const aiOutput = path.join(work, 'model.png')
+    let pipeline = sharp(inputPath, { failOn: 'error', animated: false, limitInputPixels: limits.maxInputPixels, sequentialRead: true }).rotate()
+    if (planned.reduced) {
+      pipeline = pipeline.resize(planned.width, planned.height, { kernel: sharp.kernel.lanczos3, fit: 'fill', withoutEnlargement: true })
+    }
+    await pipeline.png({ compressionLevel: 1 }).toFile(prepared)
+    throwIfCancelled(context?.signal)
+    const preparedMeta = await sharp(prepared).metadata()
+    const preparedWidth = preparedMeta.width ?? 0
+    const preparedHeight = preparedMeta.height ?? 0
+    if (preparedWidth < 1 || preparedHeight < 1) throw new UpscaleError('The image could not be prepared for AI upscaling.')
+    const args = [
+      '-i',
+      prepared,
+      '-o',
+      aiOutput,
+      '-s',
+      String(config.scale),
+      '-m',
+      config.modelDir,
+      '-n',
+      config.modelName,
+      '-f',
+      'png',
+      '-t',
+      String(config.tile),
+    ]
+    let result: NativeRunResult
+    try {
+      result = await run(config.binary, args, { timeoutMs: config.timeoutMs, signal: context?.signal })
+    } catch {
+      throw new UpscaleError('The Real-ESRGAN program could not be started.')
+    }
+    if (result.cancelled || context?.signal?.aborted) throw new UpscaleError('AI upscaling was cancelled.')
+    if (result.timedOut) throw new UpscaleError('AI upscaling took too long and was stopped.')
+    if (result.code !== 0) {
+      logAiFailure(result.stderr)
+      throw new UpscaleError(failureMessage(result.stderr))
+    }
+    let aiWidth = 0
+    let aiHeight = 0
+    let aiHasAlpha = false
+    try {
+      const aiMeta = await sharp(aiOutput, { failOn: 'error', animated: false, limitInputPixels: false }).metadata()
+      aiWidth = aiMeta.width ?? 0
+      aiHeight = aiMeta.height ?? 0
+      aiHasAlpha = aiMeta.hasAlpha === true
+    } catch {
+      throw new UpscaleError('AI upscaling did not produce an image.')
+    }
+    if (aiWidth !== preparedWidth * config.scale || aiHeight !== preparedHeight * config.scale) {
+      throw new UpscaleError('The AI model returned an unexpected image size.')
+    }
+    if (planned.reduced) {
+      notes.push('The image was reduced before AI upscaling so the temporary image stays within the memory limit.')
+    }
+    if (info.hasAlpha && !aiHasAlpha) {
+      notes.push('The AI model did not keep transparency. Transparent areas were flattened on the intermediate.')
+    }
+    throwIfCancelled(context?.signal)
+    const needsResize = aiWidth !== target.width || aiHeight !== target.height
+    if (needsResize) {
+      await sharp(aiOutput, { failOn: 'error', animated: false, limitInputPixels: false })
+        .resize(target.width, target.height, { kernel: sharp.kernel.lanczos3, fit: 'fill' })
+        .png({ compressionLevel: 1 })
+        .toFile(intermediatePath)
+    } else {
+      const { copyFile } = await import('node:fs/promises')
+      await copyFile(aiOutput, intermediatePath)
+    }
+    const written = await sharp(intermediatePath).metadata()
+    return {
+      width: written.width ?? target.width,
+      height: written.height ?? target.height,
+      effectiveScale,
+      aiRan: true,
+      skippedUpscale: false,
+      note: notes.join(' ') || null,
+    }
+  } finally {
+    await rm(work, { recursive: true, force: true }).catch(() => undefined)
   }
 }
 

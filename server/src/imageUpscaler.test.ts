@@ -8,7 +8,15 @@ import { describe, it, after } from 'node:test'
 import express from 'express'
 import sharp from 'sharp'
 import { defaultUpscaleOptions, normalizeOptions, type ImageUpscaleEngine, type UpscaleLimits, type UpscaleOptions } from '../../shared/imageUpscaler'
-import { inspectImage, magicMatches, processLanczos, verifyOutputFile, writeComparisonPreview } from './imageUpscaler'
+import {
+  inspectImage,
+  magicMatches,
+  processLanczos,
+  runExportStage,
+  runUpscaleStageStandard,
+  verifyOutputFile,
+  writeComparisonPreview,
+} from './imageUpscaler'
 import { createUpscalerRuntime, streamZipToFile, type UpscalerRuntime } from './imageUpscalerJobs'
 import { createImageUpscalerRouter } from './imageUpscalerRoutes'
 import { zipEntryNames } from './storedZip'
@@ -29,6 +37,8 @@ const limits: UpscaleLimits = {
   jobTtlMs: 60_000,
   minFreeBytes: 0,
   previewMaxEdge: 48,
+  maxIntermediateEdge: 8192,
+  maxIntermediatePixels: 8192 * 8192,
 }
 
 function options(partial: Partial<UpscaleOptions> = {}): UpscaleOptions {
@@ -164,7 +174,12 @@ describe('lanczos image engine', () => {
     const file = path.join(root, 'exact.png')
     const out = path.join(root, 'exact-out.png')
     await solid(file, 24, 12)
-    const result = await processLanczos(file, out, options({ width: 24, height: 12, preserveWhenMatched: true, sharpen: 'none', format: 'png' }), limits)
+    const result = await processLanczos(
+      file,
+      out,
+      options({ width: 24, height: 12, mode: 'fill', preserveWhenMatched: true, sharpen: 'none', format: 'png' }),
+      limits,
+    )
     assert.equal(result.skippedResize, true)
     assert.equal((await readFile(file)).equals(await readFile(out)), true)
   })
@@ -173,6 +188,33 @@ describe('lanczos image engine', () => {
     const file = path.join(root, 'wrong.png')
     await solid(file, 2, 2)
     await assert.rejects(() => verifyOutputFile(file, options({ width: 8, height: 8 })), /not the requested 8×8/)
+  })
+
+  it('runExportStage cover respects crop position on the intermediate', async () => {
+    const file = path.join(root, 'export-stage-src.png')
+    const width = 8
+    const height = 4
+    const raw = Buffer.alloc(width * height * 3, 220)
+    for (let y = 0; y < height; y += 1) {
+      for (let x = 0; x < width; x += 1) {
+        const index = (y * width + x) * 3
+        const blue = x < 2
+        raw[index] = blue ? 0 : 220
+        raw[index + 1] = blue ? 0 : 20
+        raw[index + 2] = blue ? 220 : 20
+      }
+    }
+    await sharp(raw, { raw: { width, height, channels: 3 } }).png().toFile(file)
+    const mid = path.join(root, 'export-stage-mid.png')
+    await runUpscaleStageStandard(file, mid, options(), 1, limits)
+    const centerOut = path.join(root, 'export-stage-center.png')
+    const leftOut = path.join(root, 'export-stage-left.png')
+    await runExportStage(mid, centerOut, options({ width: 4, height: 4, mode: 'cover', cropPosition: 'center' }), width, height, width, height, limits)
+    await runExportStage(mid, leftOut, options({ width: 4, height: 4, mode: 'cover', cropPosition: 'left' }), width, height, width, height, limits)
+    const centerPx = await pixel(centerOut, 0, 0)
+    const leftPx = await pixel(leftOut, 0, 0)
+    assert.ok(centerPx.r > centerPx.b, 'center cover drops the blue edge')
+    assert.ok(leftPx.b > leftPx.r, 'left cover keeps the blue edge')
   })
 
   it('writes a smaller comparison preview than the downloaded output', async () => {
@@ -273,6 +315,11 @@ describe('upscaler jobs', () => {
     let started = 0
     const engine: ImageUpscaleEngine = {
       id: 'pause',
+      async runUpscaleStage() {
+        started += 1
+        await gate
+        return { width: 8, height: 8, effectiveScale: 1, aiRan: false, skippedUpscale: true }
+      },
       async process() {
         started += 1
         await gate
@@ -303,6 +350,61 @@ describe('upscaler jobs', () => {
     assert.equal(done.items.every((item) => item.status === 'cancelled'), true)
     assert.equal(started, 1)
     await cancelRuntime.remove(submitted.id)
+  })
+
+  it('re-exports from a kept intermediate without re-running upscale', async () => {
+    const reRoot = path.join(root, 'reexport-jobs')
+    const reRuntime = createUpscalerRuntime(reRoot, undefined, limits)
+    const source = path.join(root, 'reexport.png')
+    await solid(source, 12, 8)
+    const firstOptions = options({ width: 24, height: 16, scaleFactor: 2, preset: 'upscaled' })
+    const submitted = await reRuntime.submit([{ path: source, originalName: 're.png' }], firstOptions)
+    const done = await settle(reRuntime, submitted.id)
+    assert.equal(done.items[0]?.status, 'completed')
+    assert.equal(done.items[0]?.intermediateReused, false)
+    assert.ok((done.items[0]?.intermediateWidth ?? 0) >= 24)
+    const secondOptions = options({ width: 32, height: 20, scaleFactor: 2, preset: 'custom', mode: 'fill' })
+    const rerun = await reRuntime.reexportExportOnly(submitted.id, secondOptions)
+    assert.ok(rerun.status === 'queued' || rerun.status === 'running')
+    const finished = await settle(reRuntime, submitted.id)
+    assert.equal(finished.items[0]?.status, 'completed')
+    assert.deepEqual([finished.items[0]?.width, finished.items[0]?.height], [32, 20])
+    const output = reRuntime.itemOutput(submitted.id, finished.items[0]!.id)
+    assert.ok(output)
+    await reRuntime.remove(submitted.id)
+  })
+
+  it('re-export with a new cover crop position changes the output', async () => {
+    const reRoot = path.join(root, 'reexport-crop')
+    const reRuntime = createUpscalerRuntime(reRoot, undefined, limits)
+    const source = path.join(root, 'reexport-crop-src.png')
+    const raw = Buffer.alloc(8 * 8 * 3, 220)
+    for (let y = 0; y < 8; y += 1) {
+      for (let x = 0; x < 8; x += 1) {
+        const i = (y * 8 + x) * 3
+        const blue = y < 4
+        raw[i] = blue ? 0 : 220
+        raw[i + 1] = blue ? 0 : 20
+        raw[i + 2] = blue ? 220 : 20
+      }
+    }
+    await sharp(raw, { raw: { width: 8, height: 8, channels: 3 } }).png().toFile(source)
+    const firstOptions = options({ width: 8, height: 4, preset: 'custom', mode: 'cover', cropPosition: 'top' })
+    const submitted = await reRuntime.submit([{ path: source, originalName: 'crop.png' }], firstOptions)
+    const done = await settle(reRuntime, submitted.id)
+    assert.equal(done.items[0]?.status, 'completed')
+    const topOut = reRuntime.itemOutput(submitted.id, done.items[0]!.id)
+    assert.ok(topOut)
+    const topPx = await pixel(topOut!.path, 0, 0)
+    const secondOptions = options({ width: 8, height: 4, preset: 'custom', mode: 'cover', cropPosition: 'bottom' })
+    await reRuntime.reexportExportOnly(submitted.id, secondOptions)
+    const finished = await settle(reRuntime, submitted.id)
+    const bottomOut = reRuntime.itemOutput(submitted.id, finished.items[0]!.id)
+    assert.ok(bottomOut)
+    const bottomPx = await pixel(bottomOut!.path, 0, 0)
+    assert.ok(topPx.b > topPx.r, 'top crop keeps blue strip')
+    assert.ok(bottomPx.r > bottomPx.b, 'bottom crop drops blue strip')
+    await reRuntime.remove(submitted.id)
   })
 
   it('serves the full download and a smaller preview over HTTP', async () => {
