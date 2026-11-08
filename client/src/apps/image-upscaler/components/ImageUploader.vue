@@ -11,7 +11,7 @@ const store = useImageUpscalerStore()
     accept="image/png,image/jpeg,image/webp,.png,.jpg,.jpeg,.webp"
     multiple
     :disabled="store.processing"
-    label="Add images"
+    :label="store.items.length ? 'Add images' : 'Upload images'"
     drop-label="Drop images"
     hint="PNG, JPEG, or WebP. Processing starts only when you choose Upscale Images."
     :formats="`Up to ${store.limits.maxBatch} images, ${formatBytes(store.limits.maxFileBytes)} each`"

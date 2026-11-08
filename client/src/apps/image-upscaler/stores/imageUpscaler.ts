@@ -34,11 +34,16 @@ import {
 } from '../lib/upscalerApi'
 import type { LocalUpscaleItem } from '../types'
 
+function appUpscaleOptions(): UpscaleOptions {
+  return { ...defaultUpscaleOptions(), preset: 'upscaled', quality: 100, sharpen: 'none' }
+}
+
 export const useImageUpscalerStore = defineStore('image-upscaler', () => {
   const platform = usePlatformStore()
   const items = ref<LocalUpscaleItem[]>([])
   const selectedId = ref<string | null>(null)
-  const settings = ref<UpscaleOptions>(defaultUpscaleOptions())
+  const settings = ref<UpscaleOptions>(appUpscaleOptions())
+  const name = ref('Untitled upscale')
   const capabilities = ref<UpscalerCapabilities | null>(null)
   const jobEngine = ref<UpscaleEngineId>('lanczos3')
   const jobId = ref<string | null>(null)
@@ -210,10 +215,17 @@ export const useImageUpscalerStore = defineStore('image-upscaler', () => {
   function applyFormat(format: OutputFormat, fromSource: boolean): void {
     settings.value = {
       ...settings.value,
+      preset: 'upscaled',
       format,
+      quality: 100,
+      sharpen: 'none',
       padding: format === 'jpeg' && settings.value.padding === 'transparent' ? 'black' : settings.value.padding,
     }
     formatFromSource.value = fromSource
+  }
+
+  function lockExportOptions(): void {
+    settings.value = { ...settings.value, preset: 'upscaled', quality: 100, sharpen: 'none' }
   }
 
   function setFormat(format: OutputFormat): void {
@@ -244,6 +256,7 @@ export const useImageUpscalerStore = defineStore('image-upscaler', () => {
 
   async function upscale(): Promise<void> {
     if (processing.value || items.value.length === 0) return
+    lockExportOptions()
     let normalized: ReturnType<typeof normalizeOptions>
     try {
       normalized = normalizeOptions(settings.value)
@@ -412,14 +425,16 @@ export const useImageUpscalerStore = defineStore('image-upscaler', () => {
 
   async function newProject(): Promise<void> {
     if (items.value.length === 0 && !jobId.value) {
-      settings.value = defaultUpscaleOptions()
+      settings.value = appUpscaleOptions()
+      name.value = 'Untitled upscale'
       return
     }
     if (!window.confirm('Clear the Image Upscaler queue? Images in this list will be removed.')) return
     const id = jobId.value
     clearItems()
     busy.value = false
-    settings.value = defaultUpscaleOptions()
+    settings.value = appUpscaleOptions()
+    name.value = 'Untitled upscale'
     jobEngine.value = 'lanczos3'
     if (id) await cancelUpscaleJob(id, true).catch(() => undefined)
   }
@@ -428,6 +443,7 @@ export const useImageUpscalerStore = defineStore('image-upscaler', () => {
 
   return {
     items,
+    name,
     selectedId,
     selected,
     settings,

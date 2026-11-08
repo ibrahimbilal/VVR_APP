@@ -1,6 +1,7 @@
 <script setup lang="ts">
-import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
-import { itemInlineUrl, itemPreviewUrl, upscaleOutputCacheStamp } from '../lib/upscalerApi'
+import { RotateCcw } from '@lucide/vue'
+import { computed, nextTick, onMounted, onUnmounted, ref } from 'vue'
+import { itemPreviewUrl, upscaleOutputCacheStamp } from '../lib/upscalerApi'
 import { useImageUpscalerStore } from '../stores/imageUpscaler'
 
 const store = useImageUpscalerStore()
@@ -17,19 +18,6 @@ let startY = 0
 let startPanX = 0
 let startPanY = 0
 let resizeObserver: ResizeObserver | null = null
-
-const showFull = ref(false)
-watch(
-  () => store.selected?.localId,
-  () => {
-    showFull.value = false
-  },
-)
-const fullUrl = computed(() => {
-  const item = store.selected
-  if (!showFull.value || !item || item.status !== 'completed' || !store.jobId || !item.serverItemId) return ''
-  return itemInlineUrl(store.jobId, item.serverItemId, upscaleOutputCacheStamp(item.outputRevision, item.outputBytes))
-})
 
 const afterKey = computed(() => {
   const item = store.selected
@@ -207,23 +195,16 @@ onUnmounted(() => {
       <span v-show="viewWidth - dividerLeft > 72" class="pointer-events-none absolute top-3 right-3 rounded bg-black/70 px-2 py-1 text-[11px] font-semibold">After</span>
     </div>
     <div class="flex flex-wrap items-center gap-3">
-      <label class="flex min-w-[10rem] flex-1 items-center gap-2 text-xs text-zinc-400">
+      <label class="flex min-w-[10rem] flex-1 items-center gap-2 text-xs text-zinc-400 whitespace-nowrap">
         Zoom {{ zoom.toFixed(2) }}×
         <input :value="zoom" class="w-full" type="range" min="1" max="4" step="0.05" aria-label="Zoom" @input="setZoom(Number(($event.target as HTMLInputElement).value))" />
       </label>
-      <button class="btn btn-ghost cursor-pointer" type="button" @click="resetView">Reset view</button>
-      <button class="btn btn-ghost cursor-pointer" type="button" @click="showFull = !showFull">
-        {{ showFull ? 'Hide full resolution' : 'Inspect full resolution' }}
+      <button class="cursor-pointer" type="button" aria-label="Reset view" title="Reset view" @click="resetView">
+        <RotateCcw :size="16" />
       </button>
     </div>
     <p class="text-[11px] leading-relaxed text-zinc-500">
       Both sides use the same preview size. Scroll or use the slider to zoom, then drag the picture to pan. The original is not blurred. This preview is not the downloaded file.
     </p>
-    <div v-if="showFull && fullUrl" class="max-h-80 overflow-auto rounded-xl border border-zinc-800 bg-black">
-      <p class="sticky top-0 z-10 bg-black/80 px-3 py-2 text-[11px] leading-relaxed text-zinc-300">
-        Full-resolution output at 100%. This is the processed file, not the comparison preview.
-      </p>
-      <img :key="afterKey" :src="fullUrl" alt="Full resolution output" class="max-w-none" />
-    </div>
   </div>
 </template>

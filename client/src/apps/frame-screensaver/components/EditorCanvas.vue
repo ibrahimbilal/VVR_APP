@@ -883,9 +883,9 @@ onBeforeUnmount(() => {
       <canvas
         :key="previewCanvasKey"
         ref="previewCanvas"
-        class="absolute inset-0 mx-auto block max-h-full max-w-full"
+        class="absolute top-1/2 left-1/2 block max-h-full max-w-full -translate-x-1/2 -translate-y-1/2"
       />
-      <canvas ref="overlayCanvas" class="absolute inset-0 mx-auto block max-h-full max-w-full touch-none" />
+      <canvas ref="overlayCanvas" class="absolute top-1/2 left-1/2 block max-h-full max-w-full -translate-x-1/2 -translate-y-1/2 touch-none" />
       <p v-if="!store.objectUrl" class="pointer-events-none absolute inset-0 grid place-items-center text-sm text-zinc-500">Upload media to preview</p>
     </div>
     <audio ref="audioRef" class="hidden" />

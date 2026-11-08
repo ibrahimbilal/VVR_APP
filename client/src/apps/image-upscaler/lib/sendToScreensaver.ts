@@ -5,5 +5,5 @@ import { useScreensaverStore } from '../../frame-screensaver/stores/screensaver'
 export async function sendFileToScreensaver(file: File): Promise<void> {
   const screensaver = useScreensaverStore()
   await screensaver.acceptExternalImage(file)
-  await router.push('/frame-screensaver')
+  await router.push('/screensaver')
 }

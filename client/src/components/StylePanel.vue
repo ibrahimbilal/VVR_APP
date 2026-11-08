@@ -28,6 +28,11 @@ const presets = [
 
 const store = useProjectStore()
 const playback = usePlayback()
+
+const props = withDefaults(defineProps<{ focus?: 'look' | 'sound' | 'output' | 'all' }>(), { focus: 'all' })
+const showLook = computed(() => props.focus === 'look' || props.focus === 'all')
+const showSound = computed(() => props.focus === 'sound' || props.focus === 'all')
+const showOutput = computed(() => props.focus === 'output' || props.focus === 'all')
 const exampleIndex = computed(() => {
   if (playback.activeIndex.value >= 0) return playback.activeIndex.value
   const selected = store.clips.findIndex((clip) => clip.id === store.selectedClipId)
@@ -94,8 +99,8 @@ function setTitleHideAfterEnabled(enabled: boolean) {
 </script>
 
 <template>
-  <aside class="min-h-0 overflow-y-auto border-zinc-800 bg-sidebar xl:border-l">
-    <SettingsAccordion title="Presets" open>
+  <aside class="min-h-0 overflow-y-auto border-zinc-800 bg-sidebar">
+    <SettingsAccordion v-show="showLook" title="Presets" open>
         <div class="grid grid-cols-2 gap-2">
           <button
             v-for="preset in presets"
@@ -159,7 +164,7 @@ function setTitleHideAfterEnabled(enabled: boolean) {
         </template>
     </SettingsAccordion>
 
-    <SettingsAccordion title="Color sets">
+    <SettingsAccordion v-show="showLook" title="Color sets">
         <p class="text-xs leading-relaxed text-zinc-500">Shared colors for the number, title words, and clip title. They stay available in every project.</p>
         <div class="flex flex-wrap gap-2">
           <button
@@ -211,7 +216,7 @@ function setTitleHideAfterEnabled(enabled: boolean) {
         </div>
     </SettingsAccordion>
 
-    <SettingsAccordion title="Title">
+    <SettingsAccordion v-show="showLook" title="Title">
         <div class="flex items-center justify-between text-xs text-zinc-300">
           <span>Show title</span>
           <ToggleSwitch v-model="store.style.banner.visible" aria-label="Show title" />
@@ -285,7 +290,7 @@ function setTitleHideAfterEnabled(enabled: boolean) {
         </template>
     </SettingsAccordion>
 
-    <SettingsAccordion title="Ranking">
+    <SettingsAccordion v-show="showLook" title="Ranking">
         <div class="flex items-center justify-between text-xs text-zinc-300">
           <span>Show ranking numbers</span>
           <ToggleSwitch v-model="store.style.ranking.visible" aria-label="Show ranking numbers" />
@@ -376,7 +381,7 @@ function setTitleHideAfterEnabled(enabled: boolean) {
         </template>
     </SettingsAccordion>
 
-    <SettingsAccordion title="Video">
+    <SettingsAccordion v-show="showOutput" title="Video" open>
         <label class="block text-xs text-zinc-400">
           Output
           <select class="field mt-1" :value="`${store.style.video.width}x${store.style.video.height}`" @change="onResolution">
@@ -425,7 +430,7 @@ function setTitleHideAfterEnabled(enabled: boolean) {
         />
     </SettingsAccordion>
 
-    <SettingsAccordion title="Audio">
+    <SettingsAccordion v-show="showSound" title="Audio">
       <SourceClipAudioControls
         v-model:keep-audio="store.style.video.keepAudio"
         v-model:normalize="store.style.video.normalize"

@@ -27,8 +27,8 @@ const model = defineModel<T>({ required: true })
     <button
       v-for="item in items"
       :key="item.id"
-      class="btn flex-1 cursor-pointer"
-      :class="model === item.id ? 'btn-primary' : 'btn-ghost'"
+      class="settings-tab btn flex-1 cursor-pointer"
+      :class="model === item.id ? 'btn-primary settings-tab--active' : 'btn-ghost'"
       type="button"
       role="tab"
       :aria-selected="model === item.id"

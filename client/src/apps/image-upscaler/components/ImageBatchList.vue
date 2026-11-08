@@ -16,9 +16,8 @@ const statusLabel: Record<string, string> = {
 </script>
 
 <template>
-  <div v-if="store.items.length" class="mt-4 space-y-2">
-    <div class="flex items-center justify-between gap-2">
-      <h2 class="section-label">Images</h2>
+  <div v-if="store.items.length" class="space-y-2">
+    <div class="flex justify-end">
       <button class="focus-ring cursor-pointer rounded-sm text-xs font-semibold text-zinc-400 hover:text-zinc-200 disabled:opacity-40" type="button" :disabled="store.processing" @click="store.clearFiles()">
         Clear all
       </button>

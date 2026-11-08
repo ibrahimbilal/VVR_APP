@@ -4,7 +4,7 @@ Local **Video's Factory** platform with five apps:
 
 1. **Shorts** (legacy VVR) — 9:16 ranking compilation editor.
 2. **Screensaver** — long-form 16:9 ambient video from one image or looping video.
-3. **Thumbnail Studio** — browser-only YouTube thumbnail tool. Upload an image or take one from Screensaver / Shorts, then place a resolution badge and a duration badge. It does not call FFmpeg.
+3. **Thumbnail Studio** — browser-only YouTube thumbnail tool. Upload an image or take one from Screensaver, then place a resolution badge and a duration badge. It does not call FFmpeg.
 4. **Image Upscaler** — PNG, JPEG, and WebP through a **two-stage** pipeline: upscale to a lossless intermediate PNG (`mid/`), then export fit to preset pixels (default 4K). Standard is Sharp Lanczos3; optional AI Lite runs Real-ESRGAN at native 4× then resizes to the effective scale (auto or 1–4×). Re-export skips upscale when only export settings change. See `docs/image-upscaler.md`.
 5. **Audio Looper** — one short audio file repeated to an exact duration (60s–12h, same presets and default as Screensaver) as MP3, WAV, or FLAC. Simple uses `-stream_loop`; Seamless builds an equal-power crossfaded cycle then streams it. Shares the FFmpeg job queue as `kind: 'audio-looper'`.
 
@@ -39,8 +39,8 @@ Workspaces: root `vvr-app` **2.0.0**, `client` (`vvr-client`), `server` (`vvr-se
 ```
 client/src/App.vue                      platform shell (sidebar, header, toasts)
 client/src/style.css                    design tokens and shared control classes (see docs/ui-design-system.md)
-client/src/components/ui/               AppDialog, AppMobileTabs, AppExportAction, AppEmptyState, AppPanel
-client/src/app/router.ts                /, /ranking-videos, /frame-screensaver, /thumbnail-studio, /image-upscaler, /audio-looper
+client/src/components/ui/               AppDialog, AppMobileTabs, AppSettingsTabs, AppExportAction, AppStudioExportBar, AppEmptyState, AppPanel
+client/src/app/router.ts                /, /shorts, /screensaver, /thumbnails, /upscale, /looper
 client/src/stores/platform.ts           renderer health, global toasts, nav UI
 client/src/stores/project.ts            ranking editor state
 client/src/apps/ranking-videos/         RankingVideosView (editor layout)
@@ -77,17 +77,17 @@ Stack: Vue 3, **vue-router**, Pinia, Tailwind 4, Lucide. Client aliases `@shared
 
 ## Platform shell
 
-`App.vue`: left sidebar (desktop). The logo, **Video's Factory** name, and header page title link to the dashboard. Header also has **notifications** (bell, left of renderer status), renderer status (`GET /api/health`), **New project** on Shorts, Screensaver, Thumbnail Studio, Image Upscaler, and Audio Looper (`AppHeader.vue`, `AppNotifications.vue`), `router-view`, global toasts (`usePlatformStore`). Finished Shorts, Screensaver, and Audio Looper renders are listed in the header notification panel (`renderNotifications.ts`, `platform.ts`). In-progress rows have **Cancel** (per export: client abort + server `POST /api/jobs/:id/cancel` when submitted; `renderJobTracking.ts`). After a full page reload, active server jobs are restored from `localStorage` (`persistedRenderJobs.ts`) and from `GET /api/jobs/active`, then polling resumes in `resumePersistedRenderJobs.ts` (header bell shows progress again; finished-while-away jobs appear as ready downloads).
+`App.vue`: left sidebar (desktop). The logo, **Video's Factory** name, and header page title link to the dashboard. Header also has **notifications** (bell, left of renderer status), renderer status (`GET /api/health`), **New project** on Shorts, Screensaver, Thumbnail Studio, Image Upscaler, and Audio Looper (`AppHeader.vue`, `AppNotifications.vue`), `router-view` with a short page fade/slide (`Transition` name `page`), global toasts (`usePlatformStore`). The active sidebar/mobile nav item uses `.nav-link--active` (one-shot brand pulse). Dashboard cards stagger in with `.dash-enter`. Motion lives in `client/src/style.css` and respects `prefers-reduced-motion`. Finished Shorts, Screensaver, and Audio Looper renders are listed in the header notification panel (`renderNotifications.ts`, `platform.ts`). In-progress rows have **Cancel** (per export: client abort + server `POST /api/jobs/:id/cancel` when submitted; `renderJobTracking.ts`). After a full page reload, active server jobs are restored from `localStorage` (`persistedRenderJobs.ts`) and from `GET /api/jobs/active`, then polling resumes in `resumePersistedRenderJobs.ts` (header bell shows progress again; finished-while-away jobs appear as ready downloads).
 
-- Routes: `/` dashboard, `/ranking-videos`, `/frame-screensaver`, `/thumbnail-studio`, `/image-upscaler`, `/audio-looper`. SPA fallback in production. Dashboard cards read `description` from `navItems` in `client/src/app/navigation.ts`.
-- Mobile: hamburger opens left drawer. Shorts, Screensaver, and Audio Looper use `AppMobileTabs` (Shorts at `xl`: Clips / Preview / Style; the other two at `lg`: Settings / Preview). Image Upscaler and Thumbnail Studio stack their panels and scroll instead of hiding them behind tabs.
-- Surfaces, buttons, fields, dialogs, and toasts use the tokens and classes in `client/src/style.css`. Confirmations that replace an open picture use `AppDialog` (Escape and the backdrop call the existing keep/cancel action). Export buttons share `AppExportAction`; each app still calls its own store.
+- Routes: `/` dashboard, `/shorts`, `/screensaver`, `/thumbnails`, `/upscale`, `/looper` (one-word paths matching the sidebar labels). Legacy `/ranking-videos`, `/frame-screensaver`, `/thumbs`, `/thumbnail-studio`, `/image-upscaler`, and `/audio-looper` redirect. SPA fallback in production. Dashboard cards read `description` from `navItems` in `client/src/app/navigation.ts`. Sidebar label for the thumbnail app is **Thumbnails**.
+- Mobile: hamburger opens left drawer. Desktop navigation is a compact icon rail (`AppSidebar.vue`). Shorts uses Clips / Preview / Edit tabs below `xl`, and the editor inspector switches Clip, Look, and Sound. Screensaver and the other editors keep their own workspace panels.
+- Surfaces, buttons, fields, dialogs, and toasts use the tokens and classes in `client/src/style.css`. Confirmations that replace an open picture use `AppDialog` (Escape and the backdrop call the existing keep/cancel action). Export buttons share `AppExportAction`; each app still calls its own store. Shorts, Screensaver, and Audio Looper put status + export under the preview with `AppStudioExportBar`.
 
 ## Shorts screen
 
-`RankingVideosView.vue`: optional mobile tabs, editor grid, `TimelineBar`. New project lives in the platform header.
+`RankingVideosView.vue`: optional mobile tabs, editor grid. The center column is preview stage plus a `studio-panel` under it (clip/export status, Export MP4), same pattern as Screensaver and Audio Looper. New project lives in the platform header.
 
-- `xl` and up: clips `350px`, preview flex, style `350px`; selected clip panel `280px`.
+- `xl` and up: clips `300px`, preview flex, style `360px`. The right panel is titled Settings and switches Clip, Style, Output, and Sound. Video settings (resolution, fps, encoder, scaling, transition) live under Output; Style keeps presets, colors, title, and ranking. The selected clip panel sits in that column.
 - Space toggles play on the ranking route only (not in inputs).
 - Hydration overlay until ranking `hydrated`.
 - Dev: `window.__vvr` is the ranking Pinia store.
@@ -131,7 +131,7 @@ Defined in `client/src/types.ts`.
 - `PersistedClip` is the clip without objectUrl, upload progress, and error. `playAtEnd` is persisted.
 - `ProjectStyle`: `banner`, `ranking`, `caption`, `video`.
 - Banner: visible (off = no banner, video fills the frame), background, height, font, size, weight, align, lineHeight, outline, shadow.
-- Ranking: **visible** (off = hide rank numbers on the overlay; clip titles can still show), font, size, weight, color, itemSpacing (0–100, treated as a percent of font size), positionX/Y, outline, shadow, opacity, format (`dot | plain | hash | pad` → `1.` / `1` / `#1` / `01`), display (`stack` = all numbers, `page` = current only), pageStyle (`fraction` = `1 / N`, `number` = the format), showPreviousTitles, **titleHideAfter** (seconds; 0 = off — hides only the **current** clip title after that time in preview and export), sort (`list | reverse | title | titleDesc`). Style panel: master toggles stay visible; dependent controls hide when off (**Title** banner, **Ranking** numbers/titles, **Presets** number display, **Video** crossfade — same pattern as **Audio** keep-original). Export with **titleHideAfter** sends a second PNG per clip (`overlay-N-late.png`); FFmpeg switches overlays at that timestamp (`render.ts`).
+- Ranking: **visible** (off = hide rank numbers on the overlay; clip titles can still show), font, size, weight, color, itemSpacing (0–100, treated as a percent of font size), positionX/Y, outline, shadow, opacity, format (`dot | plain | hash | pad` → `1.` / `1` / `#1` / `01`), display (`stack` = all numbers, `page` = current only), pageStyle (`fraction` = `1 / N`, `number` = the format), showPreviousTitles, **titleHideAfter** (seconds; 0 = off — hides only the **current** clip title after that time in preview and export), sort (`list | reverse | title | titleDesc`). Style / Output panels: master toggles stay visible; dependent controls hide when off (**Title** banner, **Ranking** numbers/titles, **Presets** number display, **Video** crossfade under Output — same pattern as **Audio** keep-original). Export with **titleHideAfter** sends a second PNG per clip (`overlay-N-late.png`); FFmpeg switches overlays at that timestamp (`render.ts`).
 - Caption styles the clip title drawn beside the rank number. `caption.bottom` is stored and scaled on resolution change. The canvas does not read it.
 - Video: width, height, fps, scaleMode (`crop | fit | blur`), backgroundColor, transition (`cut | fade`), fadeDuration, keepAudio, normalize, originalVolume, musicVolume (0–1), encoder (`auto` default, same choices as Screensaver).
 - Presets: `classic | tier | minimal | custom`. Definitions and default video (1080×1920, 30 fps, crop, cut, fade 0.35, keep audio, normalize, music 0.35) are in `client/src/lib/presets.ts`. Fonts: Oswald, Anton, Bebas Neue, Montserrat, Inter.
@@ -291,15 +291,17 @@ Sweep every 10 minutes: outputs older than 2 hours, jobs and incoming older than
 | Task | Open |
 | --- | --- |
 | Layout, tabs, header, toasts, render-ready notifications | `client/src/App.vue`, `client/src/style.css`, `client/src/components/layout/AppNotifications.vue`, `client/src/lib/renderNotifications.ts`, `docs/ui-design-system.md` |
-| Shared dialogs, mobile tabs, export button, empty state, panels | `client/src/components/ui/` |
+| Shared dialogs, mobile tabs, settings tabs, export button, studio export bar, empty state, panels | `client/src/components/ui/` |
+| Settings accordion expand/collapse | `client/src/components/SettingsAccordion.vue`, `client/src/style.css` |
 | Shared file drop / browse upload | `client/src/components/FileDropZone.vue` |
+| Create Thumbnail + link toggle | `client/src/components/CreateThumbnailAction.vue` (Screensaver) |
 | Shared audio upload + advanced sliders | `client/src/components/audio/` (`AudioFileField.vue`, `AdvancedAudioControls.vue`, `SourceClipAudioControls.vue`) |
 | Clip list, URL add, drag reorder | `client/src/components/ClipSidebar.vue` |
 | Trim, colors, play-last, replace | `client/src/components/SelectedClipPanel.vue` |
 | Presets, banner, ranks, video, audio controls | `client/src/components/StylePanel.vue` |
 | Preview stage and controls | `client/src/components/PreviewStage.vue` |
 | Play, seek, crossfade, music | `client/src/composables/usePlayback.ts` |
-| Timeline and export button | `client/src/components/TimelineBar.vue`, `client/src/components/ExportActionButton.vue` |
+| Export button | `client/src/components/ExportActionButton.vue` |
 | Add/remove/reorder/persist/export actions | `client/src/stores/project.ts` |
 | Types | `client/src/types.ts` |
 | Rank labels, sort, page vs stack | `client/src/lib/format.ts`, `client/src/lib/order.ts` |
@@ -343,7 +345,7 @@ Editor state is `useScreensaverStore` (`client/src/apps/frame-screensaver/stores
 
 Saved projects are IndexedDB `screensaver/project` version 2. Version 1 loads with the old fit (contain, cover, blur) turned into a composition, profile `balanced`, encoder `auto`, and the saved frame rate left as it was. The original media blob is not rewritten. `clearRankingProject()` does not clear this store.
 
-The composition (`shared/screensaverComposition.ts`) is normalized to the output frame: crop in source space, placement, rotation, flips, opacity, adjustments, background, and frame id. Browser size and view zoom are not part of it. Preview and the static export PNG both use `composeCanvas.ts`.
+The composition (`shared/screensaverComposition.ts`) is normalized to the output frame: crop in source space, placement, rotation, flips, opacity, adjustments, background, and frame id. Browser size and view zoom are not part of it. Preview and the static export PNG both use `composeCanvas.ts`. The fitted 16:9 preview stays centered horizontally and vertically in the stage.
 
 Frames are uploaded PNG files or bundled defaults from `client/src/assets/frames/` (ids like `default:frame-1`). Picker thumbnails live in `client/src/assets/frames/thumbs/` (150px wide; regenerate with `npm run frames:thumbs -w client` after changing a source PNG). Preview and export still use the full PNG. `shared/screensaverFrames.ts` accepts `none`, a stored frame UUID, or a bundled default id; older preset names (classic, mat, rounded, arch) load as no frame. The Frames section shows bundled frames in a grid above the upload control, then uploaded PNGs (40 MB max) stored in `server/tmp/frames/`. The most recently uploaded frame in a batch is applied to the preview automatically. Clicking a thumbnail selects it. Clicking it again clears the frame. Draw order is background, the placed image, then the PNG stretched over the output. Transparent pixels show the picture. Static exports bake that PNG into the composition image. Video exports overlay the stored file in FFmpeg (bundled frames are sent as an upload when the server has no copy) and do not clip with a mask. Closing the tab or window purges frames, leftover `jobs/` work dirs, all server clips (except any clip locked by a running render), and finished files in `server/tmp/outputs/` via `POST /api/uploads/cleanup` (beacon). Downloading the MP4 does not remove uploads. IndexedDB keeps project settings across visits. Background audio is cached in `screensaver/audio` for SPA navigation only. A **full page reload** clears the cached main media blob (`screensaver/source`), background audio (`screensaver/audio`), resets upload preview state, sets audio to **No audio**, and clears the selected frame so the canvas is not half-restored after server purge. SPA navigation within the app does not count as reload.
 
@@ -406,7 +408,7 @@ The screen is a 16:9 preview plus Image, Resolution Badge, Duration Badge, and o
 
 Positions are nine presets, edge distance in export pixels, and X/Y offsets; anchor math converts to normalized coordinates so export matches the preview. Dragging a badge sets a free position and leaves it there. Choosing the same preset corner for both badges nudges the one just changed, unless the other badge was dragged there on purpose.
 
-Uploads are PNG, JPEG, or WebP (default cover crop in the document; no image fit/pan controls in the panel). A Screensaver transfer copies the current image (or the existing still for a video), composition, frame PNG, output size, and duration. Ranking still opens the clip-image picker and can capture the current preview frame. Either transfer fills the resolution badge from the video's short side (snapped to a catalog resolution) and the duration badge to the nearest catalog duration (`30 MIN`, `1 HOUR`, `2 HOURS`, `8 HOURS`). An uploaded image does not imply a video resolution. If a picture is already open, the transfer asks Keep or Replace.
+Uploads are PNG, JPEG, or WebP (default cover crop in the document; no image fit/pan controls in the panel). A Screensaver transfer copies the current image (or the existing still for a video), composition, frame PNG, output size, and duration, and fills the resolution badge from the video's short side (snapped to a catalog resolution) and the duration badge to the nearest catalog duration (`30 MIN`, `1 HOUR`, `2 HOURS`, `8 HOURS`). Shorts no longer sends thumbnails. An uploaded image does not imply a video resolution. If a picture is already open, the transfer asks Keep or Replace.
 
 Export is 16:9 PNG or JPEG at 1280×720 (default), 1920×1080, or 3840×2160. JPEG has a quality slider. Download uses the project name in the filename when it is not the default (`thumbnailDownloadFilename`). Download does not use FFmpeg.
 
@@ -417,7 +419,7 @@ Badge SVGs are committed under `client/src/assets/thumbnail-badges/` (catalog sl
 
 Editor state is `useImageUpscalerStore` (`client/src/apps/image-upscaler/stores/imageUpscaler.ts`). It is not written to IndexedDB. Jobs run **upscale** then **export** in `server/src/imageUpscalerJobs.ts` (`runUpscaleStage` on the engine, `runExportStage` in `imageUpscaler.ts`). Intermediates live in `upscaler/<jobId>/mid/` keyed by content SHA-256 + upscale params; inputs are kept until purge. Default engine is Lanczos3; optional `realesrgan-lite` runs NCNN at 4× then fits the intermediate to the effective scale (see `realesrganEngine.ts`). Settings add `scaleFactor` (`auto`|1–4). Export resolution presets include **original** and **upscaled** alongside FHD–8K and custom. `POST /api/image-upscaler/jobs/:id/re-export` re-runs export only. AI setup unchanged (`VVR_AI_UPSCALER_ENABLED`, `tools/realesrgan/`). Capabilities gate AI in the UI. Failed AI jobs are not replaced with Standard.
 
-Default output is **3840×2160**, mode **contain**, engine **lanczos3**, scale **auto**, export preset **upscaled**. Export **format** matches the first uploaded image (PNG/JPEG/WebP) until the user changes it in Export settings. Presets force exact pixel sizes on the export stage. JPEG/WebP quality 60–100. Sharpen runs on export only. Concurrency and FFmpeg yield rules unchanged. **Skip Lanczos resampling** applies on export when pixels already match. Limits: 40 MB, 8 files, 7680×4320 output, `VVR_REALESRGAN_MAX_INTERMEDIATE_EDGE` for AI/ intermediate caps (`docs/image-upscaler.md`).
+The app always exports the **upscaled** pixel size in the **same format as the first uploaded image**. JPEG is written at quality 100. Engine is **lanczos3** by default, scale **auto**. The export settings panel and the comparison “inspect full resolution” view are not in the UI. Sharpen stays off. Concurrency and FFmpeg yield rules unchanged. **Skip Lanczos resampling** still applies on export when pixels already match and the server options allow it. Limits: 40 MB, 8 files, 7680×4320 output, `VVR_REALESRGAN_MAX_INTERMEDIATE_EDGE` for AI/ intermediate caps (`docs/image-upscaler.md`).
 
 **Send to Screensaver** fetches the full output file. If Screensaver already has a source, the user must confirm. Replace calls `acceptExternalImage`, which uses the same image-drop path as `pickSource` (static mode, reframe, keep frame id). Duration, output resolution, audio, and encoder are not reset. Cancel leaves Screensaver unchanged.
 
@@ -425,7 +427,7 @@ Comparison previews are WebP with a 1440px long edge. Downloads are the verified
 
 ## Audio Looper
 
-Editor state is `useAudioLooperStore` (`client/src/apps/audio-looper/stores/audioLooper.ts`). Ranking and screensaver stores stay independent. Settings persist in `localStorage` key `vf-audio-looper-settings` (duration, mode, fades, volume, format, name). The source `File` is memory-only.
+Editor state is `useAudioLooperStore` (`client/src/apps/audio-looper/stores/audioLooper.ts`). Ranking and screensaver stores stay independent. Desktop layout matches the other editors: source column `300px` (project name and audio), preview in the center with the export bar under it, settings column `360px` titled Settings (Duration, Loop, Output). Settings persist in `localStorage` key `vf-audio-looper-settings` (duration, mode, fades, volume, format, name). The source `File` is memory-only.
 
 Import: MP3, WAV, FLAC, M4A, AAC, OGG, max 100 MB, confirmed with ffprobe. Target 60–43200 integer seconds (Screensaver presets 30m–12h, default 2h, or custom minutes). Simple: `-stream_loop -1 -t TARGET`. Seamless: equal-power `afade` (`esin`) of tail and head, `amix` those into a wrap-around join, concat with the mid segment into a PCM cycle of duration `source - crossfade`, then `-stream_loop` that cycle (output starts at the wrap-around join). Source longer than target is trimmed. Volume 0–200%, fades 0–30s. MP3 128–320 kbps; WAV PCM 16-bit; FLAC lossless.
 
@@ -433,7 +435,30 @@ Verify slack: `max(0.25s, min(1.5s, 1% of target))`. Source Preview and Loop Pla
 
 ## Changelog
 
-- 2026-11-08 — Shared UI tokens and presentational components (`style.css`, `components/ui/`, shell, five editors). Export, canvas, and store behavior unchanged (`docs/ui-design-system.md`).
+- 2026-11-08 — Thumbnail app menu label is Thumbnails; route is `/thumbnails` (`navigation.ts`, `router.ts`, `AppSidebar.vue`).
+- 2026-11-08 — App routes are one-word paths matching the sidebar labels: `/shorts`, `/screensaver`, `/thumbnails`, `/upscale`, `/looper` (`router.ts`, `navigation.ts`, `renderNotifications.ts`, thumbnail return paths).
+- 2026-11-08 — Shorts Settings add an Output tab for Video settings (resolution, fps, encoder, scaling, transition); Style no longer includes Video (`RankingVideosView.vue`, `StylePanel.vue`).
+- 2026-11-08 — Screensaver Enable subscribe animation toggle uses `.settings-reveal` (`ScreensaverSettingsPanel.vue`).
+- 2026-11-08 — Thumbnail Show badge toggle expands/collapses controls with `.settings-reveal` (`ThumbnailControls.vue`, `style.css`).
+- 2026-11-08 — Settings motion: animated accordions, shared `AppSettingsTabs`, pane transitions on Shorts/Screensaver/Looper/Thumbnail (`SettingsAccordion.vue`, `AppSettingsTabs.vue`, settings panels, `style.css`).
+- 2026-11-08 — Shell motion: route page transition, active-nav pulse, dashboard stagger, drawer/toast/button transitions (`style.css`, `App.vue`, `AppSidebar.vue`, `DashboardView.vue`, `MobileNavDrawer.vue`, `docs/ui-design-system.md`).
+- 2026-11-08 — Remove Create Thumbnail from Shorts (`RankingVideosView.vue`, `CreateThumbnailButton.vue`, `createThumbnail.ts`).
+- 2026-11-08 — Shared Create Thumbnail + Link control for Shorts and Screensaver (`CreateThumbnailAction.vue`, `CreateThumbnailButton.vue`, `FrameScreensaverView.vue`).
+- 2026-11-08 — Shared `AppStudioExportBar` under the preview for Shorts, Screensaver, and Audio Looper (`AppStudioExportBar.vue`, `RankingVideosView.vue`, `FrameScreensaverView.vue`, `AudioLooperView.vue`).
+- 2026-11-08 — Remove Shorts `TimelineBar` component (`TimelineBar.vue`, `RankingVideosView.vue`).
+- 2026-11-08 — Shorts puts timeline, status, Create Thumbnail, and Export under the preview in a studio-panel; the timeline footer is removed (`RankingVideosView.vue`, `TimelineBar.vue`).
+- 2026-11-08 — Screensaver preview canvas stays centered on both axes inside the stage (`EditorCanvas.vue`).
+- 2026-11-08 — Shorts clip and export status sits with Create Thumbnail in one bar above the timeline (`RankingVideosView.vue`, `CreateThumbnailButton.vue`).
+- 2026-11-08 — Shorts right panel is titled Settings, above Clip, Style, and Sound (`RankingVideosView.vue`).
+- 2026-11-08 — Audio Looper settings move to a 360px right Settings panel; the left source panel stays 300px. Screensaver, Thumbnail Studio, Image Upscaler, and Shorts already use 300px left and 360px right (`AudioLooperView.vue`, `LooperSettings.vue`, `ImageUpscalerView.vue`).
+- 2026-11-08 — Screensaver settings move to a right Settings panel; the left panel keeps the project name and source (`FrameScreensaverView.vue`, `ScreensaverSettingsPanel.vue`).
+- 2026-11-08 — Screensaver route is `/screensaver` (`/frame-screensaver` redirects). Settings tabs are Content, Output, Sound, Style (`router.ts`, `navigation.ts`, `ScreensaverSettingsPanel.vue`).
+- 2026-11-08 — Screensaver settings groups are Style, Output, Content (frames and subscribe), and Sound. The nav label stays Screensaver (`ScreensaverSettingsPanel.vue`, `AppSidebar.vue`, `RankingVideosView.vue`).
+- 2026-11-08 — Image Upscaler always saves the upscaled size in the uploaded format (JPEG quality 100). Export settings and full-resolution inspect are removed from the UI (`UpscaleSettings.vue`, `imageUpscaler.ts`, `ImageComparison.vue`).
+- 2026-11-08 — Image Upscaler fit and padding controls show only when the export resolution is not Original or Upscaled Dimensions (`UpscaleSettings.vue`).
+- 2026-11-08 — Image Upscaler export inspector has more space between resolution, fit, padding, format, and sharpen (`UpscaleSettings.vue`).
+- 2026-11-08 — Audio Looper uses the same left-panel, stage, and export-bar layout as the other editors (`AudioLooperView.vue`, `LooperSettings.vue`).
+- 2026-11-08 — Studio redesign: icon rail, dashboard home, and new workspace layouts for all five editors. Processing, stores, and exports are unchanged (`DashboardView.vue`, app views, `AppSidebar.vue`, `docs/ui-design-system.md`).
 - 2026-11-08 — Audio Looper duration matches Screensaver: 2h default, 30m–12h presets, custom minutes (`shared/audioLooper.ts`, `LooperSettings.vue`).
 - 2026-11-08 — Audio Looper hides Source Preview and Loop Plan until a file is loaded; custom canvas player with 0.8/1.0 waveform progress replaces native audio controls (`LooperPreview.vue`, `LooperPlayer.vue`).
 - 2026-11-08 — Dashboard app cards are fully clickable with hover lift; Open Editor button removed (`DashboardView.vue`).

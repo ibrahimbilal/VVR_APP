@@ -8,6 +8,7 @@ const props = withDefaults(
     multiple?: boolean
     disabled?: boolean
     compact?: boolean
+    prominent?: boolean
     label: string
     dropLabel?: string
     busyLabel?: string
@@ -20,6 +21,7 @@ const props = withDefaults(
     multiple: false,
     disabled: false,
     compact: false,
+    prominent: false,
     dropLabel: 'Drop to upload',
     hint: 'or click to browse',
   },
@@ -90,7 +92,7 @@ function openPicker() {
       class="focus-ring flex w-full cursor-pointer flex-col items-center gap-1 rounded-lg border border-dashed px-3 text-sm font-semibold transition-shadow disabled:cursor-wait disabled:opacity-60"
       :class="[
         active ? 'border-brand bg-brand/10 text-sky-100' : 'border-zinc-600 bg-inset text-zinc-100',
-        compact ? 'py-4' : 'py-8',
+        compact || prominent ? (prominent ? 'py-16 text-base' : 'py-4') : 'py-8',
       ]"
       type="button"
       :disabled="disabled"
@@ -100,7 +102,7 @@ function openPicker() {
       @dragleave.prevent="onFileDragLeave"
       @drop.prevent="onDrop"
     >
-      <Upload :size="compact ? 16 : 18" />
+      <Upload :size="prominent ? 28 : compact ? 16 : 18" />
       <span>{{ title }}</span>
       <span v-if="hint" class="text-xs font-normal text-zinc-500">{{ hint }}</span>
       <span v-if="formats" class="mt-1 text-xs font-normal text-zinc-600">{{ formats }}</span>

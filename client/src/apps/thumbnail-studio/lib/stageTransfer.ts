@@ -11,7 +11,15 @@ export interface StageThumbnailInput {
   sourceApp: ThumbnailSourceApp
   sourceProjectId?: string
   linkMode: ThumbnailLinkMode
-  returnPath: '/' | '/ranking-videos' | '/frame-screensaver' | '/thumbnail-studio'
+  returnPath:
+    | '/'
+    | '/shorts'
+    | '/ranking-videos'
+    | '/frame-screensaver'
+    | '/screensaver'
+    | '/thumbnails'
+    | '/thumbs'
+    | '/thumbnail-studio'
   title?: string
   artwork: Blob
   artworkName?: string
@@ -50,8 +58,8 @@ export async function stageThumbnailTransfer(input: StageThumbnailInput): Promis
     throw new Error(validated.error)
   }
   await saveThumbnailValue('pending-transfer', validated.payload)
-  if (router.currentRoute.value.path === '/thumbnail-studio') await studio.consumeStoredTransfer()
-  else await router.push('/thumbnail-studio')
+  if (router.currentRoute.value.path === '/thumbnails') await studio.consumeStoredTransfer()
+  else await router.push('/thumbnails')
   platform.toast('Thumbnail project ready.', 'info')
 }
 

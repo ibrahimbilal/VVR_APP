@@ -3,6 +3,7 @@ import FileDropZone from '../../../components/FileDropZone.vue'
 import FileStatusBox from '../../../components/FileStatusBox.vue'
 import { useAudioLooperStore } from '../stores/audioLooper'
 
+const props = defineProps<{ prominent?: boolean }>()
 const store = useAudioLooperStore()
 
 function onFiles(files: File[]): void {
@@ -15,9 +16,11 @@ function onFiles(files: File[]): void {
   <div class="space-y-3">
     <FileDropZone
       accept="audio/*,.mp3,.wav,.flac,.m4a,.aac,.ogg"
-      label="Drop audio here"
+      :label="store.fileName ? 'Replace audio' : 'Drop audio here'"
       drop-label="Drop to upload"
       formats="MP3, WAV, FLAC, M4A, AAC, OGG"
+      :prominent="props.prominent && !store.fileName"
+      :compact="Boolean(store.fileName)"
       :highlighted="false"
       @files="onFiles"
     />

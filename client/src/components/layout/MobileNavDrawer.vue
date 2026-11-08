@@ -64,10 +64,10 @@ function onNavigate() {
 <template>
   <Teleport to="body">
     <div v-if="open" class="fixed inset-0 z-50 xl:hidden">
-      <div class="absolute inset-0 bg-black/60" aria-hidden="true" @click="onBackdropClick" />
+      <div class="drawer-scrim-enter absolute inset-0 bg-black/60" aria-hidden="true" @click="onBackdropClick" />
       <div
         ref="panelRef"
-        class="absolute left-0 top-0 flex h-full w-[min(280px,85vw)] flex-col border-r border-zinc-800 bg-chrome shadow-xl"
+        class="drawer-panel-enter absolute left-0 top-0 flex h-full w-[min(280px,85vw)] flex-col border-r border-zinc-800 bg-chrome shadow-xl"
         role="dialog"
         aria-modal="true"
         aria-label="Navigation"
@@ -91,11 +91,12 @@ function onNavigate() {
             v-for="item in navItems"
             :key="item.path"
             :to="item.path"
-            class="focus-ring flex items-center gap-3 rounded-md px-3 py-2.5 text-sm font-semibold transition-colors"
+            class="nav-link focus-ring flex items-center gap-3 rounded-md px-3 py-2.5 text-sm font-semibold"
             :aria-label="item.label"
+            :aria-current="isActive(item.path) ? 'page' : undefined"
             :class="
               isActive(item.path)
-                ? 'bg-brand/15 text-brand'
+                ? 'nav-link--active bg-brand/15 text-brand'
                 : 'text-zinc-400 hover:bg-zinc-800/80 hover:text-zinc-100'
             "
             @click="onNavigate"

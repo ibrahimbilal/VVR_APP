@@ -106,7 +106,7 @@ function kept(duration: number, start: number, end: number): string {
     <div class="space-y-3 border-b border-zinc-800 p-4">
       <label class="block">
         <span class="mb-1 block section-label">Project</span>
-        <input v-model="store.name" class="field" maxlength="80" />
+        <input v-model="store.name" class="field text-sm font-semibold" maxlength="80" />
       </label>
       <form class="flex gap-2" @submit.prevent="submitUrl">
         <input v-model="urlInput" class="field" placeholder="Paste a YouTube, TikTok, or Reel link" />

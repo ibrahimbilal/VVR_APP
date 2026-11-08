@@ -9,9 +9,9 @@ const APP_LABELS: Record<RenderAppId, string> = {
 }
 
 export const RENDER_APP_ROUTES: Record<RenderAppId, string> = {
-  ranking: '/ranking-videos',
-  screensaver: '/frame-screensaver',
-  'audio-looper': '/audio-looper',
+  ranking: '/shorts',
+  screensaver: '/screensaver',
+  'audio-looper': '/looper',
 }
 
 export function renderAppLabel(app: RenderAppId): string {

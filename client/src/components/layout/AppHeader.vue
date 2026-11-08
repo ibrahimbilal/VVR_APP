@@ -20,26 +20,26 @@ const audioLooper = useAudioLooperStore()
 
 const title = computed(() => (route.meta.title as string) || "Video's Factory")
 const showNewProject = computed(() =>
-  route.name === 'ranking-videos' ||
-  route.name === 'frame-screensaver' ||
-  route.name === 'thumbnail-studio' ||
-  route.name === 'image-upscaler' ||
-  route.name === 'audio-looper',
+  route.name === 'shorts' ||
+  route.name === 'screensaver' ||
+  route.name === 'thumbnails' ||
+  route.name === 'upscale' ||
+  route.name === 'looper',
 )
 
 function startNewProject(): void {
-  if (route.name === 'ranking-videos') void project.newProject()
-  else if (route.name === 'frame-screensaver') void screensaver.newProject()
-  else if (route.name === 'thumbnail-studio') void thumbnail.newProject()
-  else if (route.name === 'image-upscaler') void upscaler.newProject()
-  else if (route.name === 'audio-looper') audioLooper.newProject()
+  if (route.name === 'shorts') void project.newProject()
+  else if (route.name === 'screensaver') void screensaver.newProject()
+  else if (route.name === 'thumbnails') void thumbnail.newProject()
+  else if (route.name === 'upscale') void upscaler.newProject()
+  else if (route.name === 'looper') audioLooper.newProject()
 }
 
 const emit = defineEmits<{ openNav: [trigger: HTMLElement] }>()
 </script>
 
 <template>
-  <header class="flex h-14 shrink-0 items-center gap-3 border-b border-zinc-800 bg-app px-4">
+  <header class="studio-shell flex h-16 shrink-0 items-center gap-3 border-b border-white/5 px-4">
     <button
       class="btn btn-ghost cursor-pointer xl:hidden"
       type="button"
@@ -48,7 +48,7 @@ const emit = defineEmits<{ openNav: [trigger: HTMLElement] }>()
     >
       <Menu :size="20" />
     </button>
-    <h1 class="min-w-0 truncate text-sm font-semibold">
+    <h1 class="min-w-0 truncate text-lg font-bold tracking-tight">
       <RouterLink :to="{ name: 'dashboard' }" class="focus-ring rounded-sm text-zinc-200 transition-colors" :aria-label="`${title}, go to dashboard`">
         {{ title }}
       </RouterLink>

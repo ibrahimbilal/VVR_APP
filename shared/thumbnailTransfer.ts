@@ -11,7 +11,16 @@ import {
 
 export const THUMBNAIL_TRANSFER_VERSION = 1
 
-const RETURN_PATHS = new Set(['/', '/ranking-videos', '/frame-screensaver', '/thumbnail-studio'])
+const RETURN_PATHS = new Set([
+  '/',
+  '/shorts',
+  '/ranking-videos',
+  '/frame-screensaver',
+  '/screensaver',
+  '/thumbnails',
+  '/thumbs',
+  '/thumbnail-studio',
+])
 
 export interface ThumbnailTransferPayload {
   version: 1
