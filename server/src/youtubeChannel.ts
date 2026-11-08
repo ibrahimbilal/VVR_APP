@@ -1,11 +1,15 @@
 import { parseVideoUrl } from '../../shared/urls'
 import { parseYoutubeChannelPageUrl } from '../../shared/youtubeChannel'
+import { fetchYoutubeAvatarDataUrl } from './youtubeAvatar'
 
 export interface YoutubeChannelLookupResult {
   ok: true
   channelName: string | null
   channelUrl: string | null
+  /** YouTube CDN URL only (safe for editor state and export JSON). */
   avatarUrl: string | null
+  /** Proxied image for immediate client draw; not stored in project settings. */
+  avatarDataUrl: string | null
   subscriberCount: string | null
   source: 'video-oembed' | 'channel-page'
 }
@@ -23,11 +27,14 @@ export async function lookupYoutubeChannel(
       return { ok: false, error: 'Could not read channel info from that video link.' }
     }
     let avatarUrl: string | null = null
+    let avatarDataUrl: string | null = null
     let subscriberCount: string | null = null
     if (meta.author_url) {
       const page = await fetchChannelPage(meta.author_url)
       if (page) {
-        avatarUrl = page.avatarUrl
+        const assets = await resolveAvatarAssets(page.avatarUrl)
+        avatarUrl = assets.avatarUrl
+        avatarDataUrl = assets.avatarDataUrl
         subscriberCount = page.subscriberCount
       }
     }
@@ -36,6 +43,7 @@ export async function lookupYoutubeChannel(
       channelName: meta.author_name,
       channelUrl: meta.author_url,
       avatarUrl,
+      avatarDataUrl,
       subscriberCount,
       source: 'video-oembed',
     }
@@ -47,14 +55,24 @@ export async function lookupYoutubeChannel(
   const page = await fetchChannelPage(channel.normalizedUrl)
   if (!page) return { ok: false, error: 'Could not load that YouTube channel page.' }
 
+  const assets = await resolveAvatarAssets(page.avatarUrl)
   return {
     ok: true,
     channelName: page.title,
     channelUrl: channel.normalizedUrl,
-    avatarUrl: page.avatarUrl,
+    avatarUrl: assets.avatarUrl,
+    avatarDataUrl: assets.avatarDataUrl,
     subscriberCount: page.subscriberCount,
     source: 'channel-page',
   }
+}
+
+async function resolveAvatarAssets(
+  remoteUrl: string | null,
+): Promise<{ avatarUrl: string | null; avatarDataUrl: string | null }> {
+  if (!remoteUrl) return { avatarUrl: null, avatarDataUrl: null }
+  const avatarDataUrl = await fetchYoutubeAvatarDataUrl(remoteUrl)
+  return { avatarUrl: remoteUrl, avatarDataUrl }
 }
 
 async function fetchYoutubeOembed(

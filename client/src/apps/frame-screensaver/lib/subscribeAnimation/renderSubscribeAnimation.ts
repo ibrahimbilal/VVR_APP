@@ -6,7 +6,7 @@ import { subscribeClickTargets } from './subscribeAnimationClickTargets'
 import { subscribeMousePointerAt } from './subscribeAnimationMouse'
 import { subscribeAnimationMotionAt } from './subscribeAnimationTimeline'
 import { subscribeChannelCardThemeColors } from './subscribeAnimationChannelCardTheme'
-import { getSubscribeChannelAvatarImage } from './subscribeAnimationChannelAvatar'
+import { getSubscribeChannelAvatarForSettings } from './subscribeAnimationChannelAvatar'
 
 function drawMouseOverlay(
   ctx: CanvasRenderingContext2D,
@@ -44,9 +44,7 @@ function renderChannelCard(
   const pad = 14 * scale
   const avatarSize = 52 * scale
   const theme = subscribeChannelCardThemeColors(settings.channelCardTheme)
-  const cachedAvatar = getSubscribeChannelAvatarImage()
-  const avatarImage =
-    settings.channelAvatarUrl && cachedAvatar && cachedAvatar.src === settings.channelAvatarUrl ? cachedAvatar : null
+  const avatarImage = getSubscribeChannelAvatarForSettings(settings.channelAvatarUrl)
 
   roundRect(ctx, 0, 0, width, height, 16 * scale)
   ctx.fillStyle = theme.cardFill

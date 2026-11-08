@@ -81,7 +81,9 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
         </template>
         <ScreensaverExportBar />
       </AppStudioExportBar>
-      <ScreensaverExportDetails class="lg:hidden" />
+      <div class="contents lg:hidden">
+        <ScreensaverExportDetails />
+      </div>
     </div>
 
     <aside
@@ -91,7 +93,9 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
       <ScreensaverSettingsPanel v-model:custom-minutes="customMinutes" class="min-h-0 flex-1" />
     </aside>
 
-    <ScreensaverExportDetails class="hidden lg:flex" />
+    <div class="hidden lg:contents">
+      <ScreensaverExportDetails />
+    </div>
 
     <div v-if="!store.hydrated" class="scrim">
       Restoring saved project…

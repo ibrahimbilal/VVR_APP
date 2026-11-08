@@ -39,7 +39,7 @@ Workspaces: root `vvr-app` **2.0.0**, `client` (`vvr-client`), `server` (`vvr-se
 ```
 client/src/App.vue                      platform shell (sidebar, header, toasts)
 client/src/style.css                    design tokens and shared control classes (see docs/ui-design-system.md)
-client/src/components/ui/               AppDialog, AppMobileTabs, AppSettingsTabs, AppExportAction, AppStudioExportBar, AppEmptyState, AppPanel
+client/src/components/ui/               AppDialog, AppMobileTabs, AppSettingsTabs, AppExportAction, AppExportStatusPanel, AppStudioExportBar, AppEmptyState, AppPanel
 client/src/app/router.ts                /, /shorts, /screensaver, /thumbnails, /upscale, /looper
 client/src/stores/platform.ts           renderer health, global toasts, nav UI
 client/src/stores/project.ts            ranking editor state
@@ -222,7 +222,7 @@ Server `parseProject` requires 1–30 clips, UUID ids, 1080×1920 or 720×1280, 
 - If normalize fails, retry without it. If a crossfade fails, retry as hard cuts. The job `warning` explains the fallback.
 - Verify with ffprobe: dimensions, duration near the expected length, and an audio stream when audio was requested. Download is refused until status is `done`.
 
-Progress on the client: overlays/upload are local; queued/preparing/rendering/verifying come from the job. Rendering maps ffmpeg time onto 20–95%. Job poll also exposes `encodeProgress` (0–1 from FFmpeg output time). Ranking and Screensaver export sidebars show encoder/speed/ETA; Screensaver also shows overall progress %, total output frames (`duration × fps`), and rendered frames (`encodeProgress × total`, `ScreensaverExportDetails.vue`, `jobPoll.ts`).
+Progress on the client: overlays/upload are local; queued/preparing/rendering/verifying come from the job. Rendering maps ffmpeg time onto 20–95%. Job poll also exposes `encodeProgress` (0–1 from FFmpeg output time). Ranking and Screensaver show that progress, plus encoder, speed, and ETA, in a studio Export status panel (`AppExportStatusPanel.vue`). It stays a narrow rail until opened. Screensaver also lists total output frames (`duration × fps`) and rendered frames (`encodeProgress × total`, `ScreensaverExportDetails.vue`, `jobPoll.ts`).
 
 ## HTTP
 
@@ -233,6 +233,8 @@ Progress on the client: overlays/upload are local; queued/preparing/rendering/ve
 | GET | `/api/clips/:id` | metadata if the file is still registered |
 | DELETE | `/api/clips/:id` | remove unless a render holds it |
 | POST | `/api/import-url` | `{ url }` → title lookup, `canDownload: false` |
+| POST | `/api/youtube-channel-lookup` | `{ url }` → channel name, avatar (data URL when proxied), subscribers |
+| GET | `/api/youtube-channel-avatar` | `?url=` — proxy YouTube CDN avatar images (allowlisted hosts) |
 | POST | `/api/export` | `project` JSON + overlays + optional music, 40 MB each, up to 31 files |
 | GET | `/api/jobs/active` | queued / preparing / rendering / verifying / done jobs still on the renderer (for reload recovery) |
 | GET | `/api/jobs/:id` | status |
@@ -291,7 +293,7 @@ Sweep every 10 minutes: outputs older than 2 hours, jobs and incoming older than
 | Task | Open |
 | --- | --- |
 | Layout, tabs, header, toasts, render-ready notifications | `client/src/App.vue`, `client/src/style.css`, `client/src/components/layout/AppNotifications.vue`, `client/src/lib/renderNotifications.ts`, `docs/ui-design-system.md` |
-| Shared dialogs, mobile tabs, settings tabs, export button, studio export bar, empty state, panels | `client/src/components/ui/` |
+| Shared dialogs, mobile tabs, settings tabs, export button, export status panel, studio export bar, empty state, panels | `client/src/components/ui/` |
 | Settings accordion expand/collapse | `client/src/components/SettingsAccordion.vue`, `client/src/style.css` |
 | Shared file drop / browse upload | `client/src/components/FileDropZone.vue` |
 | Create Thumbnail + link toggle | `client/src/components/CreateThumbnailAction.vue` (Screensaver) |
@@ -302,6 +304,7 @@ Sweep every 10 minutes: outputs older than 2 hours, jobs and incoming older than
 | Preview stage and controls | `client/src/components/PreviewStage.vue` |
 | Play, seek, crossfade, music | `client/src/composables/usePlayback.ts` |
 | Export button | `client/src/components/ExportActionButton.vue` |
+| Export status panel | `client/src/components/ui/AppExportStatusPanel.vue`, `client/src/components/RankingExportDetails.vue`, `client/src/apps/frame-screensaver/components/ScreensaverExportDetails.vue` |
 | Add/remove/reorder/persist/export actions | `client/src/stores/project.ts` |
 | Types | `client/src/types.ts` |
 | Rank labels, sort, page vs stack | `client/src/lib/format.ts`, `client/src/lib/order.ts` |
@@ -435,6 +438,8 @@ Verify slack: `max(0.25s, min(1.5s, 1% of target))`. Source Preview and Loop Pla
 
 ## Changelog
 
+- 2026-11-09 — YouTube Fetch keeps CDN URL in `channelAvatarUrl`; lookup returns separate `avatarDataUrl` ingested as a blob for preview/export (`youtubeChannel.ts`, `subscribeAnimationChannelAvatar.ts`, `shared/youtubeAvatar.ts`).
+- 2026-11-09 — Export status uses the studio panel: rounded card, progress bar, and a collapsed rail (`AppExportStatusPanel.vue`, `RankingExportDetails.vue`, `ScreensaverExportDetails.vue`).
 - 2026-11-09 — Notification row leave is fade-left with dark red background; Cancel clears untracked rows (`AppNotifications.vue`, `style.css`, `renderJobTracking.ts`, `platform.ts`).
 - 2026-11-08 — Thumbnail app menu label is Thumbnails; route is `/thumbnails` (`navigation.ts`, `router.ts`, `AppSidebar.vue`).
 - 2026-11-08 — App routes are one-word paths matching the sidebar labels: `/shorts`, `/screensaver`, `/thumbnails`, `/upscale`, `/looper` (`router.ts`, `navigation.ts`, `renderNotifications.ts`, thumbnail return paths).

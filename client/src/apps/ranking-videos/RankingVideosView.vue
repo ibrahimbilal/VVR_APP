@@ -116,7 +116,9 @@ onBeforeUnmount(() => {
           </div>
         </div>
       </div>
-      <RankingExportDetails />
+      <div class="hidden xl:contents">
+        <RankingExportDetails />
+      </div>
     </div>
 
     <div v-if="!store.hydrated" class="scrim">

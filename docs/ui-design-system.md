@@ -57,6 +57,7 @@ Motion tokens: `--ease-out-soft`, `--duration-fast` / `--duration-base` / `--dur
 | `AppMobileTabs` | Settings / Preview / Clips rows. `v-model` is the tab id. `hide-from` is `lg` or `xl`. | Which panels that id shows |
 | `AppSettingsTabs` | Settings strip (Shorts: Clip / Style / Output / Sound). `v-model` is the tab id; optional `cols` `3` or `4`. | Which panels that id shows; wrap pane content in `Transition name="settings-pane"` |
 | `AppExportAction` | Primary export button, blocker text, optional hint, extra slot | Store handler, queue label, CPU fallback, status copy |
+| `AppExportStatusPanel` | Export progress card: percent, bar, stat rows, collapsed rail | Which rows, progress, and tone to pass; when it is allowed to show |
 | `AppEmptyState` | Title and short guidance when nothing is loaded | When the empty state is allowed to show |
 | `AppPanel` | Titled elevated card | — |
 

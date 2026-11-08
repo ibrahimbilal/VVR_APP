@@ -33,7 +33,9 @@ import { resolveFade, sequenceDuration } from '../../shared/timeline'
 import { checkFfmpeg, logEncodeCheck } from './binaries'
 import { cancelJob, createJob, createScreensaverJob, dropJobOutput, getJob, jobIdsInUse, jobOutput, listRecoverableJobs, outputPathsInUse } from './jobs'
 import { lookupUrl } from './oembed'
+import { proxyYoutubeAvatarResponse } from './youtubeAvatar'
 import { lookupYoutubeChannel } from './youtubeChannel'
+import { isAllowedYoutubeAvatarUrl } from '../../shared/youtubeAvatar'
 import { encoderCatalog } from './encoders'
 import { addFrame, ensureFrames, getFrame, listFrames, removeAllFrames, removeFrame } from './frames'
 import { probeAudioFile, probeImage, probeMedia, probeSourceDetails, probeStill, sniffMediaKind } from './probe'
@@ -173,6 +175,22 @@ app.post('/api/youtube-channel-lookup', async (req, res) => {
     return
   }
   res.json(result)
+})
+
+app.get('/api/youtube-channel-avatar', async (req, res) => {
+  const raw = typeof req.query.url === 'string' ? req.query.url : ''
+  if (!isAllowedYoutubeAvatarUrl(raw)) {
+    res.status(400).json({ error: 'Invalid avatar URL.' })
+    return
+  }
+  const proxied = await proxyYoutubeAvatarResponse(raw)
+  if (!proxied) {
+    res.status(502).json({ error: 'Could not load that avatar from YouTube.' })
+    return
+  }
+  res.setHeader('Content-Type', proxied.contentType)
+  res.setHeader('Cache-Control', 'private, max-age=3600')
+  res.send(proxied.body)
 })
 
 app.post('/api/export', exportUpload.fields([{ name: 'overlays', maxCount: 60 }, { name: 'music', maxCount: 1 }]), async (req, res) => {

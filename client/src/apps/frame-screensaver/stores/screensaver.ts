@@ -51,7 +51,7 @@ import { DUPLICATE_EXPORT_MESSAGE, screensaverExportFingerprint } from '../../..
 import { submitScreensaverExport } from '../lib/screensaverExport'
 import { subscribeAnimationOverlayOnOutput } from '../lib/subscribeAnimation/subscribeAnimationLayout'
 import { renderSubscribeAnimationFrames } from '../lib/subscribeAnimation/subscribeAnimationExportFrames'
-import { preloadSubscribeChannelAvatar } from '../lib/subscribeAnimation/subscribeAnimationChannelAvatar'
+import { ingestSubscribeChannelAvatar, preloadSubscribeChannelAvatar } from '../lib/subscribeAnimation/subscribeAnimationChannelAvatar'
 import type { SavedScreensaverProject } from '../types'
 
 function loadHtmlImage(url: string): Promise<HTMLImageElement> {
@@ -847,13 +847,13 @@ export const useScreensaverStore = defineStore('screensaver', () => {
     subscribeChannelLookupLoading.value = true
     try {
       const result = await api.lookupYoutubeChannel(target)
+      await ingestSubscribeChannelAvatar(result.avatarUrl, result.avatarDataUrl)
       replaceSubscribeAnimation({
         channelUrl: result.channelUrl ?? target,
         channelName: result.channelName ?? subscribeAnimation.value.channelName,
         channelAvatarUrl: result.avatarUrl,
         channelSubscriberCount: result.subscriberCount,
       })
-      await preloadSubscribeChannelAvatar(result.avatarUrl)
       toast(result.channelName ? `Loaded ${result.channelName}.` : 'Channel info updated.', 'success')
     } catch (error) {
       toast(error instanceof Error ? error.message : 'Could not load channel info.')

@@ -90,6 +90,7 @@ export interface YoutubeChannelLookupResult {
   channelName: string | null
   channelUrl: string | null
   avatarUrl: string | null
+  avatarDataUrl: string | null
   subscriberCount: string | null
   source: 'video-oembed' | 'channel-page'
 }
