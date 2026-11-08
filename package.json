@@ -6,7 +6,7 @@
     "client",
     "server"
   ],
-  "description": "Video's Factory — Shorts, Screensaver, Thumbnail Studio, and Image Upscaler",
+  "description": "Video's Factory — Shorts, Screensaver, Thumbnail Studio, Image Upscaler, and Audio Looper",
   "engines": {
     "node": "^20.19.0 || >=22.12.0"
   },
@@ -32,6 +32,7 @@
     "test:ranking": "npm run test:ranking -w server",
     "test:thumbnail": "npm exec -w server -- tsx --test ../shared/thumbnail.test.ts",
     "test:upscaler": "npm exec -w server -- tsx --test ../shared/imageUpscaler.test.ts src/imageUpscaler.test.ts src/realesrgan.test.ts src/realesrganStandalone.test.ts && node --test scripts/ai-lite-env.test.cjs",
+    "test:audio-looper": "npm run test:audio-looper -w server",
     "launch": "node scripts/launch-dev.cjs",
     "launch:linux": "bash scripts/launch-linux.sh",
     "build:launcher": "node scripts/build-launcher.mjs",

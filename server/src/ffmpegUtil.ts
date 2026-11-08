@@ -1,8 +1,10 @@
 import { spawn } from 'node:child_process'
 import { stat } from 'node:fs/promises'
+import type { AudioLooperFormat } from '../../shared/audioLooper'
 import { ffmpegBinary } from './binaries'
 import { ompThreadLimit } from './ffmpegThreading'
-import { probeMedia } from './probe'
+import { killProcessTree } from './nativeProcess'
+import { probeAudioDetails, probeMedia } from './probe'
 
 export class RenderCancelled extends Error {
   constructor() {
@@ -40,7 +42,7 @@ export function spawnFfmpeg(args: string[], expected: number, hooks: FfmpegHooks
       reject(error)
     }
     hooks.registerKill(() => {
-      child.kill()
+      killProcessTree(child)
     })
     if (child.pid) hooks.onSpawn?.(child.pid)
     let fps: number | null = null
@@ -52,9 +54,8 @@ export function spawnFfmpeg(args: string[], expected: number, hooks: FfmpegHooks
         if (fpsMatch) fps = Number(fpsMatch[1])
         const speedMatch = /^speed=\s*([\d.]+)x/.exec(line)
         if (speedMatch) speed = Number(speedMatch[1])
-        const stamp = /^out_time=(\d+):(\d+):(\d+(?:\.\d+)?)/.exec(line)
-        if (!stamp) continue
-        const seconds = Number(stamp[1]) * 3600 + Number(stamp[2]) * 60 + Number(stamp[3])
+        const seconds = parseProgressSeconds(line)
+        if (seconds == null) continue
         hooks.onProgress(Math.max(0, Math.min(0.99, seconds / Math.max(expected, 0.1))))
         hooks.onStats?.({ time: seconds, fps, speed })
       }
@@ -110,6 +111,62 @@ export async function verifyVideoOutput(
     throw new Error('The export is missing its audio track. It was discarded.')
   }
   return { outputPath: file, bytes: info.size, duration: probed.duration }
+}
+
+/** Slack is max(0.25s, 1% of target), capped at 1.5s so long 24h jobs stay close to `-t`. */
+export const AUDIO_DURATION_TOLERANCE_FLOOR = 0.25
+export const AUDIO_DURATION_TOLERANCE_CAP = 1.5
+export const AUDIO_DURATION_TOLERANCE_RATIO = 0.01
+
+export function audioDurationSlack(expected: number): number {
+  return Math.max(AUDIO_DURATION_TOLERANCE_FLOOR, Math.min(AUDIO_DURATION_TOLERANCE_CAP, expected * AUDIO_DURATION_TOLERANCE_RATIO))
+}
+
+export async function verifyAudioOutput(
+  file: string,
+  expected: number,
+  format: AudioLooperFormat,
+): Promise<{ outputPath: string; bytes: number; duration: number }> {
+  const probed = await probeAudioDetails(file)
+  const info = await stat(file)
+  if (!probed.codec || probed.duration <= 0) {
+    throw new Error('The export is missing its audio stream. It was discarded.')
+  }
+  const expectedCodec = format === 'mp3' ? 'mp3' : format === 'flac' ? 'flac' : 'pcm_s16le'
+  if (probed.codec !== expectedCodec) {
+    throw new Error(`The export was not encoded as ${format.toUpperCase()}. It was discarded.`)
+  }
+  if (info.size < 256) {
+    throw new Error('The export looked incomplete, so it was discarded.')
+  }
+  const slack = audioDurationSlack(expected)
+  if (probed.duration < expected - slack) {
+    throw new Error('The export looked incomplete, so it was discarded.')
+  }
+  if (probed.duration > expected + slack) {
+    throw new Error('The export was longer than requested, so it was discarded.')
+  }
+  return { outputPath: file, bytes: info.size, duration: probed.duration }
+}
+
+/** Parse one FFmpeg `-progress` line. Prefers out_time_us, then out_time_ms, then out_time. */
+export function parseProgressSeconds(line: string): number | null {
+  const us = /^out_time_us=(-?\d+|N\/A)/.exec(line)
+  if (us) {
+    if (us[1] === 'N/A') return null
+    const seconds = Number(us[1]) / 1_000_000
+    return Number.isFinite(seconds) && seconds >= 0 ? seconds : null
+  }
+  const ms = /^out_time_ms=(-?\d+|N\/A)/.exec(line)
+  if (ms) {
+    if (ms[1] === 'N/A') return null
+    const seconds = Number(ms[1]) / 1_000
+    return Number.isFinite(seconds) && seconds >= 0 ? seconds : null
+  }
+  const stamp = /^out_time=(\d+):(\d+):(\d+(?:\.\d+)?)/.exec(line)
+  if (!stamp) return null
+  const seconds = Number(stamp[1]) * 3600 + Number(stamp[2]) * 60 + Number(stamp[3])
+  return Number.isFinite(seconds) && seconds >= 0 ? seconds : null
 }
 
 export function friendlyFfmpegError(stderr: string): string {

@@ -138,6 +138,7 @@ export async function purgeOutputFiles(keepPaths: ReadonlySet<string> = new Set(
     return
   }
   for (const name of names) {
+    if (path.extname(name).toLowerCase() !== '.mp4') continue
     const full = path.join(outputsDir, name)
     if (keepPaths.has(full)) continue
     await rm(full, { force: true }).catch(() => undefined)
@@ -193,7 +194,7 @@ export function safeImageExt(name: string, sniffed: 'jpeg' | 'png' | 'webp' | nu
 
 export function safeAudioExt(name: string): string {
   const ext = path.extname(name).toLowerCase()
-  if (ext === '.mp3' || ext === '.wav' || ext === '.m4a' || ext === '.aac' || ext === '.ogg') return ext
+  if (ext === '.mp3' || ext === '.wav' || ext === '.flac' || ext === '.m4a' || ext === '.aac' || ext === '.ogg') return ext
   return ''
 }
 

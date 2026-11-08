@@ -4,6 +4,7 @@ import { computed } from 'vue'
 import { RouterLink, useRoute } from 'vue-router'
 import AppNotifications from './AppNotifications.vue'
 import { useScreensaverStore } from '../../apps/frame-screensaver/stores/screensaver'
+import { useAudioLooperStore } from '../../apps/audio-looper/stores/audioLooper'
 import { useImageUpscalerStore } from '../../apps/image-upscaler/stores/imageUpscaler'
 import { useThumbnailStore } from '../../apps/thumbnail-studio/stores/thumbnail'
 import { usePlatformStore } from '../../stores/platform'
@@ -15,10 +16,15 @@ const project = useProjectStore()
 const screensaver = useScreensaverStore()
 const thumbnail = useThumbnailStore()
 const upscaler = useImageUpscalerStore()
+const audioLooper = useAudioLooperStore()
 
 const title = computed(() => (route.meta.title as string) || "Video's Factory")
 const showNewProject = computed(() =>
-  route.name === 'ranking-videos' || route.name === 'frame-screensaver' || route.name === 'thumbnail-studio' || route.name === 'image-upscaler',
+  route.name === 'ranking-videos' ||
+  route.name === 'frame-screensaver' ||
+  route.name === 'thumbnail-studio' ||
+  route.name === 'image-upscaler' ||
+  route.name === 'audio-looper',
 )
 
 function startNewProject(): void {
@@ -26,6 +32,7 @@ function startNewProject(): void {
   else if (route.name === 'frame-screensaver') void screensaver.newProject()
   else if (route.name === 'thumbnail-studio') void thumbnail.newProject()
   else if (route.name === 'image-upscaler') void upscaler.newProject()
+  else if (route.name === 'audio-looper') audioLooper.newProject()
 }
 
 const emit = defineEmits<{ openNav: [trigger: HTMLElement] }>()

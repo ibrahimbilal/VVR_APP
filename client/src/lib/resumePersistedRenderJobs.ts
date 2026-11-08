@@ -105,13 +105,22 @@ function resolveJobMeta(job: JobStatus, persisted?: PersistedRenderJob): JobMeta
       downloadFilename: persisted.downloadFilename,
     }
   }
-  const app: RenderAppId = job.kind === 'screensaver' ? 'screensaver' : 'ranking'
+  const app = appFromJobKind(job.kind)
+  if (!app) return null
   const name = job.downloadName.trim() || 'Untitled project'
+  const ext = job.outputExt?.startsWith('.') ? job.outputExt : app === 'audio-looper' ? '.mp3' : '.mp4'
   return {
     app,
     projectName: name,
-    downloadFilename: `${name}.mp4`,
+    downloadFilename: `${name}${ext}`,
   }
+}
+
+function appFromJobKind(kind: JobStatus['kind']): RenderAppId | null {
+  if (kind === 'screensaver') return 'screensaver'
+  if (kind === 'audio-looper') return 'audio-looper'
+  if (kind === 'ranking') return 'ranking'
+  return null
 }
 
 function finishReadyExport(meta: JobMeta, job: JobStatus): void {

@@ -38,6 +38,7 @@ import { encoderCatalog } from './encoders'
 import { addFrame, ensureFrames, getFrame, listFrames, removeAllFrames, removeFrame } from './frames'
 import { probeAudioFile, probeImage, probeMedia, probeSourceDetails, probeStill, sniffMediaKind } from './probe'
 import { imageUpscalerRouter, purgeImageUpscaler, sweepImageUpscaler } from './imageUpscalerRoutes'
+import { audioLooperRouter } from './audioLooperRoutes'
 import {
   addClip,
   clipIsBusy,
@@ -633,6 +634,7 @@ app.get('/api/jobs/:id/download', (req, res) => {
 })
 
 app.use('/api/image-upscaler', imageUpscalerRouter)
+app.use('/api/audio-looper', audioLooperRouter)
 
 app.use('/api', (_req, res) => {
   res.status(404).json({ error: 'Not found.' })
@@ -658,11 +660,14 @@ app.use((error: unknown, req: Request, res: Response, next: NextFunction) => {
     const tooManyFiles = error.code === 'LIMIT_FILE_COUNT'
     const frameUpload = req.path.includes('/screensaver/frames')
     const screensaverExport = req.path.includes('/screensaver/export')
+    const audioLooper = req.path.includes('/audio-looper')
     res.status(tooLarge ? 413 : 400).json({
       error: tooLarge
         ? frameUpload
           ? `PNG frames must be ${FRAME_FILE_LIMIT / (1024 * 1024)} MB or smaller.`
-          : 'That file is too large. Videos must be 500 MB or smaller. Music and overlays must be 40 MB or smaller.'
+          : audioLooper
+            ? 'Audio files must be 100 MB or smaller.'
+            : 'That file is too large. Videos must be 500 MB or smaller. Music and overlays must be 40 MB or smaller.'
         : tooManyFiles && screensaverExport
           ? `Too many files in one export (max ${SCREENSAVER_EXPORT_MAX_MULTIPART_FILES}). Lower subscribe animation FPS or duration, or restart the server after changing export limits.`
           : 'The upload could not be accepted.',

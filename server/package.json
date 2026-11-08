@@ -17,7 +17,8 @@
     "bench:ranking": "tsx scripts/bench-ranking.ts",
     "bench:render-report": "tsx scripts/bench-report.ts",
     "test:ranking": "tsx scripts/verify-ranking.ts",
-    "test:upscaler": "tsx --test ../shared/imageUpscaler.test.ts src/imageUpscaler.test.ts src/realesrgan.test.ts"
+    "test:upscaler": "tsx --test ../shared/imageUpscaler.test.ts src/imageUpscaler.test.ts src/realesrgan.test.ts",
+    "test:audio-looper": "tsx --test ../shared/audioLooper.test.ts src/audioLooper.test.ts && tsx scripts/verify-audio-looper.ts"
   },
   "dependencies": {
     "dotenv": "^17.2.3",

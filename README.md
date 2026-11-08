@@ -6,6 +6,7 @@ A local web platform for video production. It hosts independent editor apps in o
 - **Screensaver** — long-form 16:9 ambient videos from a single image or looping video clip.
 - **Thumbnail Studio** — browser-only YouTube thumbnails: upload an image or pull one from Shorts or Screensaver, place resolution and duration badges, download PNG or JPEG (no FFmpeg).
 - **Image Upscaler** — PNG, JPEG, and WebP to exact Full HD, 2K, 4K, or 8K pixels. Standard is Lanczos3 on the local server. Optional **AI Lite** uses a local Real-ESRGAN NCNN Vulkan build plus the `upscayl-lite-4x` model under `tools/realesrgan/` (no separate Upscayl app). Run `npm run setup:ai-lite` to fetch artifacts. Details: `docs/image-upscaler.md`.
+- **Audio Looper** — repeat one short audio file to an exact duration (1 minute to 12 hours) as MP3, WAV, or FLAC. Simple mode uses FFmpeg stream looping; Seamless mode equal-power crossfades adjacent repeats.
 
 There are no accounts and no cloud project storage. The Vue client talks to an Express renderer with bundled FFmpeg. Thumbnail Studio runs entirely in the browser.
 
@@ -43,6 +44,7 @@ On Windows, `npm run launch` starts the same dev stack and opens the browser onc
 | `npm run test:ranking` | Two-clip ranking render + ffprobe check |
 | `npm run test:thumbnail` | Thumbnail document contract tests |
 | `npm run test:upscaler` | Upscaler engines, batch, ZIP, and HTTP checks. AI runs only if `VVR_AI_UPSCALER_INTEGRATION=1` |
+| `npm run test:audio-looper` | Audio Looper contract tests, HTTP rejection, and short FFmpeg loop/crossfade checks |
 | `npm run frames:thumbs -w client` | Regenerate 150px Screensaver picker thumbs after editing `client/src/assets/frames/*.png` |
 
 More scripts (benchmarks, visual tests) are listed in `.cursor/skills/vvr-project/PROJECT.md`.
@@ -52,22 +54,26 @@ More scripts (benchmarks, visual tests) are listed in `.cursor/skills/vvr-projec
 ```
 client/src/
   App.vue                 Platform shell (sidebar, header, notifications, toasts)
-  app/router.ts           Routes: /, /ranking-videos, /frame-screensaver, /thumbnail-studio, /image-upscaler
+  app/router.ts           Routes: /, /ranking-videos, /frame-screensaver, /thumbnail-studio, /image-upscaler, /audio-looper
   apps/ranking-videos/    Ranking editor view + components
   apps/frame-screensaver/ Screensaver editor
   apps/thumbnail-studio/  Thumbnail editor (canvas + badge SVGs)
   apps/image-upscaler/    Image upscaler UI. Lanczos3 is `server/src/imageUpscaler.ts`; optional AI Lite is `server/src/realesrganEngine.ts`
+  apps/audio-looper/      Audio Looper editor
   stores/platform.ts      Renderer health, global toasts, navigation UI
   stores/project.ts       Ranking project state
 server/src/
   index.ts                HTTP API
-  jobs.ts                 Single render queue (ranking + screensaver jobs)
+  jobs.ts                 Single render queue (ranking, screensaver, audio-looper)
   render.ts               Ranking FFmpeg pipeline
   renderScreensaver.ts    Screensaver FFmpeg pipeline
+  renderAudioLooper.ts    Audio Looper FFmpeg pipeline
+  audioLooperRoutes.ts    POST /api/audio-looper/export
 shared/
   frame.ts, timeline.ts   Ranking layout and timing
   screensaver.ts          Screensaver resolutions, durations, limits
   thumbnailProject.ts     Thumbnail document and export sizes
+  audioLooper.ts          Audio Looper formats, duration limits, loop settings
 ```
 
 ### Routes
@@ -77,6 +83,7 @@ shared/
 - `/frame-screensaver` — Screensaver editor
 - `/thumbnail-studio` — Thumbnail editor
 - `/image-upscaler` — Image Upscaler
+- `/audio-looper` — Audio Looper
 
 Direct URLs and refresh work in production; Express serves `client/dist` with SPA fallback.
 
@@ -85,10 +92,11 @@ Direct URLs and refresh work in production; Express serves `client/dist` with SP
 - **Shorts** — IndexedDB `vvr` v2, key `meta/ranking-videos` (migrated from legacy `meta/current`). Clip files and music unchanged.
 - **Screensaver** — IndexedDB `screensaver` store (`project`, `source`, `audio`). Shorts **New project** does not clear screensaver data.
 - **Thumbnail Studio** — In-memory while you navigate inside the app; a full page reload resets to defaults.
+- **Audio Looper** — duration, loop, fade, volume, and format in `localStorage` (`vf-audio-looper-settings`). The audio file stays in memory only (no stale filesystem paths).
 
 ### Rendering
 
-One FFmpeg job runs at a time globally. Shorts and Screensaver share `GET/POST /api/jobs/:id` for progress, cancel, and download. Each app can queue up to 12 exports; finished jobs also appear in the header notification panel.
+One FFmpeg job runs at a time globally. Shorts, Screensaver, and Audio Looper share `GET/POST /api/jobs/:id` for progress, cancel, and download. Each of those apps can queue up to 12 exports; finished jobs also appear in the header notification panel. Duration checks allow ±max(0.25s, 1% of target) capped at 1.5s.
 
 Screensaver limits (also enforced on the server):
 
@@ -122,6 +130,18 @@ Long 4K exports can still take a long time. The size estimate is an extrapolatio
 
 Transfers from screensaver or ranking can pre-fill badge text from output resolution and duration. Badge artwork is SVG under `client/src/assets/thumbnail-badges/`.
 
+## Audio Looper
+
+1. Drop or choose one MP3, WAV, FLAC, M4A, AAC, or OGG file (max 100 MB). The editor shows duration, size, and a waveform when the file is small enough to decode safely in the browser.
+2. Pick a target length: 30 minutes through 12 hours, or enter custom minutes (same duration range as Screensaver; 60 seconds minimum).
+3. Choose **Simple** (repeat and trim to the exact length) or **Seamless** (equal-power crossfade between repeats). Crossfade is 0.01–5s and must stay under half the source length.
+4. Optional fade in/out (0–30s) and volume (0–200%). Export MP3 (128–320 kbps), 16-bit WAV, or FLAC.
+5. Export queues on the shared FFmpeg renderer. Progress, cancel, and download live in the header notification panel.
+
+If the source is already longer than the target, the file is trimmed rather than looped. Seamless joins are meant for ambient beds; they will not hide cuts in speech or strongly rhythmic music.
+
+Manual check: open `/audio-looper`, drop a few-second WAV, export 10s in Simple (set `VVR_AUDIO_LOOPER_TEST=1` on the server to allow targets under 60s), confirm the header download extension matches the format, then repeat with Seamless and listen at the first join.
+
 ## Adding another app
 
 1. Add a route in `client/src/app/router.ts` and an entry in `client/src/app/navigation.ts`.
@@ -137,7 +157,8 @@ Transfers from screensaver or ranking can pre-fill badge text from output resolu
 
 ## Limitations
 
-- One render queue for the whole platform (ranking + screensaver only).
+- One render queue for the whole platform (ranking + screensaver + audio-looper).
+- Audio Looper Seamless mode is an equal-power overlap of the source tail and head, not a promise of inaudible joins on arbitrary music or speech.
 - Server temp files expire on the existing schedule (`server/tmp`).
 - Smooth video loops encode one crossfaded cycle and then copy it when that file is valid; otherwise the export falls back and says so.
 - Stream copy is only used for H.264 yuv420p sources that already match the output and have no crop, rotation, frame, or color change.

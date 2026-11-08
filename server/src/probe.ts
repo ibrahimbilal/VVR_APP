@@ -17,6 +17,8 @@ interface ProbeStream {
   pix_fmt?: string
   width?: number
   height?: number
+  channels?: number
+  sample_rate?: string
   duration?: string
   tags?: { rotate?: string }
   disposition?: { attached_pic?: number }
@@ -115,6 +117,29 @@ export async function probeStill(file: string): Promise<{ width: number; height:
     throw new Error('A title overlay was unreadable. Try the export again.')
   }
   return { width: video.width, height: video.height }
+}
+
+export interface AudioDetails {
+  duration: number
+  codec: string | null
+  channels: number
+  sampleRate: number
+  size: number
+}
+
+export async function probeAudioDetails(file: string): Promise<AudioDetails> {
+  const data = await readProbe(file)
+  const audio = (data.streams ?? []).find((stream) => stream.codec_type === 'audio')
+  const duration = positiveNumber(audio?.duration) || positiveNumber(data.format?.duration)
+  if (!audio || !duration) throw new Error('This file does not contain a readable audio stream.')
+  const info = await stat(file)
+  return {
+    duration,
+    codec: audio.codec_name ?? null,
+    channels: Number.isFinite(audio.channels) ? Number(audio.channels) : 0,
+    sampleRate: positiveNumber(audio.sample_rate),
+    size: info.size,
+  }
 }
 
 export async function probeAudioFile(file: string): Promise<{ duration: number }> {

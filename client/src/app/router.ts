@@ -4,6 +4,7 @@ import RankingVideosView from '../apps/ranking-videos/RankingVideosView.vue'
 import FrameScreensaverView from '../apps/frame-screensaver/FrameScreensaverView.vue'
 import ThumbnailStudioView from '../apps/thumbnail-studio/ThumbnailStudioView.vue'
 import ImageUpscalerView from '../apps/image-upscaler/ImageUpscalerView.vue'
+import AudioLooperView from '../apps/audio-looper/AudioLooperView.vue'
 
 export const router = createRouter({
   history: createWebHistory(),
@@ -37,6 +38,12 @@ export const router = createRouter({
       name: 'image-upscaler',
       component: ImageUpscalerView,
       meta: { title: 'Image Upscaler' },
+    },
+    {
+      path: '/audio-looper',
+      name: 'audio-looper',
+      component: AudioLooperView,
+      meta: { title: 'Audio Looper' },
     },
   ],
 })

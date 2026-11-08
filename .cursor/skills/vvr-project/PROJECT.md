@@ -1,11 +1,12 @@
 # Video's Factory — project map
 
-Local **Video's Factory** platform with four apps:
+Local **Video's Factory** platform with five apps:
 
 1. **Shorts** (legacy VVR) — 9:16 ranking compilation editor.
 2. **Screensaver** — long-form 16:9 ambient video from one image or looping video.
 3. **Thumbnail Studio** — browser-only YouTube thumbnail tool. Upload an image or take one from Screensaver / Shorts, then place a resolution badge and a duration badge. It does not call FFmpeg.
 4. **Image Upscaler** — PNG, JPEG, and WebP through a **two-stage** pipeline: upscale to a lossless intermediate PNG (`mid/`), then export fit to preset pixels (default 4K). Standard is Sharp Lanczos3; optional AI Lite runs Real-ESRGAN at native 4× then resizes to the effective scale (auto or 1–4×). Re-export skips upscale when only export settings change. See `docs/image-upscaler.md`.
+5. **Audio Looper** — one short audio file repeated to an exact duration (60s–12h, same presets and default as Screensaver) as MP3, WAV, or FLAC. Simple uses `-stream_loop`; Seamless builds an equal-power crossfaded cycle then streams it. Shares the FFmpeg job queue as `kind: 'audio-looper'`.
 
 Ranking behavior is unchanged in substance: upload clips (or link titles only), order, style banner and ranks, preview, export MP4.
 
@@ -24,25 +25,27 @@ Node `^20.19.0 || >=22.12.0`. From the repo root:
 - `npm run test:screensaver-subscribe` — hybrid subscribe animation render + ffprobe frame budget (`server/scripts/verify-screensaver-subscribe.ts`; use `VVR_SCREENSAVER_TEST=1` for short duration).
 - `npm run test:screensaver-visual` — CPU vs FFmpeg adjustment SSIM (`server/scripts/visual-screensaver-adjust.ts`).
 - `npm run test:ranking` — two-clip ranking render (cut + fade) + ffprobe (`server/scripts/verify-ranking.ts`).
+- `npm run test:audio-looper` — contract tests, HTTP rejection, short FFmpeg loop/crossfade/fade checks (`shared/audioLooper.test.ts`, `server/src/audioLooper.test.ts`, `server/scripts/verify-audio-looper.ts`; `VVR_AUDIO_LOOPER_TEST=1` allows targets under 60s).
 - `npm run bench:screensaver-compose` — Node timing for CPU placement bake (`server/scripts/bench-screensaver-compose.ts`).
 - `npm run bench:ranking` / `npm run bench:screensaver` — end-to-end export timings (`baseline` / `after` argv); `npm run bench:render-report` writes `docs/render-benchmark-report.md`.
 - `npm run bench:screensaver-subscribe` — baseline vs hybrid vs full 30 fps subscribe overlay (`server/scripts/bench-screensaver-subscribe.ts`).
 - `npm run build:dev` / `npm run start:dev` — Vite development build, then the renderer serves `client/dist` and the API on port 3001.
 - `npm run build:prod` / `npm run start:prod` — production client build plus esbuild server bundle (`server/dist/index.js`). Listens on `PORT` or 3001. Host is `0.0.0.0` when `PORT` is set, otherwise `127.0.0.1`.
 
-Workspaces: root `vvr-app` **1.1.0**, `client` (`vvr-client`), `server` (`vvr-server`). Shared TypeScript is imported by path, not as a package.
+Workspaces: root `vvr-app` **2.0.0**, `client` (`vvr-client`), `server` (`vvr-server`). Shared TypeScript is imported by path, not as a package.
 
 ## Layout
 
 ```
 client/src/App.vue                      platform shell (sidebar, header, toasts)
-client/src/app/router.ts                /, /ranking-videos, /frame-screensaver, /thumbnail-studio, /image-upscaler
+client/src/app/router.ts                /, /ranking-videos, /frame-screensaver, /thumbnail-studio, /image-upscaler, /audio-looper
 client/src/stores/platform.ts           renderer health, global toasts, nav UI
 client/src/stores/project.ts            ranking editor state
 client/src/apps/ranking-videos/         RankingVideosView (editor layout)
 client/src/apps/frame-screensaver/      screensaver view, store, components
 client/src/apps/thumbnail-studio/       thumbnail view, store, canvas renderer, transfer
 client/src/apps/image-upscaler/         upscaler view, store, comparison, batch UI
+client/src/apps/audio-looper/           audio looper view, store, preview, settings
 server/src/imageUpscaler.ts             Lanczos3 Sharp engine and the shared final fit
 server/src/realesrganEngine.ts          optional Real-ESRGAN NCNN Vulkan engine
 server/src/realesrganConfig.ts          AI binary/model checks and env vars; standalone `tools/realesrgan/` discovery
@@ -52,11 +55,14 @@ server/src/imageUpscalerJobs.ts         sequential image jobs, separate from FFm
 tools/realesrgan/                      optional NCNN runner + models (gitignored); see MANIFEST.json
 server/src/imageUpscalerRoutes.ts       `/api/image-upscaler/*`
 shared/imageUpscaler.ts                 presets, limits, options, filenames
+shared/audioLooper.ts                   formats, duration, loop modes, filenames
+server/src/audioLooperRoutes.ts         `/api/audio-looper/export`
+server/src/renderAudioLooper.ts         Simple stream_loop and Seamless cycle encode
 client/src/components/layout/           AppSidebar, AppHeader, MobileNavDrawer
 client/src/composables/usePlayback.ts     ranking preview clock
 client/src/components/                  ranking panels (ClipSidebar, PreviewStage, …)
 client/src/lib/                         api, exportJob, jobPoll, idb, drawOverlay, …
-server/src/jobs.ts                      one queue; ranking + screensaver job kinds
+server/src/jobs.ts                      one queue; ranking + screensaver + audio-looper job kinds; per-job `outputExt`
 server/src/render.ts                    ranking FFmpeg graph
 server/src/renderScreensaver.ts         screensaver FFmpeg graph
 server/src/ffmpegUtil.ts                shared spawn/progress/verify helpers
@@ -69,9 +75,9 @@ Stack: Vue 3, **vue-router**, Pinia, Tailwind 4, Lucide. Client aliases `@shared
 
 ## Platform shell
 
-`App.vue`: left sidebar (desktop). The logo, **Video's Factory** name, and header page title link to the dashboard. Header also has **notifications** (bell, left of renderer status), renderer status (`GET /api/health`), **New project** on Shorts, Screensaver, Thumbnail Studio, and Image Upscaler (`AppHeader.vue`, `AppNotifications.vue`), `router-view`, global toasts (`usePlatformStore`). Finished Shorts and Screensaver renders are listed in the header notification panel (`renderNotifications.ts`, `platform.ts`). In-progress rows have **Cancel** (per export: client abort + server `POST /api/jobs/:id/cancel` when submitted; `renderJobTracking.ts`). After a full page reload, active server jobs are restored from `localStorage` (`persistedRenderJobs.ts`) and from `GET /api/jobs/active`, then polling resumes in `resumePersistedRenderJobs.ts` (header bell shows progress again; finished-while-away jobs appear as ready downloads).
+`App.vue`: left sidebar (desktop). The logo, **Video's Factory** name, and header page title link to the dashboard. Header also has **notifications** (bell, left of renderer status), renderer status (`GET /api/health`), **New project** on Shorts, Screensaver, Thumbnail Studio, Image Upscaler, and Audio Looper (`AppHeader.vue`, `AppNotifications.vue`), `router-view`, global toasts (`usePlatformStore`). Finished Shorts, Screensaver, and Audio Looper renders are listed in the header notification panel (`renderNotifications.ts`, `platform.ts`). In-progress rows have **Cancel** (per export: client abort + server `POST /api/jobs/:id/cancel` when submitted; `renderJobTracking.ts`). After a full page reload, active server jobs are restored from `localStorage` (`persistedRenderJobs.ts`) and from `GET /api/jobs/active`, then polling resumes in `resumePersistedRenderJobs.ts` (header bell shows progress again; finished-while-away jobs appear as ready downloads).
 
-- Routes: `/` dashboard, `/ranking-videos`, `/frame-screensaver`, `/thumbnail-studio`, `/image-upscaler`. SPA fallback in production.
+- Routes: `/` dashboard, `/ranking-videos`, `/frame-screensaver`, `/thumbnail-studio`, `/image-upscaler`, `/audio-looper`. SPA fallback in production.
 - Mobile: hamburger opens left drawer; ranking mobile tabs inside `RankingVideosView`; Screensaver uses **Settings / Preview** tabs (`FrameScreensaverView.vue`).
 
 ## Shorts screen
@@ -228,7 +234,8 @@ Progress on the client: overlays/upload are local; queued/preparing/rendering/ve
 | GET | `/api/jobs/active` | queued / preparing / rendering / verifying / done jobs still on the renderer (for reload recovery) |
 | GET | `/api/jobs/:id` | status |
 | POST | `/api/jobs/:id/cancel` | kill ffmpeg |
-| GET | `/api/jobs/:id/download` | verified mp4, 409 if not ready |
+| GET | `/api/jobs/:id/download` | verified output (`.mp4` for ranking/screensaver, `.mp3`/`.wav`/`.flac` for audio-looper), 409 if not ready |
+| POST | `/api/audio-looper/export` | one audio file + `settings` JSON; queues `kind: 'audio-looper'` |
 | GET | `/api/encoders` | verified H.264 encoders and cached Auto choice (alias: `/api/screensaver/encoders`) |
 | POST | `/api/screensaver/media` | image or video for screensaver |
 | GET | `/api/screensaver/frames` | saved screensaver frame PNGs |
@@ -247,7 +254,7 @@ Progress on the client: overlays/upload are local; queued/preparing/rendering/ve
 | POST | `/api/image-upscaler/jobs/:id/re-export` | JSON `options`; export stage only using kept intermediates |
 | DELETE | `/api/image-upscaler/jobs/:id` | cancel while running; `?purge=1` or a finished job deletes files |
 
-Jobs queue handles `kind: 'ranking' | 'screensaver'` (`server/src/jobs.ts`).
+Jobs queue handles `kind: 'ranking' | 'screensaver' | 'audio-looper'` (`server/src/jobs.ts`). Download names use `job.outputExt` (ranking/screensaver stay `.mp4`). `purgeOutputFiles` deletes `.mp4` only so Screensaver tab-close cannot wipe audio-looper outputs; those still expire on the 2-hour sweep.
 
 Unknown `/api` routes return 404 JSON. If `client/dist/index.html` exists, Express serves it and falls back to `index.html` for non-API paths.
 
@@ -261,7 +268,8 @@ Unknown `/api` routes return 404 JSON. If `client/dist/index.html` exists, Expre
 - `frames/` and `frames.json` — screensaver frame PNGs. They stay until deleted. The sweep does not remove them.
 - `incoming/` — Multer landing pad.
 - `jobs/<id>/` — overlays, composition PNG, and music for the active render. Removed when the job ends, on tab/window close, and on server boot. Leftovers from a crashed or restarted render do not wait for the 6-hour sweep.
-- `outputs/<id>.mp4` — finished files.
+- `outputs/<id>.mp4` — finished ranking/screensaver files.
+- `outputs/<id>.mp3|wav|flac` — finished Audio Looper files. Tab-close purge skips non-mp4 outputs.
 - `upscaler/<jobId>/` — Image Upscaler inputs and outputs. Removed on boot, on purge, and after the job TTL (2 hours). Not part of the FFmpeg queue.
 
 Sweep every 10 minutes: outputs older than 2 hours, jobs and incoming older than 6 hours, clips older than 7 days (unless a render holds them).
@@ -312,6 +320,7 @@ Sweep every 10 minutes: outputs older than 2 hours, jobs and incoming older than
 | Screensaver editor, export, frames, subscribe overlay | `client/src/apps/frame-screensaver/`, `shared/screensaver.ts`, `shared/screensaverComposition.ts`, `shared/screensaverFrames.ts`, `shared/screensaverAdjust.ts`, `shared/screensaverSubscribeAnimation.ts`, `server/src/frames.ts`, `server/src/youtubeChannel.ts` |
 | Thumbnail editor, transfer, export | `client/src/apps/thumbnail-studio/`, `shared/thumbnailProject.ts`, `shared/thumbnailTransfer.ts`, `shared/thumbnailLayout.ts`, `client/src/lib/idb.ts` |
 | Image Upscaler | `client/src/apps/image-upscaler/`, `shared/imageUpscaler.ts`, `server/src/imageUpscaler.ts`, `server/src/realesrganEngine.ts`, `server/src/realesrganConfig.ts`, `server/src/realesrganStandalone.ts`, `server/src/projectRoot.ts`, `server/src/nativeProcess.ts`, `server/src/imageUpscalerJobs.ts`, `server/src/imageUpscalerRoutes.ts`, `tools/realesrgan/` (optional native files, gitignored), `scripts/ai-lite-env.cjs`, `scripts/ai-lite-platform.cjs`, `scripts/launch-linux.sh`, `scripts/setup-ai-lite.mjs`, `docs/image-upscaler.md` |
+| Audio Looper | `client/src/apps/audio-looper/`, `shared/audioLooper.ts`, `server/src/renderAudioLooper.ts`, `server/src/audioLooperRoutes.ts`, `server/src/jobs.ts` |
 | Screensaver encode and encoder probe | `server/src/renderScreensaver.ts`, `server/src/renderScreensaverHybrid.ts`, `server/src/screensaverGraph.ts`, `server/src/encoders.ts`, `shared/screensaverSubscribeAnimation.ts` |
 
 ## Invariants
@@ -410,8 +419,21 @@ Default output is **3840×2160**, mode **contain**, engine **lanczos3**, scale *
 
 Comparison previews are WebP with a 1440px long edge. Downloads are the verified full-size files. Preview and download URLs use `outputRevision` (and file size as a fallback) so re-export after a crop change always reloads. `npm run test:upscaler` covers dimensions, resize modes, alpha, JPEG flatten, rejection, batch, ZIP names, cleanup, cancel, re-export crop, and preview versus download.
 
+## Audio Looper
+
+Editor state is `useAudioLooperStore` (`client/src/apps/audio-looper/stores/audioLooper.ts`). Ranking and screensaver stores stay independent. Settings persist in `localStorage` key `vf-audio-looper-settings` (duration, mode, fades, volume, format, name). The source `File` is memory-only.
+
+Import: MP3, WAV, FLAC, M4A, AAC, OGG, max 100 MB, confirmed with ffprobe. Target 60–43200 integer seconds (Screensaver presets 30m–12h, default 2h, or custom minutes). Simple: `-stream_loop -1 -t TARGET`. Seamless: equal-power `afade` (`esin`) of tail and head, `amix` those into a wrap-around join, concat with the mid segment into a PCM cycle of duration `source - crossfade`, then `-stream_loop` that cycle (output starts at the wrap-around join). Source longer than target is trimmed. Volume 0–200%, fades 0–30s. MP3 128–320 kbps; WAV PCM 16-bit; FLAC lossless.
+
+Verify slack: `max(0.25s, min(1.5s, 1% of target))`. Source Preview and Loop Plan render only after a file is in memory. Preview uses a custom canvas player (Shorts-style play/pause, mute, clock); the waveform is the seek timeline. Unplayed samples draw at opacity 0.8 and played samples at 1.0 from the real `HTMLAudioElement` position. Waveform decode stays capped at 16 MB (`WAVEFORM_MAX_BYTES`); larger files keep the player and a fallback track.
+
 ## Changelog
 
+- 2026-11-08 — Audio Looper duration matches Screensaver: 2h default, 30m–12h presets, custom minutes (`shared/audioLooper.ts`, `LooperSettings.vue`).
+- 2026-11-08 — Audio Looper hides Source Preview and Loop Plan until a file is loaded; custom canvas player with 0.8/1.0 waveform progress replaces native audio controls (`LooperPreview.vue`, `LooperPlayer.vue`).
+- 2026-11-08 — Dashboard app cards are fully clickable with hover lift; Open Editor button removed (`DashboardView.vue`).
+- 2026-11-08 — Audio Looper export enables after a file drop by keeping the source `File` in a reactive store field (`stores/audioLooper.ts`).
+- 2026-11-08 — Add Audio Looper: `/audio-looper`, shared FFmpeg queue `kind: 'audio-looper'`, Simple stream_loop and Seamless equal-power cycle, MP3/WAV/FLAC (`shared/audioLooper.ts`, `server/src/renderAudioLooper.ts`, `client/src/apps/audio-looper/`).
 - 2026-11-08 — Image Upscaler: removed Re-export button; Upscale Images always deletes output and re-runs export when engine/scale unchanged (`shouldReexportOnly`, `outputGeneration`, `stores/imageUpscaler.ts`).
 - 2026-11-08 — Image Upscaler re-export with a new crop position refreshes the comparison preview (`outputRevision` on job items, `upscaleOutputCacheStamp`, `imageUpscalerJobs.ts`, `ImageComparison.vue`).
 - 2026-11-08 — Image Upscaler Cover export uses explicit scale-and-crop so left/right/top/bottom crop position is honored (`coverCropRect`, `server/src/imageUpscaler.ts`).

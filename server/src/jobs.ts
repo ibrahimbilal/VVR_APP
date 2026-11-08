@@ -3,12 +3,14 @@ import path from 'node:path'
 import { releaseClips, retainClips, jobsDir, outputsDir } from './storage'
 import { renderProject, type RenderRequest } from './render'
 import { renderScreensaver, type ScreensaverRenderRequest } from './renderScreensaver'
+import { renderAudioLooper, type AudioLooperRenderRequest } from './renderAudioLooper'
 
+export type JobKind = 'ranking' | 'screensaver' | 'audio-looper'
 export type JobStatus = 'queued' | 'preparing' | 'rendering' | 'verifying' | 'done' | 'error' | 'cancelled'
 
 export interface JobView {
   id: string
-  kind: 'ranking' | 'screensaver'
+  kind: JobKind
   status: JobStatus
   progress: number
   message: string
@@ -18,6 +20,7 @@ export interface JobView {
   outputDuration: number | null
   queuePosition: number
   downloadName: string
+  outputExt: string
   encoder: string | null
   hardware: boolean | null
   encodeFps: number | null
@@ -37,6 +40,7 @@ interface JobBase {
   outputBytes: number | null
   outputDuration: number | null
   outputPath: string | null
+  outputExt: string
   downloadName: string
   cancelRequested: boolean
   kill: (() => void) | null
@@ -60,7 +64,11 @@ interface ScreensaverJob extends JobBase, ScreensaverRenderRequest {
   mediaId: string
 }
 
-type Job = RankingJob | ScreensaverJob
+interface AudioLooperJob extends JobBase, AudioLooperRenderRequest {
+  kind: 'audio-looper'
+}
+
+type Job = RankingJob | ScreensaverJob | AudioLooperJob
 
 const jobs = new Map<string, Job>()
 const queue: string[] = []
@@ -80,6 +88,7 @@ export function createJob(id: string, input: RenderRequest & { downloadName: str
     outputBytes: null,
     outputDuration: null,
     outputPath: null,
+    outputExt: '.mp4',
     downloadName: input.downloadName,
     cancelRequested: false,
     kill: null,
@@ -109,6 +118,7 @@ export function createScreensaverJob(
     outputBytes: null,
     outputDuration: null,
     outputPath: null,
+    outputExt: '.mp4',
     downloadName: input.downloadName,
     cancelRequested: false,
     kill: null,
@@ -117,6 +127,35 @@ export function createScreensaverJob(
   }
   jobs.set(id, job)
   retainClips([input.mediaId])
+  queue.push(id)
+  void pump()
+  return view(job)
+}
+
+export function createAudioLooperJob(
+  id: string,
+  input: AudioLooperRenderRequest & { downloadName: string; outputExt: string },
+): JobView {
+  const job: AudioLooperJob = {
+    kind: 'audio-looper',
+    ...input,
+    id,
+    status: 'queued',
+    progress: 0,
+    message: 'Waiting to render.',
+    error: null,
+    warning: null,
+    outputBytes: null,
+    outputDuration: null,
+    outputPath: null,
+    outputExt: input.outputExt,
+    downloadName: input.downloadName,
+    cancelRequested: false,
+    kill: null,
+    createdAt: Date.now(),
+    ...emptyDiagnostics(),
+  }
+  jobs.set(id, job)
   queue.push(id)
   void pump()
   return view(job)
@@ -139,7 +178,8 @@ export function listRecoverableJobs(): JobView[] {
 export function jobOutput(id: string): { path: string; name: string } | null {
   const job = jobs.get(id)
   if (!job || job.status !== 'done' || !job.outputPath) return null
-  return { path: job.outputPath, name: `${job.downloadName}.mp4` }
+  const ext = job.outputExt.startsWith('.') ? job.outputExt : `.${job.outputExt}`
+  return { path: job.outputPath, name: `${job.downloadName}${ext}` }
 }
 
 const ACTIVE_STATUSES = new Set<JobStatus>(['queued', 'preparing', 'rendering', 'verifying'])
@@ -163,7 +203,7 @@ export function jobIdsInUse(): Set<string> {
 
 export async function dropJobOutput(jobId: string): Promise<void> {
   const job = jobs.get(jobId)
-  const file = job?.outputPath ?? outputFile(jobId)
+  const file = job?.outputPath ?? outputFile(jobId, job?.outputExt)
   await rm(file, { force: true }).catch(() => undefined)
   if (job) {
     job.outputPath = null
@@ -230,7 +270,9 @@ async function pump(): Promise<void> {
         const result =
           job.kind === 'ranking'
             ? await renderProject(job, hooks)
-            : await renderScreensaver(job, hooks)
+            : job.kind === 'screensaver'
+              ? await renderScreensaver(job, hooks)
+              : await renderAudioLooper(job, hooks)
         if (job.cancelRequested) {
           job.status = 'cancelled'
           job.message = 'Render cancelled.'
@@ -270,7 +312,7 @@ async function pump(): Promise<void> {
 async function finish(job: Job): Promise<void> {
   if (job.kind === 'ranking') {
     releaseClips(job.clips.map((clip) => clip.id))
-  } else {
+  } else if (job.kind === 'screensaver') {
     releaseClips([job.mediaId])
   }
   const dir = path.join(jobsDir, job.id)
@@ -300,6 +342,7 @@ function view(job: Job): JobView {
     outputDuration: job.outputDuration,
     queuePosition,
     downloadName: job.downloadName,
+    outputExt: job.outputExt,
     encoder: job.encoderLabel,
     hardware: job.hardware,
     encodeFps: job.encodeFps,
@@ -342,6 +385,7 @@ function stageLabel(status: JobStatus, message: string): string {
   return message
 }
 
-export function outputFile(id: string): string {
-  return path.join(outputsDir, `${id}.mp4`)
+export function outputFile(id: string, ext = '.mp4'): string {
+  const suffix = ext.startsWith('.') ? ext : `.${ext}`
+  return path.join(outputsDir, `${id}${suffix}`)
 }

@@ -1,15 +1,17 @@
 import { usePlatformStore } from '../stores/platform'
 
-export type RenderAppId = 'ranking' | 'screensaver'
+export type RenderAppId = 'ranking' | 'screensaver' | 'audio-looper'
 
 const APP_LABELS: Record<RenderAppId, string> = {
   ranking: 'Shorts',
   screensaver: 'Screensaver',
+  'audio-looper': 'Audio Looper',
 }
 
 export const RENDER_APP_ROUTES: Record<RenderAppId, string> = {
   ranking: '/ranking-videos',
   screensaver: '/frame-screensaver',
+  'audio-looper': '/audio-looper',
 }
 
 export function renderAppLabel(app: RenderAppId): string {

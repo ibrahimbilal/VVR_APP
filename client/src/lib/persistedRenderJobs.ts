@@ -22,7 +22,8 @@ export function loadPersistedRenderJobs(): PersistedRenderJob[] {
       if (!item || typeof item !== 'object') continue
       const row = item as Record<string, unknown>
       const serverJobId = typeof row.serverJobId === 'string' ? row.serverJobId : ''
-      const app = row.app === 'screensaver' ? 'screensaver' : row.app === 'ranking' ? 'ranking' : null
+      const app =
+        row.app === 'screensaver' || row.app === 'ranking' || row.app === 'audio-looper' ? row.app : null
       const projectName = typeof row.projectName === 'string' ? row.projectName : ''
       const downloadFilename = typeof row.downloadFilename === 'string' ? row.downloadFilename : ''
       if (!serverJobId || !app || !downloadFilename) continue

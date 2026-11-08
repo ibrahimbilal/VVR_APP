@@ -20,7 +20,8 @@ export interface ImportResult {
 
 export interface JobStatus {
   id: string
-  kind?: 'ranking' | 'screensaver'
+  kind?: 'ranking' | 'screensaver' | 'audio-looper'
+  outputExt?: string
   status: 'queued' | 'preparing' | 'rendering' | 'verifying' | 'done' | 'error' | 'cancelled'
   progress: number
   message: string
@@ -208,6 +209,14 @@ export function startScreensaverExport(
   signal: AbortSignal,
 ): Promise<{ jobId: string }> {
   return sendForm('/api/screensaver/export', body, onProgress, signal)
+}
+
+export function startAudioLooperExport(
+  body: FormData,
+  onProgress: (fraction: number) => void,
+  signal: AbortSignal,
+): Promise<{ jobId: string }> {
+  return sendForm('/api/audio-looper/export', body, onProgress, signal)
 }
 
 export async function getJob(id: string): Promise<JobStatus> {
