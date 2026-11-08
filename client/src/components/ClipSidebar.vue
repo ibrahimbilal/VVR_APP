@@ -97,7 +97,7 @@ function kept(duration: number, start: number, end: number): string {
 
 <template>
   <aside
-    class="flex min-h-0 flex-col border-zinc-800 bg-[#16181d] xl:border-r"
+    class="flex min-h-0 flex-col border-zinc-800 bg-sidebar xl:border-r"
     @dragenter.prevent="onFileDragEnter"
     @dragover.prevent
     @dragleave.prevent="onFileDragLeave"
@@ -105,7 +105,7 @@ function kept(duration: number, start: number, end: number): string {
   >
     <div class="space-y-3 border-b border-zinc-800 p-4">
       <label class="block">
-        <span class="mb-1 block text-[11px] font-semibold uppercase tracking-[0.14em] text-zinc-500">Project</span>
+        <span class="mb-1 block section-label">Project</span>
         <input v-model="store.name" class="field" maxlength="80" />
       </label>
       <form class="flex gap-2" @submit.prevent="submitUrl">
@@ -134,7 +134,7 @@ function kept(duration: number, start: number, end: number): string {
       <article
         v-for="(clip, index) in store.clips"
         :key="clip.id"
-        class="rounded-lg border cursor-pointer bg-[#101114] p-2"
+        class="rounded-lg border cursor-pointer bg-inset p-2"
         :class="[
           store.selectedClipId === clip.id ? 'border-zinc-200' : 'border-zinc-800',
           dragIndex === index ? 'opacity-50' : '',
@@ -159,7 +159,7 @@ function kept(duration: number, start: number, end: number): string {
             <span v-else class="flex h-full items-center justify-center text-[10px] text-zinc-600">{{ index + 1 }}</span>
           </div>
           <div class="min-w-0 flex-1">
-            <div class="mb-1 flex items-center gap-2 text-[11px] text-zinc-500">
+            <div class="mb-1 flex items-center gap-2 text-xs text-zinc-500">
               <span class="font-semibold text-brand">{{ index + 1 }}</span>
               <span>{{ sourceLabel(clip.source) }}</span>
               <span v-if="clip.playAtEnd" class="font-semibold text-brand">Plays last</span>

@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ListVideo, MonitorPlay, SlidersHorizontal } from '@lucide/vue'
 import { onMounted, onBeforeUnmount, ref } from 'vue'
+import AppMobileTabs from '../../components/ui/AppMobileTabs.vue'
 import ClipSidebar from '../../components/ClipSidebar.vue'
 import PreviewStage from '../../components/PreviewStage.vue'
 import SelectedClipPanel from '../../components/SelectedClipPanel.vue'
@@ -14,6 +15,11 @@ import { useProjectStore } from '../../stores/project'
 const store = useProjectStore()
 const playback = usePlayback()
 const tab = ref<'clips' | 'preview' | 'style'>('preview')
+const tabs = [
+  { id: 'clips' as const, label: 'Clips', icon: ListVideo },
+  { id: 'preview' as const, label: 'Preview', icon: MonitorPlay },
+  { id: 'style' as const, label: 'Style', icon: SlidersHorizontal },
+]
 
 function onKeyDown(event: KeyboardEvent) {
   if (event.code !== 'Space') return
@@ -37,21 +43,8 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <div class="relative flex h-full min-h-0 flex-col overflow-hidden bg-[#101114] text-zinc-100">
-    <div class="flex gap-2 border-b border-zinc-800 p-2 xl:hidden">
-      <button class="btn cursor-pointer flex-1" :class="tab === 'clips' ? 'btn-primary' : 'btn-ghost'" type="button" @click="tab = 'clips'">
-        <ListVideo :size="16" />
-        Clips
-      </button>
-      <button class="btn cursor-pointer flex-1" :class="tab === 'preview' ? 'btn-primary' : 'btn-ghost'" type="button" @click="tab = 'preview'">
-        <MonitorPlay :size="16" />
-        Preview
-      </button>
-      <button class="btn cursor-pointer flex-1" :class="tab === 'style' ? 'btn-primary' : 'btn-ghost'" type="button" @click="tab = 'style'">
-        <SlidersHorizontal :size="16" />
-        Style
-      </button>
-    </div>
+  <div class="relative flex h-full min-h-0 flex-col overflow-hidden bg-app text-zinc-100">
+    <AppMobileTabs v-model="tab" :items="tabs" hide-from="xl" />
 
     <div class="flex min-h-0 min-w-0 flex-1 overflow-hidden">
       <div
@@ -81,7 +74,7 @@ onBeforeUnmount(() => {
     <CreateThumbnailButton class="relative shrink-0" />
     <TimelineBar class="shrink-0" />
 
-    <div v-if="!store.hydrated" class="absolute inset-0 z-30 grid place-items-center bg-[#101114]/90 text-sm text-zinc-300">
+    <div v-if="!store.hydrated" class="scrim">
       Restoring saved project…
     </div>
   </div>

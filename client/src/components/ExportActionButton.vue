@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue'
+import AppExportAction from './ui/AppExportAction.vue'
 import { useProjectStore } from '../stores/project'
 
 const store = useProjectStore()
@@ -10,13 +11,10 @@ const label = computed(() =>
 </script>
 
 <template>
-  <button
-    class="btn btn-primary w-full"
-    type="button"
+  <AppExportAction
+    :label="label"
     :disabled="Boolean(store.exportBlocker)"
-    @click="void store.startExport()"
-  >
-    {{ label }}
-  </button>
-  <p v-if="store.exportBlocker" class="mt-1 text-center text-[10px] text-zinc-500">{{ store.exportBlocker }}</p>
+    :blocker="store.exportBlocker"
+    @export="void store.startExport()"
+  />
 </template>

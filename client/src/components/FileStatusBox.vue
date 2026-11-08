@@ -73,7 +73,7 @@ const spinIcon = computed(() => props.status === 'uploading' || props.status ===
     <AlertCircle v-else-if="status === 'error'" :size="16" class="shrink-0" :class="theme.icon" aria-hidden="true" />
     <Check v-else :size="16" class="shrink-0" :class="theme.icon" aria-hidden="true" />
     <div class="min-w-0 flex-1">
-      <p class="text-[11px] font-semibold uppercase tracking-[0.12em]" :class="theme.label">{{ labelText }}</p>
+      <p class="text-xs font-semibold uppercase tracking-[0.12em]" :class="theme.label">{{ labelText }}</p>
       <p class="truncate text-sm font-semibold text-zinc-100" :title="fileName">{{ fileName }}</p>
       <div v-if="$slots.meta" class="mt-0.5 text-xs text-zinc-500">
         <slot name="meta" />

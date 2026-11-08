@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import AppEmptyState from '../../../components/ui/AppEmptyState.vue'
 import { useImageUpscalerStore } from '../stores/imageUpscaler'
 
 const store = useImageUpscalerStore()
@@ -12,6 +13,10 @@ const store = useImageUpscalerStore()
       :alt="`Preview of ${store.selected.name}`"
       class="max-h-full max-w-full object-contain"
     />
-    <p v-else class="px-6 text-center text-sm text-zinc-500">Add an image to preview it. Nothing is resized until you upscale.</p>
+    <AppEmptyState
+      v-else
+      title="No image yet"
+      text="Add an image to preview it. Nothing is resized until you upscale."
+    />
   </div>
 </template>

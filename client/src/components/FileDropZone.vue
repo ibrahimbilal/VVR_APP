@@ -87,9 +87,9 @@ function openPicker() {
 <template>
   <div>
     <button
-      class="flex w-full cursor-pointer flex-col items-center gap-1 rounded-lg border border-dashed px-3 text-sm font-semibold transition-shadow disabled:cursor-wait disabled:opacity-60"
+      class="focus-ring flex w-full cursor-pointer flex-col items-center gap-1 rounded-lg border border-dashed px-3 text-sm font-semibold transition-shadow disabled:cursor-wait disabled:opacity-60"
       :class="[
-        active ? 'border-brand bg-brand/10 text-sky-100' : 'border-zinc-600 bg-[#101114] text-zinc-100',
+        active ? 'border-brand bg-brand/10 text-sky-100' : 'border-zinc-600 bg-inset text-zinc-100',
         compact ? 'py-4' : 'py-8',
       ]"
       type="button"
@@ -102,8 +102,8 @@ function openPicker() {
     >
       <Upload :size="compact ? 16 : 18" />
       <span>{{ title }}</span>
-      <span v-if="hint" class="text-[11px] font-normal text-zinc-500">{{ hint }}</span>
-      <span v-if="formats" class="mt-1 text-[11px] font-normal text-zinc-600">{{ formats }}</span>
+      <span v-if="hint" class="text-xs font-normal text-zinc-500">{{ hint }}</span>
+      <span v-if="formats" class="mt-1 text-xs font-normal text-zinc-600">{{ formats }}</span>
     </button>
     <input ref="fileInput" class="hidden" type="file" :accept="accept" :multiple="multiple" @change="onFileChange" />
   </div>

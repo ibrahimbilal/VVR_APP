@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { MonitorPlay, SlidersHorizontal } from '@lucide/vue'
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+import AppMobileTabs from '../../components/ui/AppMobileTabs.vue'
 import { createThumbnailFromScreensaver } from './lib/createThumbnail'
 import ScreensaverExportBar from './components/ScreensaverExportBar.vue'
 import ScreensaverExportDetails from './components/ScreensaverExportDetails.vue'
@@ -17,6 +18,10 @@ const store = useScreensaverStore()
 const customMinutes = ref(60)
 const linkThumbnail = ref(false)
 const tab = ref<'settings' | 'preview'>('preview')
+const tabs = [
+  { id: 'settings' as const, label: 'Settings', icon: SlidersHorizontal },
+  { id: 'preview' as const, label: 'Preview', icon: MonitorPlay },
+]
 const canThumbnail = computed(() => (store.mediaKind === 'image' && Boolean(store.objectUrl)) || Boolean(store.thumbnail?.startsWith('data:')))
 
 function onKey(event: KeyboardEvent) {
@@ -44,33 +49,14 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
 
 <template>
   <div class="relative flex h-full min-h-0 flex-col overflow-hidden lg:flex-row">
-    <div class="flex shrink-0 gap-2 border-b border-zinc-800 p-2 lg:hidden">
-      <button
-        class="btn flex-1 cursor-pointer"
-        :class="tab === 'settings' ? 'btn-primary' : 'btn-ghost'"
-        type="button"
-        @click="tab = 'settings'"
-      >
-        <SlidersHorizontal :size="16" />
-        Settings
-      </button>
-      <button
-        class="btn flex-1 cursor-pointer"
-        :class="tab === 'preview' ? 'btn-primary' : 'btn-ghost'"
-        type="button"
-        @click="tab = 'preview'"
-      >
-        <MonitorPlay :size="16" />
-        Preview
-      </button>
-    </div>
+    <AppMobileTabs v-model="tab" :items="tabs" />
 
     <aside
       class="min-h-0 shrink-0 overflow-y-auto border-b border-zinc-800 p-4 lg:h-full lg:w-[360px] lg:border-b-0 lg:border-r"
       :class="tab === 'settings' ? 'flex max-h-none flex-1 flex-col' : 'hidden lg:flex lg:max-h-none lg:flex-none lg:flex-col'"
     >
       <label class="mb-4 block">
-        <span class="mb-1 block text-[11px] font-semibold uppercase tracking-[0.14em] text-zinc-500">Project</span>
+        <span class="mb-1 block section-label">Project</span>
         <input v-model="store.name" class="field text-sm font-semibold" type="text" maxlength="80" />
       </label>
       <ScreensaverMediaPanel />
@@ -108,7 +94,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
 
     <ScreensaverExportDetails class="hidden lg:flex" />
 
-    <div v-if="!store.hydrated" class="absolute inset-0 z-30 grid place-items-center bg-[#101114]/90 text-sm text-zinc-300">
+    <div v-if="!store.hydrated" class="scrim">
       Restoring saved project…
     </div>
     <ScreensaverDiagnostics v-if="showDiagnostics" />

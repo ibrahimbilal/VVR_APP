@@ -24,7 +24,7 @@ function onInput(event: Event) {
       <span class="tabular-nums text-zinc-200">{{ modelValue }}{{ suffix }}</span>
     </span>
     <input
-      class="w-full cursor-pointer"
+      class="w-full cursor-pointer focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand"
       type="range"
       :min="min"
       :max="max"

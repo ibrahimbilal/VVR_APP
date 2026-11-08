@@ -22,11 +22,11 @@ function formatSeconds(value: number | null | undefined): string {
 <template>
   <aside
     v-if="visible"
-    class="hidden h-full min-h-0 shrink-0 flex-col border-zinc-800 bg-[#0c0d10] transition-[width] duration-200 ease-out xl:flex xl:border-l"
+    class="hidden h-full min-h-0 shrink-0 flex-col border-zinc-800 bg-chrome transition-[width] duration-200 ease-out xl:flex xl:border-l"
     :class="open ? 'w-[320px]' : 'w-14'"
   >
     <div v-show="open" class="min-h-0 flex-1 overflow-y-auto p-4">
-      <h2 class="mb-3 text-[11px] font-semibold uppercase tracking-[0.14em] text-zinc-400">Export status</h2>
+      <h2 class="mb-3 section-label">Export status</h2>
       <dl class="grid grid-cols-2 gap-x-3 gap-y-2 text-xs text-zinc-400">
         <div>Stage</div>
         <div class="text-zinc-200">{{ store.exportState.stage || store.exportState.message || '—' }}</div>

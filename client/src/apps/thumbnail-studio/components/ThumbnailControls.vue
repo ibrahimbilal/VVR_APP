@@ -81,7 +81,7 @@ const imageStatusLabel = computed(() =>
     <div class="min-h-0 flex-1 overflow-y-auto">
       <section class="border-b border-zinc-800 px-4 py-4">
         <label class="block">
-          <span class="mb-1 block text-[11px] font-semibold uppercase tracking-[0.14em] text-zinc-500">Project</span>
+          <span class="mb-1 block section-label">Project</span>
           <input
             class="field text-sm font-semibold"
             maxlength="80"
@@ -92,7 +92,7 @@ const imageStatusLabel = computed(() =>
         </label>
       </section>
       <section class="space-y-3 border-b border-zinc-800 px-4 py-4">
-        <h2 class="text-[11px] font-semibold uppercase tracking-[0.14em] text-zinc-400">Image</h2>
+        <h2 class="section-label">Image</h2>
         <FileDropZone
           compact
           accept="image/png,image/jpeg,image/webp"
@@ -124,7 +124,7 @@ const imageStatusLabel = computed(() =>
       </section>
 
       <section v-for="section in badges" :key="section.id" class="space-y-3 border-b border-zinc-800 px-4 py-4">
-        <h2 class="text-[11px] font-semibold uppercase tracking-[0.14em] text-zinc-400">{{ section.title }}</h2>
+        <h2 class="section-label">{{ section.title }}</h2>
         <div class="flex items-center justify-between gap-3">
           <span class="text-sm text-zinc-200">Show badge</span>
           <ToggleSwitch :model-value="store.doc[section.id].enabled" :aria-label="`Show ${section.title}`" @update:model-value="store.setBadgeEnabled(section.id, $event)" />
@@ -189,7 +189,7 @@ const imageStatusLabel = computed(() =>
       </section>
 
       <section v-if="anyBadgeEnabled" class="space-y-3 border-b border-zinc-800 px-4 py-4">
-        <h2 class="text-[11px] font-semibold uppercase tracking-[0.14em] text-zinc-400">Badge style</h2>
+        <h2 class="section-label">Badge style</h2>
         <p class="text-xs text-zinc-500">Same look on the resolution and duration badges. Previews show the 4K artwork.</p>
         <SliderField
           label="Badge size"

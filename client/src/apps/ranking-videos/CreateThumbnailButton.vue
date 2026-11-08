@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
+import AppDialog from '../../components/ui/AppDialog.vue'
 import { usePlayback } from '../../composables/usePlayback'
 import { usePlatformStore } from '../../stores/platform'
 import { useProjectStore } from '../../stores/project'
@@ -58,27 +59,24 @@ async function useBlob(blob: Blob): Promise<void> {
       <span>Link to source</span>
     </div>
     <button class="btn btn-ghost cursor-pointer" type="button" :disabled="choices.length === 0" @click="open = true">Create Thumbnail</button>
-    <div v-if="open" class="fixed inset-0 z-40 grid place-items-center bg-black/60 p-4">
-      <div class="max-h-[80vh] w-full max-w-lg overflow-y-auto rounded-lg border border-zinc-800 bg-[#14161c] p-4">
-        <div class="flex items-center justify-between">
-          <h2 class="text-lg font-bold">Choose a thumbnail frame</h2>
-          <button class="btn btn-ghost cursor-pointer" type="button" @click="open = false">Close</button>
-        </div>
-        <button class="btn btn-primary mt-3 cursor-pointer" type="button" :disabled="busy" @click="useCurrentFrame">Use current preview frame</button>
-        <div class="mt-3 grid grid-cols-2 gap-3">
-          <button
-            v-for="clip in choices"
-            :key="clip.id"
-            class="cursor-pointer rounded border border-zinc-800 p-2 text-left hover:border-brand"
-            type="button"
-            :disabled="busy"
-            @click="useClip(clip.thumbnail!)"
-          >
-            <img :src="clip.thumbnail!" alt="" class="aspect-[9/16] w-full object-cover" />
-            <span class="mt-2 block truncate text-sm">{{ clip.title }}</span>
-          </button>
-        </div>
+    <AppDialog wide :open="open" title="Choose a thumbnail frame" @cancel="open = false">
+      <button class="btn btn-primary cursor-pointer" type="button" :disabled="busy" @click="useCurrentFrame">Use current preview frame</button>
+      <div class="mt-3 grid grid-cols-2 gap-3">
+        <button
+          v-for="clip in choices"
+          :key="clip.id"
+          class="focus-ring cursor-pointer rounded border border-zinc-800 p-2 text-left hover:border-brand"
+          type="button"
+          :disabled="busy"
+          @click="useClip(clip.thumbnail!)"
+        >
+          <img :src="clip.thumbnail!" alt="" class="aspect-[9/16] w-full object-cover" />
+          <span class="mt-2 block truncate text-sm text-zinc-100">{{ clip.title }}</span>
+        </button>
       </div>
-    </div>
+      <template #actions>
+        <button class="btn btn-ghost cursor-pointer" type="button" @click="open = false">Close</button>
+      </template>
+    </AppDialog>
   </div>
 </template>

@@ -25,7 +25,7 @@ function setBitrate(value: string): void {
 </script>
 
 <template>
-  <div class="rounded-xl border border-zinc-800 bg-[#14161c]">
+  <div class="space-y-4">
     <SettingsAccordion title="Duration" :open="true">
       <div class="grid grid-cols-2 gap-2">
         <button

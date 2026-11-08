@@ -97,7 +97,7 @@ onBeforeUnmount(() => observer?.disconnect())
 </script>
 
 <template>
-  <div ref="stage" class="relative grid min-h-[240px] min-w-0 flex-1 place-items-center overflow-hidden bg-[#0c0d10] p-4">
+  <div ref="stage" class="relative grid min-h-[240px] min-w-0 flex-1 place-items-center overflow-hidden bg-chrome p-4">
     <div ref="frame" class="relative" :style="{ width: `${display.width}px`, height: `${display.height}px` }">
       <canvas ref="canvasRef" class="block h-full w-full rounded-sm shadow-2xl" />
       <ThumbnailBadge

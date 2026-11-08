@@ -39,7 +39,7 @@ const emit = defineEmits<{ openNav: [trigger: HTMLElement] }>()
 </script>
 
 <template>
-  <header class="flex h-14 shrink-0 items-center gap-3 border-b border-zinc-800 bg-[#101114] px-4">
+  <header class="flex h-14 shrink-0 items-center gap-3 border-b border-zinc-800 bg-app px-4">
     <button
       class="btn btn-ghost cursor-pointer xl:hidden"
       type="button"
@@ -49,7 +49,7 @@ const emit = defineEmits<{ openNav: [trigger: HTMLElement] }>()
       <Menu :size="20" />
     </button>
     <h1 class="min-w-0 truncate text-sm font-semibold">
-      <RouterLink :to="{ name: 'dashboard' }" class="text-zinc-200 transition-colors" :aria-label="`${title}, go to dashboard`">
+      <RouterLink :to="{ name: 'dashboard' }" class="focus-ring rounded-sm text-zinc-200 transition-colors" :aria-label="`${title}, go to dashboard`">
         {{ title }}
       </RouterLink>
     </h1>
@@ -65,7 +65,7 @@ const emit = defineEmits<{ openNav: [trigger: HTMLElement] }>()
     <div class="ml-auto flex items-center gap-1 sm:gap-2">
       <AppNotifications />
       <button
-        class="inline-flex cursor-pointer items-center gap-2 text-xs font-semibold"
+        class="focus-ring inline-flex cursor-pointer items-center gap-2 rounded-sm text-xs font-semibold"
         type="button"
         aria-label="Refresh renderer status"
         @click="platform.refreshServer()"

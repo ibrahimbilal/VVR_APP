@@ -38,9 +38,9 @@ const statusLabel = computed(() =>
 
 <template>
   <section class="space-y-3">
-    <h3 class="text-[11px] font-semibold uppercase tracking-[0.14em] text-zinc-500">Visual source</h3>
+    <h3 class="section-label">Visual source</h3>
 
-    <div v-if="store.objectUrl" class="rounded-lg border border-zinc-800 bg-[#16181d] p-3">
+    <div v-if="store.objectUrl" class="rounded-lg border border-zinc-800 bg-sidebar p-3">
       <div class="aspect-video overflow-hidden rounded-md bg-black">
         <img v-if="store.mediaKind === 'image'" :src="store.objectUrl" alt="" class="h-full w-full object-contain" />
         <video v-else :src="store.objectUrl" class="h-full w-full object-contain" muted playsinline />

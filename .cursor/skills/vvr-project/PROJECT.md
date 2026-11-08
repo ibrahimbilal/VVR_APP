@@ -38,6 +38,8 @@ Workspaces: root `vvr-app` **2.0.0**, `client` (`vvr-client`), `server` (`vvr-se
 
 ```
 client/src/App.vue                      platform shell (sidebar, header, toasts)
+client/src/style.css                    design tokens and shared control classes (see docs/ui-design-system.md)
+client/src/components/ui/               AppDialog, AppMobileTabs, AppExportAction, AppEmptyState, AppPanel
 client/src/app/router.ts                /, /ranking-videos, /frame-screensaver, /thumbnail-studio, /image-upscaler, /audio-looper
 client/src/stores/platform.ts           renderer health, global toasts, nav UI
 client/src/stores/project.ts            ranking editor state
@@ -77,8 +79,9 @@ Stack: Vue 3, **vue-router**, Pinia, Tailwind 4, Lucide. Client aliases `@shared
 
 `App.vue`: left sidebar (desktop). The logo, **Video's Factory** name, and header page title link to the dashboard. Header also has **notifications** (bell, left of renderer status), renderer status (`GET /api/health`), **New project** on Shorts, Screensaver, Thumbnail Studio, Image Upscaler, and Audio Looper (`AppHeader.vue`, `AppNotifications.vue`), `router-view`, global toasts (`usePlatformStore`). Finished Shorts, Screensaver, and Audio Looper renders are listed in the header notification panel (`renderNotifications.ts`, `platform.ts`). In-progress rows have **Cancel** (per export: client abort + server `POST /api/jobs/:id/cancel` when submitted; `renderJobTracking.ts`). After a full page reload, active server jobs are restored from `localStorage` (`persistedRenderJobs.ts`) and from `GET /api/jobs/active`, then polling resumes in `resumePersistedRenderJobs.ts` (header bell shows progress again; finished-while-away jobs appear as ready downloads).
 
-- Routes: `/` dashboard, `/ranking-videos`, `/frame-screensaver`, `/thumbnail-studio`, `/image-upscaler`, `/audio-looper`. SPA fallback in production.
-- Mobile: hamburger opens left drawer; ranking mobile tabs inside `RankingVideosView`; Screensaver uses **Settings / Preview** tabs (`FrameScreensaverView.vue`).
+- Routes: `/` dashboard, `/ranking-videos`, `/frame-screensaver`, `/thumbnail-studio`, `/image-upscaler`, `/audio-looper`. SPA fallback in production. Dashboard cards read `description` from `navItems` in `client/src/app/navigation.ts`.
+- Mobile: hamburger opens left drawer. Shorts, Screensaver, and Audio Looper use `AppMobileTabs` (Shorts at `xl`: Clips / Preview / Style; the other two at `lg`: Settings / Preview). Image Upscaler and Thumbnail Studio stack their panels and scroll instead of hiding them behind tabs.
+- Surfaces, buttons, fields, dialogs, and toasts use the tokens and classes in `client/src/style.css`. Confirmations that replace an open picture use `AppDialog` (Escape and the backdrop call the existing keep/cancel action). Export buttons share `AppExportAction`; each app still calls its own store.
 
 ## Shorts screen
 
@@ -287,7 +290,8 @@ Sweep every 10 minutes: outputs older than 2 hours, jobs and incoming older than
 
 | Task | Open |
 | --- | --- |
-| Layout, tabs, header, toasts, render-ready notifications | `client/src/App.vue`, `client/src/style.css`, `client/src/components/layout/AppNotifications.vue`, `client/src/lib/renderNotifications.ts` |
+| Layout, tabs, header, toasts, render-ready notifications | `client/src/App.vue`, `client/src/style.css`, `client/src/components/layout/AppNotifications.vue`, `client/src/lib/renderNotifications.ts`, `docs/ui-design-system.md` |
+| Shared dialogs, mobile tabs, export button, empty state, panels | `client/src/components/ui/` |
 | Shared file drop / browse upload | `client/src/components/FileDropZone.vue` |
 | Shared audio upload + advanced sliders | `client/src/components/audio/` (`AudioFileField.vue`, `AdvancedAudioControls.vue`, `SourceClipAudioControls.vue`) |
 | Clip list, URL add, drag reorder | `client/src/components/ClipSidebar.vue` |
@@ -429,6 +433,7 @@ Verify slack: `max(0.25s, min(1.5s, 1% of target))`. Source Preview and Loop Pla
 
 ## Changelog
 
+- 2026-11-08 — Shared UI tokens and presentational components (`style.css`, `components/ui/`, shell, five editors). Export, canvas, and store behavior unchanged (`docs/ui-design-system.md`).
 - 2026-11-08 — Audio Looper duration matches Screensaver: 2h default, 30m–12h presets, custom minutes (`shared/audioLooper.ts`, `LooperSettings.vue`).
 - 2026-11-08 — Audio Looper hides Source Preview and Loop Plan until a file is loaded; custom canvas player with 0.8/1.0 waveform progress replaces native audio controls (`LooperPreview.vue`, `LooperPlayer.vue`).
 - 2026-11-08 — Dashboard app cards are fully clickable with hover lift; Open Editor button removed (`DashboardView.vue`).

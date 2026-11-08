@@ -27,7 +27,7 @@ function onCloseNav() {
 </script>
 
 <template>
-  <div class="flex h-[100dvh] overflow-hidden bg-[#101114] text-zinc-100">
+  <div class="flex h-[100dvh] overflow-hidden bg-app text-zinc-100">
     <AppSidebar />
     <div class="flex min-w-0 flex-1 flex-col">
       <AppHeader @open-nav="onOpenNav" />
@@ -40,14 +40,8 @@ function onCloseNav() {
       <div
         v-for="item in platform.toasts"
         :key="item.id"
-        class="pointer-events-auto rounded-md border px-3 py-2 text-sm shadow-lg"
-        :class="
-          item.tone === 'error'
-            ? 'border-red-900 bg-[#2a1515] text-red-100'
-            : item.tone === 'success'
-              ? 'border-emerald-900/80 bg-[#122019] text-emerald-100'
-              : 'border-zinc-700 bg-[#1c1f26] text-zinc-100'
-        "
+        class="toast"
+        :class="item.tone === 'error' ? 'toast-error' : item.tone === 'success' ? 'toast-success' : undefined"
       >
         <div class="flex items-start gap-3">
           <p class="flex-1">{{ item.text }}</p>

@@ -82,8 +82,8 @@ function setNumber(key: 'width' | 'height' | 'quality', value: string): void {
 <template>
   <div class="space-y-4">
     <div>
-      <h2 class="text-xs font-semibold uppercase tracking-wide text-zinc-500">Upscaling</h2>
-      <p class="mt-1 text-[11px] font-medium text-zinc-400">Engine</p>
+      <h2 class="section-label">Upscaling</h2>
+      <p class="mt-1 text-xs font-medium text-zinc-400">Engine</p>
       <div class="mt-2 grid grid-cols-2 gap-1">
         <button
           v-for="engine in engines"
@@ -98,26 +98,26 @@ function setNumber(key: 'width' | 'height' | 'quality', value: string): void {
           {{ engine.label }}
         </button>
       </div>
-      <p class="mt-2 text-[11px] leading-relaxed text-zinc-500">Standard: Fast traditional resizing.</p>
-      <p class="mt-1 text-[11px] leading-relaxed text-zinc-500">AI Lite: AI-assisted reconstruction for cleaner edges and textures. May alter fine artistic details.</p>
-      <p v-if="!store.capabilities" class="mt-2 text-[11px] text-zinc-500">Checking whether AI Lite is available.</p>
-      <p v-else-if="!aiReady" class="mt-2 text-[11px] leading-relaxed text-amber-200">{{ ai?.reason ?? 'AI Lite is not available on this server.' }}</p>
-      <p v-else-if="store.settings.engine === 'realesrgan-lite' && ai?.matchesUpscaylLite" class="mt-2 text-[11px] leading-relaxed text-zinc-400">
+      <p class="mt-2 text-xs leading-relaxed text-zinc-500">Standard: Fast traditional resizing.</p>
+      <p class="mt-1 text-xs leading-relaxed text-zinc-500">AI Lite: AI-assisted reconstruction for cleaner edges and textures. May alter fine artistic details.</p>
+      <p v-if="!store.capabilities" class="mt-2 text-xs text-zinc-500">Checking whether AI Lite is available.</p>
+      <p v-else-if="!aiReady" class="mt-2 text-xs leading-relaxed text-amber-200">{{ ai?.reason ?? 'AI Lite is not available on this server.' }}</p>
+      <p v-else-if="store.settings.engine === 'realesrgan-lite' && ai?.matchesUpscaylLite" class="mt-2 text-xs leading-relaxed text-zinc-400">
         Model {{ ai?.model }}. This is the Upscayl Lite model at {{ ai?.scale }}×. The final exact size is still fitted here, so pixels can differ slightly from the Upscayl app.
       </p>
-      <p v-else-if="store.settings.engine === 'realesrgan-lite'" class="mt-2 text-[11px] leading-relaxed text-amber-200">
+      <p v-else-if="store.settings.engine === 'realesrgan-lite'" class="mt-2 text-xs leading-relaxed text-amber-200">
         Model {{ ai?.model }}. This is not the Upscayl Lite model, so the look can differ from an Upscayl Lite export.
       </p>
     </div>
 
     <div>
-      <p class="text-[11px] font-medium text-zinc-400">Factor</p>
-      <p class="mt-0.5 text-[11px] text-zinc-500">Builds a lossless intermediate before export fitting.</p>
+      <p class="text-xs font-medium text-zinc-400">Factor</p>
+      <p class="mt-0.5 text-xs text-zinc-500">Builds a lossless intermediate before export fitting.</p>
       <div class="mt-2 grid grid-cols-5 gap-1">
         <button
           v-for="scale in scaleChoices"
           :key="String(scale.id)"
-          class="btn cursor-pointer px-2 text-[11px]"
+          class="btn cursor-pointer px-2 text-xs"
           :class="store.settings.scaleFactor === scale.id ? 'btn-primary' : 'btn-ghost'"
           type="button"
           @click="store.settings.scaleFactor = scale.id"
@@ -125,11 +125,11 @@ function setNumber(key: 'width' | 'height' | 'quality', value: string): void {
           {{ scale.label }}
         </button>
       </div>
-      <p class="mt-2 text-[11px] text-zinc-500">Auto picks a uniform factor up to 4× from the export target. AI Lite always infers at native 4×, then resizes to the effective factor.</p>
+      <p class="mt-2 text-xs text-zinc-500">Auto picks a uniform factor up to 4× from the export target. AI Lite always infers at native 4×, then resizes to the effective factor.</p>
     </div>
 
     <div>
-      <h2 class="text-xs font-semibold uppercase tracking-wide text-zinc-500">Export</h2>
+      <h2 class="section-label">Export</h2>
       <label class="mt-2 block text-xs text-zinc-400">
         Resolution
         <select class="field mt-1" :value="store.settings.preset" @change="store.setPreset(($event.target as HTMLSelectElement).value as typeof store.settings.preset)">
@@ -148,11 +148,11 @@ function setNumber(key: 'width' | 'height' | 'quality', value: string): void {
           <input class="field mt-1" type="number" :min="store.limits.minEdge" :max="store.limits.maxOutputEdge" :value="store.settings.height" @change="setNumber('height', ($event.target as HTMLInputElement).value)" />
         </label>
       </div>
-      <p v-if="store.settings.preset === 'original' || store.settings.preset === 'upscaled'" class="mt-2 text-[11px] text-zinc-500">
+      <p v-if="store.settings.preset === 'original' || store.settings.preset === 'upscaled'" class="mt-2 text-xs text-zinc-500">
         <template v-if="store.settings.preset === 'original'">Fits the AI or Lanczos result back to the original file dimensions.</template>
         <template v-else>Saves at the intermediate upscaled size (contain/cover/fill still apply).</template>
       </p>
-      <p v-else class="mt-2 text-[11px] text-zinc-500">Target {{ store.settings.width }}×{{ store.settings.height }}. Presets other than Custom always use those exact pixels.</p>
+      <p v-else class="mt-2 text-xs text-zinc-500">Target {{ store.settings.width }}×{{ store.settings.height }}. Presets other than Custom always use those exact pixels.</p>
     </div>
 
     <div>
@@ -169,7 +169,7 @@ function setNumber(key: 'width' | 'height' | 'quality', value: string): void {
           {{ mode.label }}
         </button>
       </div>
-      <p v-if="store.settings.mode === 'fill'" class="mt-2 text-[11px] text-amber-200">Fill stretches the image to the target size and can distort its proportions.</p>
+      <p v-if="store.settings.mode === 'fill'" class="mt-2 text-xs text-amber-200">Fill stretches the image to the target size and can distort its proportions.</p>
       <div v-if="store.settings.mode === 'cover'" class="mt-2">
         <p class="text-xs text-zinc-400">Crop position</p>
         <div class="mt-1 flex flex-nowrap gap-1">
@@ -206,7 +206,7 @@ function setNumber(key: 'width' | 'height' | 'quality', value: string): void {
           Custom color
           <input v-model="store.settings.paddingColor" class="mt-1 h-9 w-full" type="color" />
         </label>
-        <p v-if="store.settings.format === 'jpeg'" class="mt-2 text-[11px] text-zinc-500">JPEG has no transparency. Transparent pixels and padding are flattened onto this background.</p>
+        <p v-if="store.settings.format === 'jpeg'" class="mt-2 text-xs text-zinc-500">JPEG has no transparency. Transparent pixels and padding are flattened onto this background.</p>
       </div>
     </div>
 
@@ -223,16 +223,16 @@ function setNumber(key: 'width' | 'height' | 'quality', value: string): void {
         Quality {{ store.settings.quality }}
         <input class="mt-1 w-full" type="range" min="60" max="100" :value="store.settings.quality" @input="setNumber('quality', ($event.target as HTMLInputElement).value)" />
       </label>
-      <p v-else class="mt-2 text-[11px] text-zinc-500">PNG is written with lossless compression.</p>
-      <p v-if="store.formatFromSource && store.selected" class="mt-2 text-[11px] text-zinc-500">Format follows the first uploaded image until you change it here.</p>
+      <p v-else class="mt-2 text-xs text-zinc-500">PNG is written with lossless compression.</p>
+      <p v-if="store.formatFromSource && store.selected" class="mt-2 text-xs text-zinc-500">Format follows the first uploaded image until you change it here.</p>
     </div>
 
     <div>
       <div class="flex items-center justify-between gap-2">
         <p class="text-xs font-semibold text-zinc-300">Sharpen</p>
-        <button class="text-[11px] font-semibold text-zinc-400" type="button" @click="store.settings.sharpen = 'none'">Reset</button>
+        <button class="text-xs font-semibold text-zinc-400" type="button" @click="store.settings.sharpen = 'none'">Reset</button>
       </div>
-      <p class="mt-1 text-[11px] text-zinc-500">Optional, and separate from Lanczos3 resizing. None is the default. Higher strength can add halos.</p>
+      <p class="mt-1 text-xs text-zinc-500">Optional, and separate from Lanczos3 resizing. None is the default. Higher strength can add halos.</p>
       <div class="mt-2 grid grid-cols-3 gap-1">
         <button
           v-for="preset in sharpens"
@@ -253,7 +253,7 @@ function setNumber(key: 'width' | 'height' | 'quality', value: string): void {
       <span v-else>Skip Lanczos resampling when the image is already the target size and no other resize is needed.</span>
     </label>
 
-    <div v-if="summary" class="space-y-1 rounded-lg border border-zinc-800 bg-[#101114] p-3 text-[11px] leading-relaxed text-zinc-400">
+    <div v-if="summary" class="space-y-1 rounded-lg border border-zinc-800 bg-inset p-3 text-xs leading-relaxed text-zinc-400">
       <p>Original {{ summary.sourceWidth }}×{{ summary.sourceHeight }} · {{ summary.sourceAspect }} · {{ formatBytes(store.selected?.bytes ?? 0) }}</p>
       <p v-if="interDims">Intermediate {{ interDims.width }}×{{ interDims.height }}<template v-if="store.selected?.effectiveScale != null"> · {{ store.selected.effectiveScale }}×</template><template v-else-if="store.settings.scaleFactor !== 'auto'"> · {{ store.settings.scaleFactor }}×</template></p>
       <p v-if="exportDims">Export {{ exportDims.width }}×{{ exportDims.height }} · {{ summary.targetAspect }} · scale {{ summary.scaleLabel }}</p>

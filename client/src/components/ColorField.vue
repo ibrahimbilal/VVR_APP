@@ -16,7 +16,7 @@ function onInput(event: Event) {
     <label class="flex items-center justify-between gap-3">
       <span class="text-xs text-zinc-400">{{ label }}</span>
       <span class="flex items-center gap-2">
-        <span class="text-[11px] uppercase tabular-nums text-zinc-500">{{ modelValue }}</span>
+        <span class="text-xs uppercase tabular-nums text-zinc-500">{{ modelValue }}</span>
         <input type="color" :value="modelValue" :aria-label="`${label} custom color`" @input="onInput" />
       </span>
     </label>

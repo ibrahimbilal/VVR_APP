@@ -213,7 +213,7 @@ function onCustomMinutes() {
       <div v-if="DEFAULT_FRAMES.length > 0" class="grid grid-cols-2 gap-2">
         <div v-for="frame in DEFAULT_FRAMES" :key="frame.id" class="group/frame relative">
           <button
-            class="block w-full cursor-pointer overflow-hidden rounded-md border bg-[#101114]"
+            class="block w-full cursor-pointer overflow-hidden rounded-md border bg-inset"
             :class="store.composition.frameId === frame.id ? 'border-brand ring-1 ring-brand' : 'border-zinc-700 hover:border-zinc-500'"
             type="button"
             :aria-pressed="store.composition.frameId === frame.id"
@@ -259,7 +259,7 @@ function onCustomMinutes() {
       <div v-else class="mt-3 grid grid-cols-2 gap-2">
         <div v-for="frame in store.frames" :key="frame.id" class="group/frame relative min-w-0">
           <button
-            class="block w-full cursor-pointer overflow-hidden rounded-md border bg-[#101114]"
+            class="block w-full cursor-pointer overflow-hidden rounded-md border bg-inset"
             :class="store.composition.frameId === frame.id ? 'border-brand ring-1 ring-brand' : 'border-zinc-700 hover:border-zinc-500'"
             type="button"
             :aria-pressed="store.composition.frameId === frame.id"

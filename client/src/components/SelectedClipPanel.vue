@@ -50,19 +50,19 @@ function onTitleColor(event: Event) {
 </script>
 
 <template>
-  <aside v-if="store.selectedClip" class="flex min-h-0 flex-col border-zinc-800 bg-[#16181d] xl:border-r">
+  <aside v-if="store.selectedClip" class="flex min-h-0 flex-col border-zinc-800 bg-sidebar xl:border-r">
     <div class="flex items-center justify-between gap-3 border-b border-zinc-800 px-4 py-3">
-      <p class="text-[11px] font-semibold uppercase tracking-[0.14em] text-zinc-500">Selected clip</p>
+      <p class="section-label">Selected clip</p>
       <button class="text-zinc-400 cursor-pointer" type="button" aria-label="Close selected clip" title="Close" @click="store.closeSelectedPanel">
         <X :size="16" />
       </button>
     </div>
     <div class="min-h-0 flex-1 space-y-3 overflow-y-auto p-4">
       <p class="truncate text-sm">{{ store.selectedClip.title }}</p>
-      <label class="flex items-center justify-between gap-3 rounded-md border border-zinc-800 bg-[#101114] px-3 py-2 text-xs text-zinc-200">
+      <label class="flex items-center justify-between gap-3 rounded-md border border-zinc-800 bg-inset px-3 py-2 text-xs text-zinc-200">
         <span>
           <span class="block font-semibold">Play at the end</span>
-          <span class="mt-1 block text-[11px] leading-relaxed text-zinc-500">This clip stays in the list, but the video and the ranking play it last. Only one clip can be last.</span>
+          <span class="mt-1 block text-xs leading-relaxed text-zinc-500">This clip stays in the list, but the video and the ranking play it last. Only one clip can be last.</span>
         </span>
         <ToggleSwitch
           :model-value="store.selectedClip.playAtEnd"

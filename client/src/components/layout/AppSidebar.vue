@@ -15,13 +15,17 @@ function isActive(path: string): boolean {
 
 <template>
   <aside
-    class="hidden h-full shrink-0 flex-col border-r border-zinc-800 bg-[#0c0d10] transition-[width] duration-200 ease-out xl:flex"
+    class="hidden h-full shrink-0 flex-col border-r border-zinc-800 bg-chrome transition-[width] duration-200 ease-out xl:flex"
     :class="platform.sidebarCollapsed ? 'w-14' : 'w-[240px]'"
   >
-    <div class="flex h-14 items-center border-b border-zinc-800 px-3">
+    <div
+      class="flex h-14 items-center border-b border-zinc-800"
+      :class="platform.sidebarCollapsed ? 'justify-center px-1' : 'px-3'"
+    >
       <RouterLink
         :to="{ name: 'dashboard' }"
-        class="flex min-w-0 items-center gap-2 rounded-sm text-zinc-100 transition-colors"
+        class="focus-ring flex min-w-0 items-center gap-2 rounded-sm text-zinc-100 transition-colors"
+        :class="platform.sidebarCollapsed ? 'justify-center' : undefined"
         aria-label="Video's Factory, go to dashboard"
         :title="platform.sidebarCollapsed ? 'Dashboard' : undefined"
       >
@@ -34,12 +38,12 @@ function isActive(path: string): boolean {
         v-for="item in navItems"
         :key="item.path"
         :to="item.path"
-        class="flex items-center gap-3 rounded-md px-3 py-2.5 text-sm font-semibold transition-colors"
-        :class="
-          isActive(item.path)
-            ? 'bg-brand/15 text-brand'
-            : 'text-zinc-400 hover:bg-zinc-800/80 hover:text-zinc-100'
-        "
+        class="focus-ring flex items-center gap-3 rounded-md py-2.5 text-sm font-semibold transition-colors"
+        :class="[
+          isActive(item.path) ? 'bg-brand/15 text-brand' : 'text-zinc-400 hover:bg-zinc-800/80 hover:text-zinc-100',
+          platform.sidebarCollapsed ? 'justify-center px-0' : 'px-3',
+        ]"
+        :aria-label="item.label"
         :title="platform.sidebarCollapsed ? item.label : undefined"
       >
         <component :is="item.icon" class="shrink-0" :size="18" />
@@ -47,7 +51,7 @@ function isActive(path: string): boolean {
       </RouterLink>
     </nav>
     <button
-      class="m-2 flex cursor-pointer items-center justify-center gap-2 rounded-md border border-zinc-800 py-2 text-xs text-zinc-500 hover:bg-zinc-800/60 hover:text-zinc-300"
+      class="focus-ring m-2 flex cursor-pointer items-center justify-center gap-2 rounded-md border border-zinc-800 py-2 text-xs text-zinc-500 hover:bg-zinc-800/60 hover:text-zinc-300"
       type="button"
       :aria-label="platform.sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'"
       @click="platform.toggleSidebarCollapsed()"

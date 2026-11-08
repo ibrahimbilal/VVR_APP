@@ -67,7 +67,7 @@ function onNavigate() {
       <div class="absolute inset-0 bg-black/60" aria-hidden="true" @click="onBackdropClick" />
       <div
         ref="panelRef"
-        class="absolute left-0 top-0 flex h-full w-[min(280px,85vw)] flex-col border-r border-zinc-800 bg-[#0c0d10] shadow-xl"
+        class="absolute left-0 top-0 flex h-full w-[min(280px,85vw)] flex-col border-r border-zinc-800 bg-chrome shadow-xl"
         role="dialog"
         aria-modal="true"
         aria-label="Navigation"
@@ -75,7 +75,7 @@ function onNavigate() {
         <div class="flex h-14 items-center justify-between border-b border-zinc-800 px-4">
           <RouterLink
             :to="{ name: 'dashboard' }"
-            class="flex min-w-0 items-center gap-2 rounded-sm text-zinc-100 transition-colors hover:text-brand"
+            class="focus-ring flex min-w-0 items-center gap-2 rounded-sm text-zinc-100 transition-colors hover:text-brand"
             aria-label="Video's Factory, go to dashboard"
             @click="onNavigate"
           >
@@ -91,7 +91,8 @@ function onNavigate() {
             v-for="item in navItems"
             :key="item.path"
             :to="item.path"
-            class="flex items-center gap-3 rounded-md px-3 py-2.5 text-sm font-semibold transition-colors"
+            class="focus-ring flex items-center gap-3 rounded-md px-3 py-2.5 text-sm font-semibold transition-colors"
+            :aria-label="item.label"
             :class="
               isActive(item.path)
                 ? 'bg-brand/15 text-brand'

@@ -94,7 +94,7 @@ function setTitleHideAfterEnabled(enabled: boolean) {
 </script>
 
 <template>
-  <aside class="min-h-0 overflow-y-auto border-zinc-800 bg-[#16181d] xl:border-l">
+  <aside class="min-h-0 overflow-y-auto border-zinc-800 bg-sidebar xl:border-l">
     <SettingsAccordion title="Presets" open>
         <div class="grid grid-cols-2 gap-2">
           <button
@@ -152,7 +152,7 @@ function setTitleHideAfterEnabled(enabled: boolean) {
               {{ numberExample }}
             </button>
           </div>
-          <p class="mt-2 text-[11px] leading-relaxed text-zinc-500">
+          <p class="mt-2 text-xs leading-relaxed text-zinc-500">
             <template v-if="store.style.ranking.display === 'page'">Pagination shows {{ pageExample }}. Current clip shows {{ numberExample }}.</template>
             <template v-else>All numbers lists every clip.</template>
           </p>
@@ -160,7 +160,7 @@ function setTitleHideAfterEnabled(enabled: boolean) {
     </SettingsAccordion>
 
     <SettingsAccordion title="Color sets">
-        <p class="text-[11px] leading-relaxed text-zinc-500">Shared colors for the number, title words, and clip title. They stay available in every project.</p>
+        <p class="text-xs leading-relaxed text-zinc-500">Shared colors for the number, title words, and clip title. They stay available in every project.</p>
         <div class="flex flex-wrap gap-2">
           <button
             v-for="set in store.colorSets"
@@ -184,7 +184,7 @@ function setTitleHideAfterEnabled(enabled: boolean) {
           <span
             v-for="color in store.activeColors"
             :key="color"
-            class="inline-flex items-center gap-1 rounded-full border border-zinc-700 bg-[#101114] py-1 pl-1 pr-2"
+            class="inline-flex items-center gap-1 rounded-full border border-zinc-700 bg-inset py-1 pl-1 pr-2"
           >
             <span class="h-5 w-5 rounded-full border border-white/20" :style="{ background: color }"></span>
             <button
@@ -216,7 +216,7 @@ function setTitleHideAfterEnabled(enabled: boolean) {
           <span>Show title</span>
           <ToggleSwitch v-model="store.style.banner.visible" aria-label="Show title" />
         </div>
-        <p v-if="store.style.banner.visible === false" class="text-[11px] leading-relaxed text-zinc-500">The title banner is hidden and the video fills the frame.</p>
+        <p v-if="store.style.banner.visible === false" class="text-xs leading-relaxed text-zinc-500">The title banner is hidden and the video fills the frame.</p>
         <template v-if="store.style.banner.visible !== false">
           <textarea
             class="field min-h-20 resize-y"
@@ -224,7 +224,7 @@ function setTitleHideAfterEnabled(enabled: boolean) {
             maxlength="180"
             @input="store.setTitleText(($event.target as HTMLTextAreaElement).value)"
           ></textarea>
-          <p class="text-[11px] text-zinc-500">Press Enter for a new line. Each word can have its own color.</p>
+          <p class="text-xs text-zinc-500">Press Enter for a new line. Each word can have its own color.</p>
           <div class="flex flex-wrap gap-2">
             <template v-for="(span, index) in store.spans" :key="span.id">
               <span v-if="span.breakBefore" class="basis-full"></span>
@@ -240,7 +240,7 @@ function setTitleHideAfterEnabled(enabled: boolean) {
             </template>
           </div>
           <div v-if="activeWord" class="space-y-2">
-            <p class="text-[11px] text-zinc-500">Color set for “{{ activeWord.text }}”</p>
+            <p class="text-xs text-zinc-500">Color set for “{{ activeWord.text }}”</p>
             <ColorSwatches :model-value="activeWord.color" @pick="onWordColor" />
           </div>
           <ColorField v-model="store.style.banner.background" label="Banner background" />
@@ -298,7 +298,7 @@ function setTitleHideAfterEnabled(enabled: boolean) {
           <span>Show previous titles</span>
           <ToggleSwitch v-model="store.style.ranking.showPreviousTitles" aria-label="Show previous titles" />
         </div>
-        <p v-if="store.style.caption.enabled" class="text-[11px] leading-relaxed text-zinc-500">On the full ranking list, a clip title stays visible after that clip has played.</p>
+        <p v-if="store.style.caption.enabled" class="text-xs leading-relaxed text-zinc-500">On the full ranking list, a clip title stays visible after that clip has played.</p>
         <div v-if="store.style.caption.enabled" class="flex items-center justify-between text-xs text-zinc-300">
           <span>Hide clip title after a while</span>
           <ToggleSwitch
@@ -316,12 +316,12 @@ function setTitleHideAfterEnabled(enabled: boolean) {
           :step="0.5"
           suffix="s"
         />
-        <p v-if="store.style.caption.enabled && store.style.ranking.titleHideAfter > 0" class="text-[11px] leading-relaxed text-zinc-500">
+        <p v-if="store.style.caption.enabled && store.style.ranking.titleHideAfter > 0" class="text-xs leading-relaxed text-zinc-500">
           The active clip title disappears after this many seconds. Previous titles are not affected.
         </p>
         <p
           v-if="!store.style.ranking.visible && !store.style.caption.enabled"
-          class="text-[11px] leading-relaxed text-zinc-500"
+          class="text-xs leading-relaxed text-zinc-500"
         >
           Ranking numbers and clip titles are hidden on the video.
         </p>
@@ -365,14 +365,14 @@ function setTitleHideAfterEnabled(enabled: boolean) {
               <option value="titleDesc">Title Z–A</option>
             </select>
           </label>
-          <p class="text-[11px] leading-relaxed text-zinc-500">Reorders the list on the video. Rank numbers stay with each clip. Play at the end only changes playback order, not this list.</p>
+          <p class="text-xs leading-relaxed text-zinc-500">Reorders the list on the video. Rank numbers stay with each clip. Play at the end only changes playback order, not this list.</p>
           <SliderField v-model="store.style.ranking.itemSpacing" label="Item spacing" :min="0" :max="100" suffix="%" />
           <SliderField v-model="store.style.ranking.positionX" label="Left position" :min="0" :max="Math.round(store.style.video.width * 0.7)" suffix="px" />
           <SliderField v-model="store.style.ranking.positionY" label="Top position" :min="0" :max="Math.round(layoutMetrics.videoHeight * 0.95)" suffix="px" />
         </template>
         <template v-if="store.style.caption.enabled">
           <SliderField v-model="store.style.caption.fontSize" label="Clip title size" :min="18" :max="90" suffix="px" />
-          <p class="text-[11px] leading-relaxed text-zinc-500">Each clip has its own title color in the selected clip column.</p>
+          <p class="text-xs leading-relaxed text-zinc-500">Each clip has its own title color in the selected clip column.</p>
         </template>
     </SettingsAccordion>
 
@@ -432,7 +432,7 @@ function setTitleHideAfterEnabled(enabled: boolean) {
         v-model:original-volume="store.style.video.originalVolume"
       />
       <div class="space-y-2 border-t border-zinc-800 pt-3">
-        <p class="text-[11px] font-semibold uppercase tracking-[0.14em] text-zinc-500">Background music</p>
+        <p class="section-label">Background music</p>
         <AudioFileField
           :file-name="store.musicName"
           :file-size="store.musicFileSize"

@@ -44,7 +44,7 @@ function toggle(): void {
     <button class="btn btn-ghost cursor-pointer text-xs" type="button" @click="toggle">
       {{ visible ? 'Hide' : 'Show' }} preview diagnostics
     </button>
-    <div v-if="visible" class="mt-2 rounded-lg border border-zinc-700 bg-[#101114]/95 p-3 text-xs text-zinc-300 shadow-lg">
+    <div v-if="visible" class="mt-2 rounded-lg border border-zinc-700 bg-app/95 p-3 text-xs text-zinc-300 shadow-lg">
       <p><span class="text-zinc-500">Backend:</span> {{ metrics.lastBackend }}</p>
       <p><span class="text-zinc-500">WebGL2 available:</span> {{ webGl2Available() ? 'yes' : 'no' }}</p>
       <p><span class="text-zinc-500">Context losses:</span> {{ webGlContextLossCount() }}</p>

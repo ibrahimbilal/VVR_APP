@@ -81,7 +81,7 @@ onBeforeUnmount(() => document.removeEventListener('pointerdown', onDocumentPoin
 <template>
   <div ref="root" class="relative">
     <button
-      class="relative grid h-9 w-9 cursor-pointer place-items-center rounded-sm"
+      class="focus-ring relative grid h-9 w-9 cursor-pointer place-items-center rounded-sm"
       type="button"
       aria-label="Notifications"
       :aria-expanded="open"
@@ -90,7 +90,7 @@ onBeforeUnmount(() => document.removeEventListener('pointerdown', onDocumentPoin
       <Bell v-if="!hasOperations" :size="18" />
       <template v-else>
         <svg class="absolute inset-0 h-9 w-9 -rotate-90" viewBox="0 0 36 36" aria-hidden="true">
-          <circle cx="18" cy="18" :r="RING_RADIUS" fill="none" stroke="#343841" stroke-width="3" />
+          <circle cx="18" cy="18" :r="RING_RADIUS" fill="none" stroke="var(--color-field)" stroke-width="3" />
           <circle
             cx="18"
             cy="18"
@@ -110,7 +110,7 @@ onBeforeUnmount(() => document.removeEventListener('pointerdown', onDocumentPoin
 
     <div
       v-if="open"
-      class="absolute right-0 top-[calc(100%+0.35rem)] z-50 flex w-[min(20rem,calc(100vw-2rem))] flex-col overflow-hidden rounded-lg border border-zinc-800 bg-[#14161c] shadow-xl"
+      class="absolute right-0 top-[calc(100%+0.35rem)] z-50 flex w-[min(20rem,calc(100vw-2rem))] flex-col overflow-hidden rounded-lg border border-zinc-800 bg-elevated shadow-xl"
       role="dialog"
       aria-label="Notifications"
     >
@@ -180,7 +180,7 @@ onBeforeUnmount(() => document.removeEventListener('pointerdown', onDocumentPoin
               v-for="item in platform.renderNotifications"
               :key="item.id"
               class="border-t border-zinc-800/60 px-3 py-3 first:border-t-0"
-              :class="item.read ? 'bg-transparent' : 'bg-[#1a1d24]'"
+              :class="item.read ? 'bg-transparent' : 'bg-unread'"
             >
               <p class="text-[11px] font-semibold uppercase tracking-[0.08em] text-zinc-500">
                 {{ renderAppLabel(item.app) }}

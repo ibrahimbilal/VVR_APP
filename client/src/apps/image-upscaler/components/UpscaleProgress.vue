@@ -8,7 +8,7 @@ const finished = computed(() => store.items.filter((item) => item.status === 'co
 </script>
 
 <template>
-  <div v-if="store.processing || store.completedCount || store.items.some((item) => item.status === 'failed')" class="rounded-lg border border-zinc-800 bg-[#101114] p-3" aria-live="polite">
+  <div v-if="store.processing || store.completedCount || store.items.some((item) => item.status === 'failed')" class="rounded-lg border border-zinc-800 bg-inset p-3" aria-live="polite">
     <div class="flex items-center justify-between gap-3 text-xs text-zinc-300">
       <span>{{ finished }} of {{ store.items.length }} finished</span>
       <span v-if="active">Processing {{ active.name }}</span>
@@ -17,8 +17,8 @@ const finished = computed(() => store.items.filter((item) => item.status === 'co
     <div v-if="store.processing" class="mt-2 h-1 overflow-hidden rounded bg-zinc-800">
       <div class="upscale-indeterminate h-full w-1/3 rounded bg-brand"></div>
     </div>
-    <p v-if="store.processing && store.jobEngine === 'realesrgan-lite'" class="mt-2 text-[11px] text-zinc-500">AI Lite is reconstructing this image. Cancel stops that process. It does not report a percentage.</p>
-    <p v-else class="mt-2 text-[11px] text-zinc-500">Progress is shown per image. The active resize does not report a percentage.</p>
+    <p v-if="store.processing && store.jobEngine === 'realesrgan-lite'" class="mt-2 text-xs text-zinc-500">AI Lite is reconstructing this image. Cancel stops that process. It does not report a percentage.</p>
+    <p v-else class="mt-2 text-xs text-zinc-500">Progress is shown per image. The active resize does not report a percentage.</p>
   </div>
 </template>
 

@@ -11,7 +11,7 @@ const store = useProjectStore()
     <button
       v-for="color in store.activeColors"
       :key="color"
-      class="h-7 w-7 cursor-pointer rounded-full border"
+      class="h-7 w-7 cursor-pointer rounded-full border focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand"
       :class="modelValue?.toLowerCase() === color.toLowerCase() ? 'border-white ring-2 ring-white/70' : 'border-white/20'"
       :style="{ background: color }"
       type="button"
