@@ -4,8 +4,9 @@ import { releaseClips, retainClips, jobsDir, outputsDir } from './storage'
 import { renderProject, type RenderRequest } from './render'
 import { renderScreensaver, type ScreensaverRenderRequest } from './renderScreensaver'
 import { renderAudioLooper, type AudioLooperRenderRequest } from './renderAudioLooper'
+import { renderImageMotion, type ImageMotionRenderRequest } from './renderImageMotion'
 
-export type JobKind = 'ranking' | 'screensaver' | 'audio-looper'
+export type JobKind = 'ranking' | 'screensaver' | 'audio-looper' | 'image-motion'
 export type JobStatus = 'queued' | 'preparing' | 'rendering' | 'verifying' | 'done' | 'error' | 'cancelled'
 
 export interface JobView {
@@ -68,7 +69,12 @@ interface AudioLooperJob extends JobBase, AudioLooperRenderRequest {
   kind: 'audio-looper'
 }
 
-type Job = RankingJob | ScreensaverJob | AudioLooperJob
+interface ImageMotionJob extends JobBase, ImageMotionRenderRequest {
+  kind: 'image-motion'
+  mediaIds: string[]
+}
+
+type Job = RankingJob | ScreensaverJob | AudioLooperJob | ImageMotionJob
 
 const jobs = new Map<string, Job>()
 const queue: string[] = []
@@ -127,6 +133,38 @@ export function createScreensaverJob(
   }
   jobs.set(id, job)
   retainClips([input.mediaId])
+  queue.push(id)
+  void pump()
+  return view(job)
+}
+
+export function createImageMotionJob(
+  id: string,
+  input: ImageMotionRenderRequest & { downloadName: string; mediaIds: string[] },
+): JobView {
+  const { mediaIds, downloadName, ...render } = input
+  const job: ImageMotionJob = {
+    kind: 'image-motion',
+    ...render,
+    mediaIds,
+    id,
+    status: 'queued',
+    progress: 0,
+    message: 'Waiting to render.',
+    error: null,
+    warning: null,
+    outputBytes: null,
+    outputDuration: null,
+    outputPath: null,
+    outputExt: '.mp4',
+    downloadName,
+    cancelRequested: false,
+    kill: null,
+    createdAt: Date.now(),
+    ...emptyDiagnostics(),
+  }
+  jobs.set(id, job)
+  retainClips(mediaIds)
   queue.push(id)
   void pump()
   return view(job)
@@ -272,7 +310,9 @@ async function pump(): Promise<void> {
             ? await renderProject(job, hooks)
             : job.kind === 'screensaver'
               ? await renderScreensaver(job, hooks)
-              : await renderAudioLooper(job, hooks)
+              : job.kind === 'image-motion'
+                ? await renderImageMotion(job, hooks)
+                : await renderAudioLooper(job, hooks)
         if (job.cancelRequested) {
           job.status = 'cancelled'
           job.message = 'Render cancelled.'
@@ -314,6 +354,8 @@ async function finish(job: Job): Promise<void> {
     releaseClips(job.clips.map((clip) => clip.id))
   } else if (job.kind === 'screensaver') {
     releaseClips([job.mediaId])
+  } else if (job.kind === 'image-motion') {
+    releaseClips(job.mediaIds)
   }
   const dir = path.join(jobsDir, job.id)
   await rm(dir, { recursive: true, force: true })

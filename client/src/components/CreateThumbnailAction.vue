@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { ImagePlus } from '@lucide/vue'
 import ToggleSwitch from './ToggleSwitch.vue'
 
 defineProps<{
@@ -18,8 +19,15 @@ const emit = defineEmits<{
       <ToggleSwitch v-model="linkMode" aria-label="Link to source" />
       <span>Link to source</span>
     </div>
-    <button class="btn btn-ghost cursor-pointer" type="button" :disabled="disabled" @click="emit('create')">
-      Create Thumbnail
+    <button
+      class="btn btn-ghost cursor-pointer px-2"
+      type="button"
+      aria-label="Create Thumbnail"
+      title="Create Thumbnail"
+      :disabled="disabled"
+      @click="emit('create')"
+    >
+      <ImagePlus :size="18" />
     </button>
   </div>
 </template>

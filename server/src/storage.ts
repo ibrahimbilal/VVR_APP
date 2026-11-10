@@ -13,7 +13,7 @@ export const incomingDir = path.join(tmpDir, 'incoming')
 export const upscalerDir = path.join(tmpDir, 'upscaler')
 const registryPath = path.join(tmpDir, 'registry.json')
 
-export type ClipOrigin = 'ranking' | 'screensaver'
+export type ClipOrigin = 'ranking' | 'screensaver' | 'image-motion'
 
 export interface StoredClip {
   id: string

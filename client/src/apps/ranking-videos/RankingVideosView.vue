@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ListVideo, MonitorPlay, SlidersHorizontal } from '@lucide/vue'
-import { computed, onMounted, onBeforeUnmount, ref } from 'vue'
+import { computed, onMounted, onBeforeUnmount, ref, watch } from 'vue'
 import AppMobileTabs from '../../components/ui/AppMobileTabs.vue'
 import AppSettingsTabs from '../../components/ui/AppSettingsTabs.vue'
 import AppStudioExportBar from '../../components/ui/AppStudioExportBar.vue'
@@ -13,8 +13,13 @@ import RankingExportDetails from '../../components/RankingExportDetails.vue'
 import { usePlayback } from '../../composables/usePlayback'
 import { formatClock } from '../../lib/format'
 import { useProjectStore } from '../../stores/project'
+import ImageMotionShortsView from '../image-motion-shorts/ImageMotionShortsView.vue'
+import ShortsModeBar from '../image-motion-shorts/components/ShortsModeBar.vue'
+import { loadShortsMode, saveShortsMode, type ShortsEditorMode } from '../image-motion-shorts/lib/shortsMode'
 
 const store = useProjectStore()
+const editorMode = ref<ShortsEditorMode>(loadShortsMode())
+watch(editorMode, (mode) => saveShortsMode(mode))
 const playback = usePlayback()
 const tab = ref<'clips' | 'preview' | 'edit'>('preview')
 const inspector = ref<'clip' | 'look' | 'output' | 'sound'>('look')
@@ -51,6 +56,7 @@ const exportStatus = computed(() => {
 })
 
 function onKeyDown(event: KeyboardEvent) {
+  if (editorMode.value !== 'ranking') return
   if (event.code !== 'Space') return
   const target = event.target
   if (target instanceof HTMLElement && target.closest('input, textarea, select, [contenteditable="true"]')) return
@@ -72,7 +78,10 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <div class="relative flex h-full min-h-0 flex-col gap-3 overflow-hidden p-3 text-zinc-100">
+  <div class="relative flex h-full min-h-0 flex-col gap-2 overflow-hidden p-3 text-zinc-100">
+    <ShortsModeBar v-model="editorMode" />
+    <ImageMotionShortsView v-if="editorMode === 'image-motion'" class="min-h-0 flex-1" />
+    <template v-else>
     <AppMobileTabs v-model="tab" :items="tabs" hide-from="xl" />
 
     <div class="flex min-h-0 min-w-0 flex-1 gap-3 overflow-hidden">
@@ -124,5 +133,6 @@ onBeforeUnmount(() => {
     <div v-if="!store.hydrated" class="scrim">
       Restoring saved project…
     </div>
+    </template>
   </div>
 </template>

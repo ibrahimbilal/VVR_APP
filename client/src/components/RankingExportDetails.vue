@@ -1,9 +1,12 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
 import AppExportStatusPanel from './ui/AppExportStatusPanel.vue'
+import { usePlayback } from '../composables/usePlayback'
+import { formatClock } from '../lib/format'
 import { useProjectStore } from '../stores/project'
 
 const store = useProjectStore()
+const playback = usePlayback()
 const open = ref(false)
 
 const visible = computed(
@@ -24,8 +27,19 @@ function formatSeconds(value: number | null | undefined): string {
   return `${minutes}:${seconds.toString().padStart(2, '0')}`
 }
 
+const totalFrames = computed(() => Math.max(1, Math.round(playback.duration.value * store.style.video.fps)))
+
+const renderedFramesLabel = computed(() => {
+  const enc = store.exportState.encodeProgress
+  if (enc == null) return '—'
+  const rendered = Math.min(totalFrames.value, Math.max(0, Math.round(totalFrames.value * enc)))
+  return `${rendered.toLocaleString()} / ${totalFrames.value.toLocaleString()}`
+})
+
 const rows = computed(() => [
   { label: 'Stage', value: store.exportState.stage || store.exportState.message || '—' },
+  { label: 'Total frames', value: totalFrames.value.toLocaleString() },
+  { label: 'Rendered frames', value: renderedFramesLabel.value },
   { label: 'Encoding', value: store.exportState.encoder || '—' },
   {
     label: 'Acceleration',
@@ -46,7 +60,7 @@ const rows = computed(() => [
   },
   {
     label: 'Output',
-    value: `${store.style.video.width}×${store.style.video.height} · ${store.style.video.fps} fps`,
+    value: `${store.style.video.width}×${store.style.video.height} · ${store.style.video.fps} fps · ${formatClock(playback.duration.value)}`,
   },
 ])
 </script>

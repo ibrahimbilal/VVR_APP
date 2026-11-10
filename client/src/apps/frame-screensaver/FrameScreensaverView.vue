@@ -1,10 +1,11 @@
 <script setup lang="ts">
-import { Image as ImageIcon, MonitorPlay, SlidersHorizontal } from '@lucide/vue'
+import { Image as ImageIcon, ImagePlay, MonitorPlay, SlidersHorizontal } from '@lucide/vue'
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import AppMobileTabs from '../../components/ui/AppMobileTabs.vue'
 import AppStudioExportBar from '../../components/ui/AppStudioExportBar.vue'
 import CreateThumbnailAction from '../../components/CreateThumbnailAction.vue'
 import { createThumbnailFromScreensaver } from './lib/createThumbnail'
+import { sendScreensaverImageToImageMotion } from './lib/sendToImageMotion'
 import ScreensaverExportBar from './components/ScreensaverExportBar.vue'
 import ScreensaverExportDetails from './components/ScreensaverExportDetails.vue'
 import EditorCanvas from './components/EditorCanvas.vue'
@@ -25,6 +26,7 @@ const tabs = [
   { id: 'settings' as const, label: 'Settings', icon: SlidersHorizontal },
 ]
 const canThumbnail = computed(() => (store.mediaKind === 'image' && Boolean(store.objectUrl)) || Boolean(store.thumbnail?.startsWith('data:')))
+const canSendToImageMotion = computed(() => store.mediaKind === 'image' && Boolean(store.objectUrl))
 
 function onKey(event: KeyboardEvent) {
   const target = event.target
@@ -78,6 +80,16 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
             :disabled="!canThumbnail"
             @create="createThumbnailFromScreensaver(linkThumbnail ? 'linked' : 'snapshot')"
           />
+          <button
+            class="btn btn-ghost cursor-pointer px-2"
+            type="button"
+            aria-label="Send image to Image Motion Shorts"
+            title="Send image to Image Motion Shorts"
+            :disabled="!canSendToImageMotion"
+            @click="sendScreensaverImageToImageMotion()"
+          >
+            <ImagePlay :size="18" />
+          </button>
         </template>
         <ScreensaverExportBar />
       </AppStudioExportBar>

@@ -9,10 +9,13 @@ import { useImageUpscalerStore } from '../../apps/image-upscaler/stores/imageUps
 import { useThumbnailStore } from '../../apps/thumbnail-studio/stores/thumbnail'
 import { usePlatformStore } from '../../stores/platform'
 import { useProjectStore } from '../../stores/project'
+import { useImageMotionStore } from '../../apps/image-motion-shorts/stores/imageMotion'
+import { loadShortsMode } from '../../apps/image-motion-shorts/lib/shortsMode'
 
 const route = useRoute()
 const platform = usePlatformStore()
 const project = useProjectStore()
+const imageMotion = useImageMotionStore()
 const screensaver = useScreensaverStore()
 const thumbnail = useThumbnailStore()
 const upscaler = useImageUpscalerStore()
@@ -28,7 +31,10 @@ const showNewProject = computed(() =>
 )
 
 function startNewProject(): void {
-  if (route.name === 'shorts') void project.newProject()
+  if (route.name === 'shorts') {
+    if (loadShortsMode() === 'image-motion') void imageMotion.newProject()
+    else void project.newProject()
+  }
   else if (route.name === 'screensaver') void screensaver.newProject()
   else if (route.name === 'thumbnails') void thumbnail.newProject()
   else if (route.name === 'upscale') void upscaler.newProject()

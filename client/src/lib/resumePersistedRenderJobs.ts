@@ -120,6 +120,7 @@ function appFromJobKind(kind: JobStatus['kind']): RenderAppId | null {
   if (kind === 'screensaver') return 'screensaver'
   if (kind === 'audio-looper') return 'audio-looper'
   if (kind === 'ranking') return 'ranking'
+  if (kind === 'image-motion') return 'image-motion'
   return null
 }
 

@@ -2,7 +2,7 @@
 
 Local **Video's Factory** platform with five apps:
 
-1. **Shorts** (legacy VVR) — 9:16 ranking compilation editor.
+1. **Shorts** (legacy VVR) — 9:16 ranking compilation editor plus **Image Motion Shorts** (landscape stills → animated vertical video).
 2. **Screensaver** — long-form 16:9 ambient video from one image or looping video.
 3. **Thumbnail Studio** — browser-only YouTube thumbnail tool. Upload an image or take one from Screensaver, then place a resolution badge and a duration badge. It does not call FFmpeg.
 4. **Image Upscaler** — PNG, JPEG, and WebP through a **two-stage** pipeline: upscale to a lossless intermediate PNG (`mid/`), then export fit to preset pixels (default 4K). Standard is Sharp Lanczos3; optional AI Lite runs Real-ESRGAN at native 4× then resizes to the effective scale (auto or 1–4×). Re-export skips upscale when only export settings change. See `docs/image-upscaler.md`.
@@ -25,6 +25,7 @@ Node `^20.19.0 || >=22.12.0`. From the repo root:
 - `npm run test:screensaver-subscribe` — hybrid subscribe animation render + ffprobe frame budget (`server/scripts/verify-screensaver-subscribe.ts`; use `VVR_SCREENSAVER_TEST=1` for short duration).
 - `npm run test:screensaver-visual` — CPU vs FFmpeg adjustment SSIM (`server/scripts/visual-screensaver-adjust.ts`).
 - `npm run test:ranking` — two-clip ranking render (cut + fade) + ffprobe (`server/scripts/verify-ranking.ts`).
+- `npm run test:image-motion` — shared motion/timeline tests + optional FFmpeg verify (`VVR_IMAGE_MOTION_TEST=1`, `server/scripts/verify-image-motion.ts`).
 - `npm run test:audio-looper` — contract tests, HTTP rejection, short FFmpeg loop/crossfade/fade checks (`shared/audioLooper.test.ts`, `server/src/audioLooper.test.ts`, `server/scripts/verify-audio-looper.ts`; `VVR_AUDIO_LOOPER_TEST=1` allows targets under 60s).
 - `npm run bench:screensaver-compose` — Node timing for CPU placement bake (`server/scripts/bench-screensaver-compose.ts`).
 - `npm run bench:ranking` / `npm run bench:screensaver` — end-to-end export timings (`baseline` / `after` argv); `npm run bench:render-report` writes `docs/render-benchmark-report.md`.
@@ -85,12 +86,16 @@ Stack: Vue 3, **vue-router**, Pinia, Tailwind 4, Lucide. Client aliases `@shared
 
 ## Shorts screen
 
-`RankingVideosView.vue`: optional mobile tabs, editor grid. The center column is preview stage plus a `studio-panel` under it (clip/export status, Export MP4), same pattern as Screensaver and Audio Looper. New project lives in the platform header.
+`RankingVideosView.vue`: **Shorts mode** toggle (`Ranking Shorts` | `Image Motion Shorts`, persisted in `localStorage` key `vf-shorts-mode`). Each mode has its own Pinia store and IndexedDB project (`meta/ranking-videos` vs `image-motion` store v4). Space toggles play in **Ranking** mode only.
+
+**Ranking Shorts** — `RankingVideosView.vue` (ranking branch): optional mobile tabs, editor grid. The center column is preview stage plus a `studio-panel` under it (clip/export status, Export MP4), same pattern as Screensaver and Audio Looper. New project lives in the platform header.
 
 - `xl` and up: clips `300px`, preview flex, style `360px`. The right panel is titled Settings and switches Clip, Style, Output, and Sound. Video settings (resolution, fps, encoder, scaling, transition) live under Output; Style keeps presets, colors, title, and ranking. The selected clip panel sits in that column.
 - Space toggles play on the ranking route only (not in inputs).
 - Hydration overlay until ranking `hydrated`.
 - Dev: `window.__vvr` is the ranking Pinia store.
+
+**Image Motion Shorts** — `client/src/apps/image-motion-shorts/`: import up to 30 PNG/JPEG/WebP images, per-segment Full Pan or Slow Cinematic Pan (shared math in `shared/imageMotion.ts`), cut/crossfade joins, optional background audio, canvas preview (`useImageMotionPlayback.ts`), export via `POST /api/image-motion/export` and FFmpeg `renderImageMotion.ts` (`jobs` kind `image-motion`). Defaults: 1080×1920, 30 fps, CPU encoder, 10 s per image, Full Pan RTL, 0.5 s crossfade between images.
 
 ## What the user can do
 
@@ -133,7 +138,7 @@ Defined in `client/src/types.ts`.
 - Banner: visible (off = no banner, video fills the frame), background, height, font, size, weight, align, lineHeight, outline, shadow.
 - Ranking: **visible** (off = hide rank numbers on the overlay; clip titles can still show), font, size, weight, color, itemSpacing (0–100, treated as a percent of font size), positionX/Y, outline, shadow, opacity, format (`dot | plain | hash | pad` → `1.` / `1` / `#1` / `01`), display (`stack` = all numbers, `page` = current only), pageStyle (`fraction` = `1 / N`, `number` = the format), showPreviousTitles, **titleHideAfter** (seconds; 0 = off — hides only the **current** clip title after that time in preview and export), sort (`list | reverse | title | titleDesc`). Style / Output panels: master toggles stay visible; dependent controls hide when off (**Title** banner, **Ranking** numbers/titles, **Presets** number display, **Video** crossfade under Output — same pattern as **Audio** keep-original). Export with **titleHideAfter** sends a second PNG per clip (`overlay-N-late.png`); FFmpeg switches overlays at that timestamp (`render.ts`).
 - Caption styles the clip title drawn beside the rank number. `caption.bottom` is stored and scaled on resolution change. The canvas does not read it.
-- Video: width, height, fps, scaleMode (`crop | fit | blur`), backgroundColor, transition (`cut | fade`), fadeDuration, keepAudio, normalize, originalVolume, musicVolume (0–1), encoder (`auto` default, same choices as Screensaver).
+- Video: width, height, fps, scaleMode (`crop | fit | blur`), backgroundColor, transition (`cut | fade`), fadeDuration, keepAudio, normalize, originalVolume, musicVolume (0–1), encoder (`cpu` default for a new project, same choices as Screensaver). Saved projects keep their stored encoder.
 - Presets: `classic | tier | minimal | custom`. Definitions and default video (1080×1920, 30 fps, crop, cut, fade 0.35, keep audio, normalize, music 0.35) are in `client/src/lib/presets.ts`. Fonts: Oswald, Anton, Bebas Neue, Montserrat, Inter.
 - Rank number colors default to the active color set. `null` on a clip means "use the ranking color". Title color `null` means "use the caption color".
 
@@ -141,7 +146,7 @@ Color sets live outside the project: `localStorage` key `vvr-color-sets` (`clien
 
 ## Persistence
 
-IndexedDB database `vvr`, **version 3** (`client/src/lib/idb.ts`): `meta`, `files`, `music`, `screensaver`, `assets`, `thumbnail`.
+IndexedDB database `vvr`, **version 4** (`client/src/lib/idb.ts`): `meta`, `files`, `music`, `screensaver`, `assets`, `thumbnail`, `image-motion` (Image Motion project JSON + per-segment blobs + music).
 
 - Ranking: `meta/ranking-videos` (`SavedProject` v1). Legacy `meta/current` migrates on load. Saved 400ms after changes, once hydrated.
 - Screensaver: `screensaver/project`, blobs `screensaver/source` and `screensaver/audio`.
@@ -236,6 +241,8 @@ Progress on the client: overlays/upload are local; queued/preparing/rendering/ve
 | POST | `/api/youtube-channel-lookup` | `{ url }` → channel name, avatar (data URL when proxied), subscribers |
 | GET | `/api/youtube-channel-avatar` | `?url=` — proxy YouTube CDN avatar images (allowlisted hosts) |
 | POST | `/api/export` | `project` JSON + overlays + optional music, 40 MB each, up to 31 files |
+| POST | `/api/image-motion/media` | one JPG/PNG/WebP, max 80 MB → clip registry `origin: image-motion` |
+| POST | `/api/image-motion/export` | `project` JSON + optional music; segments reference uploaded `serverId`s |
 | GET | `/api/jobs/active` | queued / preparing / rendering / verifying / done jobs still on the renderer (for reload recovery) |
 | GET | `/api/jobs/:id` | status |
 | POST | `/api/jobs/:id/cancel` | kill ffmpeg |
@@ -259,7 +266,7 @@ Progress on the client: overlays/upload are local; queued/preparing/rendering/ve
 | POST | `/api/image-upscaler/jobs/:id/re-export` | JSON `options`; export stage only using kept intermediates |
 | DELETE | `/api/image-upscaler/jobs/:id` | cancel while running; `?purge=1` or a finished job deletes files |
 
-Jobs queue handles `kind: 'ranking' | 'screensaver' | 'audio-looper'` (`server/src/jobs.ts`). Download names use `job.outputExt` (ranking/screensaver stay `.mp4`). `purgeOutputFiles` deletes `.mp4` only so Screensaver tab-close cannot wipe audio-looper outputs; those still expire on the 2-hour sweep.
+Jobs queue handles `kind: 'ranking' | 'screensaver' | 'audio-looper' | 'image-motion'` (`server/src/jobs.ts`). Download names use `job.outputExt` (ranking/screensaver/image-motion stay `.mp4`). `purgeOutputFiles` deletes `.mp4` only so Screensaver tab-close cannot wipe audio-looper outputs; those still expire on the 2-hour sweep.
 
 Unknown `/api` routes return 404 JSON. If `client/dist/index.html` exists, Express serves it and falls back to `index.html` for non-API paths.
 
@@ -296,7 +303,7 @@ Sweep every 10 minutes: outputs older than 2 hours, jobs and incoming older than
 | Shared dialogs, mobile tabs, settings tabs, export button, export status panel, studio export bar, empty state, panels | `client/src/components/ui/` |
 | Settings accordion expand/collapse | `client/src/components/SettingsAccordion.vue`, `client/src/style.css` |
 | Shared file drop / browse upload | `client/src/components/FileDropZone.vue` |
-| Create Thumbnail + link toggle | `client/src/components/CreateThumbnailAction.vue` (Screensaver) |
+| Create Thumbnail + link toggle, send still to Image Motion | `client/src/components/CreateThumbnailAction.vue`, `client/src/apps/frame-screensaver/lib/sendToImageMotion.ts` |
 | Shared audio upload + advanced sliders | `client/src/components/audio/` (`AudioFileField.vue`, `AdvancedAudioControls.vue`, `SourceClipAudioControls.vue`) |
 | Clip list, URL add, drag reorder | `client/src/components/ClipSidebar.vue` |
 | Trim, colors, play-last, replace | `client/src/components/SelectedClipPanel.vue` |
@@ -438,6 +445,15 @@ Verify slack: `max(0.25s, min(1.5s, 1% of target))`. Source Preview and Loop Pla
 
 ## Changelog
 
+- 2026-11-10 — Image Motion total duration is the sum of the image durations. A crossfade no longer shortens the timeline (`imageMotionTimeline.ts`, `renderImageMotion.ts`).
+- 2026-11-10 — Send to Image Motion bakes the screensaver placement and frame into the still. The Image Motion preview keeps its image cache when leaving the page (`sendToImageMotion.ts`, `useImageMotionPlayback.ts`).
+- 2026-11-10 — Screensaver export bar uses an image-plus icon for Create Thumbnail and an image-play icon that appends the current still to Image Motion Shorts (`CreateThumbnailAction.vue`, `sendToImageMotion.ts`, `FrameScreensaverView.vue`).
+- 2026-11-10 — New Image Motion segments default Transition to next to a 0.5 s crossfade (`shared/imageMotion.ts`).
+- 2026-11-10 — Ranking and Image Motion export status lists the same rows as Screensaver: total frames, rendered frames, encoder, speed, elapsed, and output (`RankingExportDetails.vue`, `ImageMotionExportDetails.vue`).
+- 2026-11-10 — New Ranking and Image Motion projects default the encoding method to CPU. Saved projects keep their stored choice (`presets.ts`, `shared/imageMotion.ts`).
+- 2026-11-10 — Image Motion Output includes the Screensaver encoding method list (Auto, CPU, verified hardware). Ranking Output already has the same control (`ImageMotionSettings.vue`, `stores/imageMotion.ts`).
+- 2026-11-10 — Image Motion Shorts uses the studio layout: settings tabs, clip-style image list, scaled preview player, and panel timeline (`ImageMotionShortsView.vue`, image-motion components).
+- 2026-11-10 — Shorts: Image Motion Shorts mode (dual editor, shared motion math, IDB v4, `/api/image-motion/*`, `renderImageMotion.ts`, `npm run test:image-motion`) (`shared/imageMotion*.ts`, `client/src/apps/image-motion-shorts/`, `RankingVideosView.vue`, `server/src/jobs.ts`, `PROJECT.md`).
 - 2026-11-10 — Screensaver Content: Subscribe Animation accordion opens by default; Frames starts collapsed (`ScreensaverSettingsPanel.vue`).
 - 2026-11-10 — Notification **Download** no longer dismisses the ready row; use **Dismiss** to remove it (`AppNotifications.vue`).
 - 2026-11-09 — YouTube Fetch keeps CDN URL in `channelAvatarUrl`; lookup returns separate `avatarDataUrl` ingested as a blob for preview/export (`youtubeChannel.ts`, `subscribeAnimationChannelAvatar.ts`, `shared/youtubeAvatar.ts`).

@@ -1,7 +1,10 @@
+import type { ImageMotionProject } from '@shared/imageMotion'
 import type { PersistedClip, PresetId, ProjectStyle, TitleSpan } from '../types'
 
 const DB_NAME = 'vvr'
-const DB_VERSION = 3
+const DB_VERSION = 4
+const IMAGE_MOTION_META_KEY = 'project'
+const IMAGE_MOTION_MUSIC_KEY = 'music'
 const RANKING_META_KEY = 'ranking-videos'
 const LEGACY_META_KEY = 'current'
 
@@ -36,6 +39,7 @@ function openDb(): Promise<IDBDatabase> {
         assets.createIndex('sha256', 'sha256', { unique: false })
       }
       if (!db.objectStoreNames.contains('thumbnail')) db.createObjectStore('thumbnail')
+      if (!db.objectStoreNames.contains('image-motion')) db.createObjectStore('image-motion')
       const oldVersion = event.oldVersion
       if (oldVersion > 0 && oldVersion < 2) {
         const tx = request.transaction
@@ -398,6 +402,127 @@ export async function deleteImageAsset(id: string): Promise<void> {
   try {
     const transaction = db.transaction('assets', 'readwrite')
     transaction.objectStore('assets').delete(id)
+    await transactionDone(transaction)
+  } finally {
+    db.close()
+  }
+}
+
+export type SavedImageMotionProject = Omit<ImageMotionProject, 'segments'> & {
+  segments: ImageMotionProject['segments']
+  selectedSegmentId: string | null
+  musicName: string | null
+}
+
+export async function loadImageMotionProject(): Promise<SavedImageMotionProject | null> {
+  const db = await openDb()
+  try {
+    const saved = await requestToPromise(
+      db.transaction('image-motion', 'readonly').objectStore('image-motion').get(IMAGE_MOTION_META_KEY),
+    )
+    if (!saved || typeof saved !== 'object') return null
+    return saved as SavedImageMotionProject
+  } finally {
+    db.close()
+  }
+}
+
+export async function saveImageMotionProject(project: SavedImageMotionProject): Promise<void> {
+  const plain = JSON.parse(JSON.stringify(project)) as SavedImageMotionProject
+  const db = await openDb()
+  try {
+    const transaction = db.transaction('image-motion', 'readwrite')
+    transaction.objectStore('image-motion').put(plain, IMAGE_MOTION_META_KEY)
+    await transactionDone(transaction)
+  } catch (error) {
+    throw storageError(error)
+  } finally {
+    db.close()
+  }
+}
+
+export async function saveImageMotionFile(id: string, file: File): Promise<void> {
+  const db = await openDb()
+  try {
+    const transaction = db.transaction('image-motion', 'readwrite')
+    transaction.objectStore('image-motion').put({ name: file.name, type: file.type, blob: file }, `file:${id}`)
+    await transactionDone(transaction)
+  } catch (error) {
+    throw storageError(error)
+  } finally {
+    db.close()
+  }
+}
+
+export async function loadImageMotionFile(id: string): Promise<StoredFile | null> {
+  const db = await openDb()
+  try {
+    const stored = await requestToPromise(
+      db.transaction('image-motion', 'readonly').objectStore('image-motion').get(`file:${id}`),
+    )
+    return (stored as StoredFile | undefined) ?? null
+  } finally {
+    db.close()
+  }
+}
+
+export async function deleteImageMotionFile(id: string): Promise<void> {
+  const db = await openDb()
+  try {
+    const transaction = db.transaction('image-motion', 'readwrite')
+    transaction.objectStore('image-motion').delete(`file:${id}`)
+    await transactionDone(transaction)
+  } finally {
+    db.close()
+  }
+}
+
+export async function saveImageMotionMusicFile(file: File): Promise<void> {
+  const db = await openDb()
+  try {
+    const transaction = db.transaction('image-motion', 'readwrite')
+    transaction.objectStore('image-motion').put({ name: file.name, type: file.type, blob: file }, IMAGE_MOTION_MUSIC_KEY)
+    await transactionDone(transaction)
+  } finally {
+    db.close()
+  }
+}
+
+export async function loadImageMotionMusicFile(): Promise<StoredFile | null> {
+  const db = await openDb()
+  try {
+    const stored = await requestToPromise(
+      db.transaction('image-motion', 'readonly').objectStore('image-motion').get(IMAGE_MOTION_MUSIC_KEY),
+    )
+    return (stored as StoredFile | undefined) ?? null
+  } finally {
+    db.close()
+  }
+}
+
+export async function clearImageMotionMusicFile(): Promise<void> {
+  const db = await openDb()
+  try {
+    const transaction = db.transaction('image-motion', 'readwrite')
+    transaction.objectStore('image-motion').delete(IMAGE_MOTION_MUSIC_KEY)
+    await transactionDone(transaction)
+  } finally {
+    db.close()
+  }
+}
+
+export async function clearImageMotionProject(): Promise<void> {
+  const db = await openDb()
+  try {
+    const meta = await requestToPromise(
+      db.transaction('image-motion', 'readonly').objectStore('image-motion').get(IMAGE_MOTION_META_KEY),
+    ) as SavedImageMotionProject | undefined
+    const segmentIds = meta?.segments?.map((segment) => segment.id) ?? []
+    const transaction = db.transaction('image-motion', 'readwrite')
+    const store = transaction.objectStore('image-motion')
+    store.delete(IMAGE_MOTION_META_KEY)
+    store.delete(IMAGE_MOTION_MUSIC_KEY)
+    for (const id of segmentIds) store.delete(`file:${id}`)
     await transactionDone(transaction)
   } finally {
     db.close()

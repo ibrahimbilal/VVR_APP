@@ -1143,6 +1143,10 @@ export const useScreensaverStore = defineStore('screensaver', () => {
     toast('Download started.', 'info')
   }
 
+  function getSourceFile(): File | null {
+    return sourceFile
+  }
+
   return {
     hydrated,
     name,
@@ -1240,5 +1244,6 @@ export const useScreensaverStore = defineStore('screensaver', () => {
     cancelExport,
     exportWithCpu,
     downloadExport,
+    getSourceFile,
   }
 })

@@ -20,7 +20,7 @@ export interface ImportResult {
 
 export interface JobStatus {
   id: string
-  kind?: 'ranking' | 'screensaver' | 'audio-looper'
+  kind?: 'ranking' | 'screensaver' | 'audio-looper' | 'image-motion'
   outputExt?: string
   status: 'queued' | 'preparing' | 'rendering' | 'verifying' | 'done' | 'error' | 'cancelled'
   progress: number
@@ -117,6 +117,32 @@ export interface ScreensaverMedia {
   height: number
   hasAudio: boolean
   size: number
+}
+
+export interface ImageMotionMedia {
+  id: string
+  width: number
+  height: number
+  size: number
+}
+
+export function uploadImageMotionMedia(file: File, onProgress: (fraction: number) => void): Promise<ImageMotionMedia> {
+  const body = new FormData()
+  body.append('file', file, file.name)
+  return sendForm<ImageMotionMedia>('/api/image-motion/media', body, onProgress)
+}
+
+export async function imageMotionMediaExists(id: string): Promise<boolean> {
+  const response = await fetch(`/api/clips/${id}`)
+  return response.ok
+}
+
+export function startImageMotionExport(
+  body: FormData,
+  onProgress: (fraction: number) => void,
+  signal: AbortSignal,
+): Promise<{ jobId: string }> {
+  return sendForm('/api/image-motion/export', body, onProgress, signal)
 }
 
 export function uploadScreensaverMedia(file: File, onProgress: (fraction: number) => void): Promise<ScreensaverMedia> {

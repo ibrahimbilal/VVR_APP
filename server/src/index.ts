@@ -31,7 +31,29 @@ import {
 } from '../../shared/screensaverSubscribeAnimation'
 import { resolveFade, sequenceDuration } from '../../shared/timeline'
 import { checkFfmpeg, logEncodeCheck } from './binaries'
-import { cancelJob, createJob, createScreensaverJob, dropJobOutput, getJob, jobIdsInUse, jobOutput, listRecoverableJobs, outputPathsInUse } from './jobs'
+import {
+  MAX_IMAGE_MOTION_SEGMENTS,
+  MAX_SEQUENCE_SECONDS,
+  normalizeImageMotionProject,
+  normalizeMotionSettings,
+  normalizeTransitionAfter,
+  type ImageMotionProject,
+  type ImageMotionSegment,
+} from '../../shared/imageMotion'
+import { timelineDuration } from '../../shared/imageMotionTimeline'
+import {
+  cancelJob,
+  createImageMotionJob,
+  createJob,
+  createScreensaverJob,
+  dropJobOutput,
+  getJob,
+  jobIdsInUse,
+  jobOutput,
+  listRecoverableJobs,
+  outputPathsInUse,
+} from './jobs'
+import type { ImageMotionRenderSegment } from './renderImageMotion'
 import { lookupUrl } from './oembed'
 import { proxyYoutubeAvatarResponse } from './youtubeAvatar'
 import { lookupYoutubeChannel } from './youtubeChannel'
@@ -88,6 +110,16 @@ const screensaverExportUpload = multer({
 const screensaverFrameUpload = multer({
   dest: incomingDir,
   limits: { fileSize: FRAME_FILE_LIMIT, files: 1 },
+})
+
+const imageMotionMediaUpload = multer({
+  dest: incomingDir,
+  limits: { fileSize: 80 * 1024 * 1024, files: 1 },
+})
+
+const imageMotionExportUpload = multer({
+  dest: incomingDir,
+  limits: { fileSize: 40 * 1024 * 1024, files: 2 },
 })
 
 app.get('/api/health', async (_req, res) => {
@@ -261,6 +293,85 @@ app.post('/api/export', exportUpload.fields([{ name: 'overlays', maxCount: 60 },
         musicFadeOut: project.video.musicFadeOut,
         encoder: project.video.encoder ?? 'auto',
         downloadName: safeDownloadName(project.filename),
+      })
+      res.json({ jobId: job.id })
+    } catch (error) {
+      await rm(dir, { recursive: true, force: true }).catch(() => undefined)
+      throw error
+    }
+  } catch (error) {
+    await Promise.all(uploaded.all.map((file) => rm(file.path, { force: true }).catch(() => undefined)))
+    const status = error instanceof ClientError ? error.status : 400
+    res.status(status).json({ error: messageOf(error, 'The export could not be started.') })
+  }
+})
+
+app.post('/api/image-motion/media', imageMotionMediaUpload.single('file'), async (req, res) => {
+  const file = req.file
+  if (!file) {
+    res.status(400).json({ error: 'Choose an image file.' })
+    return
+  }
+  try {
+    const sniffed = await sniffMediaKind(file.path)
+    const isImage = sniffed === 'jpeg' || sniffed === 'png' || sniffed === 'webp'
+    if (!isImage) throw new Error('Use a JPG, PNG, or WebP file.')
+    const still = await probeImage(file.path)
+    const { stat: statFile } = await import('node:fs/promises')
+    const info = await statFile(file.path)
+      const probe = {
+        duration: 0,
+        width: still.width,
+        height: still.height,
+        hasAudio: false,
+        hasVideo: true,
+        codec: 'mjpeg',
+        size: info.size,
+      }
+      const stored = await addClip(file.path, file.originalname, probe, 'image-motion')
+    res.json({ id: stored.id, width: still.width, height: still.height, size: stored.size })
+  } catch (error) {
+    await rm(file.path, { force: true }).catch(() => undefined)
+    res.status(400).json({ error: messageOf(error, 'That image could not be uploaded.') })
+  }
+})
+
+app.post('/api/image-motion/export', imageMotionExportUpload.fields([{ name: 'music', maxCount: 1 }]), async (req, res) => {
+  const uploaded = collectUploads(req)
+  try {
+    if (!(await checkFfmpeg())) {
+      throw new Error('FFmpeg is missing. Reinstall dependencies with npm install, then restart the server.')
+    }
+    const parsed = parseImageMotionExport(req.body?.project)
+    const id = randomUUID()
+    const dir = path.join(jobsDir, id)
+    await mkdir(dir, { recursive: true })
+    let musicPath: string | null = null
+    try {
+      const music = uploaded.music[0]
+      if (music) {
+        const ext = safeAudioExt(music.originalname)
+        if (!ext) throw new Error('Background music must be an MP3, WAV, M4A, AAC, or OGG file.')
+        musicPath = path.join(dir, `music${ext}`)
+        await rename(music.path, musicPath)
+        music.path = musicPath
+        await probeAudioFile(musicPath)
+      }
+      const segments = await prepareImageMotionSegments(parsed.segments)
+      const job = createImageMotionJob(id, {
+        segments,
+        width: parsed.video.width,
+        height: parsed.video.height,
+        fps: parsed.video.fps,
+        musicPath,
+        musicVolume: parsed.audio.musicVolume,
+        musicFadeIn: parsed.audio.musicFadeIn,
+        musicFadeOut: parsed.audio.musicFadeOut,
+        musicOffset: parsed.audio.musicOffset,
+        loopMusic: parsed.audio.loopMusic,
+        encoder: parsed.video.encoder,
+        mediaIds: segments.map((segment) => segment.id),
+        downloadName: safeDownloadName(parsed.filename),
       })
       res.json({ jobId: job.id })
     } catch (error) {
@@ -974,6 +1085,107 @@ function parseScreensaverProject(raw: unknown): ScreensaverProjectInput {
     composition: sanitizeComposition(data.composition),
     subscribeAnimation: { ...subscribeAnimation, ...overlay },
   }
+}
+
+interface ImageMotionExportSegment {
+  serverId: string
+  width: number
+  height: number
+  motion: ImageMotionSegment['motion']
+  transitionAfter: ImageMotionSegment['transitionAfter']
+}
+
+interface ImageMotionExportInput {
+  filename: string
+  video: {
+    width: number
+    height: number
+    fps: number
+    encoder?: EncoderChoice
+  }
+  audio: {
+    musicVolume: number
+    musicFadeIn: number
+    musicFadeOut: number
+    musicOffset: number
+    loopMusic: boolean
+  }
+  segments: ImageMotionExportSegment[]
+}
+
+function parseImageMotionExport(raw: unknown): ImageMotionExportInput {
+  let data: Record<string, unknown>
+  try {
+    data = typeof raw === 'string' ? (JSON.parse(raw) as Record<string, unknown>) : (raw as Record<string, unknown>)
+  } catch {
+    throw new ClientError(400, 'Export settings were not valid JSON.')
+  }
+  if (!data || typeof data !== 'object') throw new ClientError(400, 'Export settings were missing.')
+  const project = normalizeImageMotionProject({
+    name: typeof data.filename === 'string' ? data.filename : undefined,
+    video: data.video as ImageMotionProject['video'],
+    audio: data.audio as ImageMotionProject['audio'],
+    segments: Array.isArray(data.segments)
+      ? (data.segments as ImageMotionExportSegment[]).map((segment) => ({
+          id: segment.serverId,
+          fileName: '',
+          width: Number(segment.width),
+          height: Number(segment.height),
+          serverId: String(segment.serverId ?? ''),
+          duration: normalizeMotionSettings(segment.motion).duration,
+          motion: normalizeMotionSettings(segment.motion),
+          transitionAfter: normalizeTransitionAfter(segment.transitionAfter),
+        }))
+      : [],
+  })
+  if (project.segments.length === 0) throw new ClientError(400, 'Add at least one image.')
+  if (project.segments.length > MAX_IMAGE_MOTION_SEGMENTS) {
+    throw new ClientError(400, `You can use up to ${MAX_IMAGE_MOTION_SEGMENTS} images.`)
+  }
+  const duration = timelineDuration(project.segments)
+  if (duration > MAX_SEQUENCE_SECONDS) throw new ClientError(400, 'The timeline is longer than 30 minutes.')
+  if (!isAllowedOutput(project.video.width, project.video.height)) {
+    throw new ClientError(400, 'Output must be 1080×1920 or 720×1280.')
+  }
+  if (!isAllowedFps(project.video.fps)) throw new ClientError(400, 'Frame rate must be 24, 30, or 60.')
+  const segments: ImageMotionExportSegment[] = project.segments.map((segment) => ({
+    serverId: segment.serverId ?? '',
+    width: segment.width,
+    height: segment.height,
+    motion: segment.motion,
+    transitionAfter: segment.transitionAfter,
+  }))
+  for (const segment of segments) {
+    if (!UUID.test(segment.serverId)) throw new ClientError(400, 'Every image must finish uploading before export.')
+  }
+  return {
+    filename: typeof data.filename === 'string' ? data.filename : 'image-motion',
+    video: {
+      width: project.video.width,
+      height: project.video.height,
+      fps: project.video.fps,
+      encoder: isEncoderChoice(project.video.encoder) ? project.video.encoder : 'auto',
+    },
+    audio: project.audio,
+    segments,
+  }
+}
+
+async function prepareImageMotionSegments(segments: ImageMotionExportSegment[]): Promise<ImageMotionRenderSegment[]> {
+  const out: ImageMotionRenderSegment[] = []
+  for (const segment of segments) {
+    const clip = await getClip(segment.serverId)
+    if (!clip) throw new ClientError(400, 'An image expired on the server. Re-upload it and try again.')
+    out.push({
+      id: segment.serverId,
+      path: clip.path,
+      width: segment.width || clip.width,
+      height: segment.height || clip.height,
+      motion: segment.motion,
+      transitionAfter: segment.transitionAfter,
+    })
+  }
+  return out
 }
 
 function messageOf(error: unknown, fallback: string): string {
