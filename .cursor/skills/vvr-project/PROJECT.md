@@ -438,6 +438,7 @@ Verify slack: `max(0.25s, min(1.5s, 1% of target))`. Source Preview and Loop Pla
 
 ## Changelog
 
+- 2026-11-10 — Screensaver Content: Subscribe Animation accordion opens by default; Frames starts collapsed (`ScreensaverSettingsPanel.vue`).
 - 2026-11-10 — Notification **Download** no longer dismisses the ready row; use **Dismiss** to remove it (`AppNotifications.vue`).
 - 2026-11-09 — YouTube Fetch keeps CDN URL in `channelAvatarUrl`; lookup returns separate `avatarDataUrl` ingested as a blob for preview/export (`youtubeChannel.ts`, `subscribeAnimationChannelAvatar.ts`, `shared/youtubeAvatar.ts`).
 - 2026-11-09 — Export status uses the studio panel: rounded card, progress bar, and a collapsed rail (`AppExportStatusPanel.vue`, `RankingExportDetails.vue`, `ScreensaverExportDetails.vue`).

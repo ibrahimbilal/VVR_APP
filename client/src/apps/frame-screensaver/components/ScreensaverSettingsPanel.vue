@@ -121,7 +121,7 @@ const inspectorTabs = [
     <div class="min-h-0 flex-1 overflow-y-auto">
     <Transition name="settings-pane" mode="out-in">
     <div :key="inspector">
-    <SettingsAccordion v-show="inspector === 'content'" title="Frames" :open="true">
+    <SettingsAccordion v-show="inspector === 'content'" title="Frames" :open="false">
       <div v-if="DEFAULT_FRAMES.length > 0" class="grid grid-cols-2 gap-2">
         <div v-for="frame in DEFAULT_FRAMES" :key="frame.id" class="group/frame relative">
           <button
@@ -195,7 +195,7 @@ const inspectorTabs = [
       </div>
     </SettingsAccordion>
     
-    <SettingsAccordion v-show="inspector === 'content'" title="Subscribe Animation" :open="false">
+    <SettingsAccordion v-show="inspector === 'content'" title="Subscribe Animation" :open="true">
       <div class="flex items-center justify-between gap-3">
         <span class="text-sm">Enable subscribe animation</span>
         <ToggleSwitch
