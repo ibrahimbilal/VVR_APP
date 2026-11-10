@@ -76,7 +76,6 @@ function openApp(app: RenderAppId, route: string): void {
 
 function download(item: RenderReadyNotification): void {
   triggerDownload(item.downloadUrl, item.filename)
-  platform.dismissNotification(item.id)
 }
 
 function cancelRender(trackId: string): void {
