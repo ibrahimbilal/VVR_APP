@@ -29,7 +29,7 @@ function valid(overrides: Record<string, unknown> = {}) {
 describe('audio looper settings', () => {
   it('accepts defaults', () => {
     const settings = normalizeSettings(valid())
-    assert.equal(settings.targetDurationSeconds, 7200)
+    assert.equal(settings.targetDurationSeconds, 4 * 60 * 60)
     assert.equal(settings.loopMode, 'simple')
     assert.equal(settings.format, 'mp3')
     assert.equal(settings.mp3Bitrate, 192)

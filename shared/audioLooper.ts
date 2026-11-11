@@ -26,7 +26,7 @@ export const AUDIO_LOOPER_DURATION_PRESETS = [
   { label: '12 hours', seconds: 12 * 60 * 60 },
 ] as const
 
-export const DEFAULT_DURATION_SECONDS = 2 * 60 * 60
+export const DEFAULT_DURATION_SECONDS = 4 * 60 * 60
 export const MIN_DURATION_SECONDS = 60
 export const MAX_DURATION_SECONDS = 12 * 60 * 60
 /** Server test script only — not accepted from normal API clients unless env allows. */

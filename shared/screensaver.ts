@@ -35,7 +35,7 @@ export const DURATION_PRESETS = [
   { label: '12 hours', seconds: 12 * 60 * 60 },
 ] as const
 
-export const DEFAULT_DURATION_SECONDS = 2 * 60 * 60
+export const DEFAULT_DURATION_SECONDS = 4 * 60 * 60
 /** Matches `String(DURATION_PRESETS[].seconds)` for the default duration preset button. */
 export const DEFAULT_DURATION_PRESET_KEY = String(DEFAULT_DURATION_SECONDS)
 export const MIN_DURATION_SECONDS = 60

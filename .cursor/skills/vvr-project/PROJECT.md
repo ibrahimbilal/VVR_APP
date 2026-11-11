@@ -351,7 +351,7 @@ Sweep every 10 minutes: outputs older than 2 hours, jobs and incoming older than
 
 ## Screensaver
 
-Editor state is `useScreensaverStore` (`client/src/apps/frame-screensaver/stores/screensaver.ts`). Ranking state is untouched. Export uses the same queued multi-export pipeline as Shorts (snapshot per click, shared `exportQueueRunner.ts`). Defaults for new projects: **3840×2160 (4K)** output and **2 hours** duration (`DEFAULT_SCREENSAVER_OUTPUT`, `DEFAULT_DURATION_SECONDS` in `shared/screensaver.ts`).
+Editor state is `useScreensaverStore` (`client/src/apps/frame-screensaver/stores/screensaver.ts`). Ranking state is untouched. Export uses the same queued multi-export pipeline as Shorts (snapshot per click, shared `exportQueueRunner.ts`). Defaults for new projects: **3840×2160 (4K)** output and **4 hours** duration (`DEFAULT_SCREENSAVER_OUTPUT`, `DEFAULT_DURATION_SECONDS` in `shared/screensaver.ts`).
 
 Saved projects are IndexedDB `screensaver/project` version 2. Version 1 loads with the old fit (contain, cover, blur) turned into a composition, profile `balanced`, encoder `auto`, and the saved frame rate left as it was. The original media blob is not rewritten. `clearRankingProject()` does not clear this store.
 
@@ -439,12 +439,13 @@ Comparison previews are WebP with a 1440px long edge. Downloads are the verified
 
 Editor state is `useAudioLooperStore` (`client/src/apps/audio-looper/stores/audioLooper.ts`). Ranking and screensaver stores stay independent. Desktop layout matches the other editors: source column `300px` (project name and audio), preview in the center with the export bar under it, settings column `360px` titled Settings (Duration, Loop, Output). Settings persist in `localStorage` key `vf-audio-looper-settings` (duration, mode, fades, volume, format, name). The source `File` is memory-only.
 
-Import: MP3, WAV, FLAC, M4A, AAC, OGG, max 100 MB, confirmed with ffprobe. Target 60–43200 integer seconds (Screensaver presets 30m–12h, default 2h, or custom minutes). Simple: `-stream_loop -1 -t TARGET`. Seamless: equal-power `afade` (`esin`) of tail and head, `amix` those into a wrap-around join, concat with the mid segment into a PCM cycle of duration `source - crossfade`, then `-stream_loop` that cycle (output starts at the wrap-around join). Source longer than target is trimmed. Volume 0–200%, fades 0–30s. MP3 128–320 kbps; WAV PCM 16-bit; FLAC lossless.
+Import: MP3, WAV, FLAC, M4A, AAC, OGG, max 100 MB, confirmed with ffprobe. Target 60–43200 integer seconds (Screensaver presets 30m–12h, default 4h, or custom minutes). Simple: `-stream_loop -1 -t TARGET`. Seamless: equal-power `afade` (`esin`) of tail and head, `amix` those into a wrap-around join, concat with the mid segment into a PCM cycle of duration `source - crossfade`, then `-stream_loop` that cycle (output starts at the wrap-around join). Source longer than target is trimmed. Volume 0–200%, fades 0–30s. MP3 128–320 kbps; WAV PCM 16-bit; FLAC lossless.
 
 Verify slack: `max(0.25s, min(1.5s, 1% of target))`. Source Preview and Loop Plan render only after a file is in memory. Preview uses a custom canvas player (Shorts-style play/pause, mute, clock); the waveform is the seek timeline. Unplayed samples draw at opacity 0.8 and played samples at 1.0 from the real `HTMLAudioElement` position. Waveform decode stays capped at 16 MB (`WAVEFORM_MAX_BYTES`); larger files keep the player and a fallback track.
 
 ## Changelog
 
+- 2026-11-11 — Screensaver and Audio Looper default export duration is 4 hours (`DEFAULT_DURATION_SECONDS` in `shared/screensaver.ts`, `shared/audioLooper.ts`).
 - 2026-11-11 — Render→ready uses `promoteActiveRenderJobToReady` (stable track id), one notification `TransitionGroup`, and `notif-status` crossfade (`AppNotifications.vue`, `platform.ts`, `managedExportJobs.ts`, `style.css`).
 - 2026-11-11 — Ready notification actions align with the title row; Dismiss is icon-only (`AppNotifications.vue`).
 - 2026-11-11 — Header notification rows show per-app icons, icon-only Open/Cancel on in-progress exports, and remaining time from export ETA (`AppNotifications.vue`, `renderNotifications.ts`, `platform.ts`, `renderJobTracking.ts`).
