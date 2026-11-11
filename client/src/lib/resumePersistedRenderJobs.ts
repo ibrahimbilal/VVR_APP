@@ -124,8 +124,8 @@ function appFromJobKind(kind: JobStatus['kind']): RenderAppId | null {
   return null
 }
 
-function finishReadyExport(meta: JobMeta, job: JobStatus): void {
-  notifyRenderReady(meta.app, meta.projectName, `/api/jobs/${job.id}/download`, meta.downloadFilename)
+function finishReadyExport(meta: JobMeta, job: JobStatus, trackId?: string): void {
+  notifyRenderReady(meta.app, meta.projectName, `/api/jobs/${job.id}/download`, meta.downloadFilename, trackId)
 }
 
 async function followServerJob(serverJobId: string, meta: JobMeta): Promise<void> {
@@ -147,14 +147,14 @@ async function followServerJob(serverJobId: string, meta: JobMeta): Promise<void
       return
     }
     if (initial.status === 'done') {
-      finishReadyExport(meta, initial)
+      finishReadyExport(meta, initial, trackId)
       forgetRenderJob(serverJobId)
       return
     }
     applyPoll(mapJobToProgress(initial))
 
     await pollJobUntilDone(serverJobId, abort.signal, applyPoll)
-    finishReadyExport(meta, { ...initial, id: serverJobId, status: 'done' })
+    finishReadyExport(meta, { ...initial, id: serverJobId, status: 'done' }, trackId)
     forgetRenderJob(serverJobId)
   } catch (error) {
     if (error instanceof DOMException && error.name === 'AbortError') {

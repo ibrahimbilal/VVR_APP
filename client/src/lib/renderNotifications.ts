@@ -1,3 +1,5 @@
+import { AudioLines, ImagePlay, ListVideo, MonitorPlay } from '@lucide/vue'
+import type { Component } from 'vue'
 import { usePlatformStore } from '../stores/platform'
 
 export type RenderAppId = 'ranking' | 'screensaver' | 'audio-looper' | 'image-motion'
@@ -16,8 +18,19 @@ export const RENDER_APP_ROUTES: Record<RenderAppId, string> = {
   'image-motion': '/shorts',
 }
 
+const APP_ICONS: Record<RenderAppId, Component> = {
+  ranking: ListVideo,
+  screensaver: MonitorPlay,
+  'audio-looper': AudioLines,
+  'image-motion': ImagePlay,
+}
+
 export function renderAppLabel(app: RenderAppId): string {
   return APP_LABELS[app]
+}
+
+export function renderAppIcon(app: RenderAppId): Component {
+  return APP_ICONS[app]
 }
 
 export function notifyRenderReady(
@@ -25,10 +38,15 @@ export function notifyRenderReady(
   projectName: string,
   downloadUrl: string,
   filename: string,
+  trackId?: string,
 ): void {
   const platform = usePlatformStore()
   const name = projectName.trim() || 'Untitled project'
   const route = RENDER_APP_ROUTES[app]
+
+  if (trackId && platform.promoteActiveRenderJobToReady(trackId, { downloadUrl, filename })) {
+    return
+  }
 
   platform.addRenderReadyNotification({
     app,

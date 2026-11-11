@@ -23,6 +23,7 @@ export type ActiveRenderJob = {
   progress: number
   message: string
   stage: string | null
+  etaSec: number | null
 }
 
 const MAX_RENDER_NOTIFICATIONS = 30
@@ -66,7 +67,10 @@ export const usePlatformStore = defineStore('platform', () => {
     return (jobSum + ready.length) / total
   })
 
-  function addActiveRenderJob(input: Omit<ActiveRenderJob, 'progress' | 'message' | 'stage'> & Partial<Pick<ActiveRenderJob, 'progress' | 'message' | 'stage'>>): void {
+  function addActiveRenderJob(
+    input: Omit<ActiveRenderJob, 'progress' | 'message' | 'stage' | 'etaSec'> &
+      Partial<Pick<ActiveRenderJob, 'progress' | 'message' | 'stage' | 'etaSec'>>,
+  ): void {
     const entry: ActiveRenderJob = {
       id: input.id,
       app: input.app,
@@ -75,11 +79,15 @@ export const usePlatformStore = defineStore('platform', () => {
       progress: clampProgress(input.progress ?? 0),
       message: input.message ?? 'Starting export…',
       stage: input.stage ?? null,
+      etaSec: input.etaSec ?? null,
     }
     activeRenderJobs.value = [...activeRenderJobs.value.filter((item) => item.id !== entry.id), entry]
   }
 
-  function updateActiveRenderJob(id: string, patch: Partial<Pick<ActiveRenderJob, 'progress' | 'message' | 'stage'>>): void {
+  function updateActiveRenderJob(
+    id: string,
+    patch: Partial<Pick<ActiveRenderJob, 'progress' | 'message' | 'stage' | 'etaSec'>>,
+  ): void {
     activeRenderJobs.value = activeRenderJobs.value.map((item) =>
       item.id === id
         ? {
@@ -87,6 +95,7 @@ export const usePlatformStore = defineStore('platform', () => {
             progress: patch.progress != null ? clampProgress(patch.progress) : item.progress,
             message: patch.message ?? item.message,
             stage: patch.stage !== undefined ? patch.stage : item.stage,
+            etaSec: patch.etaSec !== undefined ? patch.etaSec : item.etaSec,
           }
         : item,
     )
@@ -100,6 +109,31 @@ export const usePlatformStore = defineStore('platform', () => {
     if (!cancelTrackedRender(trackId)) {
       removeActiveRenderJob(trackId)
     }
+  }
+
+  /** Moves an in-panel render row to Ready using the same id so the UI can FLIP instead of leave+enter. */
+  function promoteActiveRenderJobToReady(
+    trackId: string,
+    input: { downloadUrl: string; filename: string },
+  ): boolean {
+    const job = activeRenderJobs.value.find((item) => item.id === trackId)
+    if (!job) return false
+    activeRenderJobs.value = activeRenderJobs.value.filter((item) => item.id !== trackId)
+    const entry: RenderReadyNotification = {
+      id: trackId,
+      app: job.app,
+      projectName: job.projectName,
+      route: job.route,
+      downloadUrl: input.downloadUrl,
+      filename: input.filename,
+      createdAt: Date.now(),
+      read: false,
+    }
+    renderNotifications.value = [entry, ...renderNotifications.value.filter((item) => item.id !== trackId)].slice(
+      0,
+      MAX_RENDER_NOTIFICATIONS,
+    )
+    return true
   }
 
   function addRenderReadyNotification(input: {
@@ -187,6 +221,7 @@ export const usePlatformStore = defineStore('platform', () => {
     removeActiveRenderJob,
     cancelActiveRenderJob,
     addRenderReadyNotification,
+    promoteActiveRenderJobToReady,
     markAllNotificationsRead,
     dismissNotification,
     clearRenderQueues,

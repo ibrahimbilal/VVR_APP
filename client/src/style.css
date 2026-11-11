@@ -477,25 +477,61 @@ button:disabled {
 .notif-item-leave-active {
   overflow: hidden;
   pointer-events: none;
-  background-color: #3a1215 !important;
   transition:
-    opacity 550ms var(--ease-out-soft),
-    transform 550ms var(--ease-out-soft),
-    background-color 180ms ease;
+    opacity 320ms var(--ease-out-soft),
+    transform 320ms var(--ease-out-soft);
 }
 
 .notif-item-enter-from {
   opacity: 0;
-  transform: translateX(12px);
+  transform: translateY(6px);
 }
 
 .notif-item-leave-to {
   opacity: 0;
-  transform: translateX(-100%);
+  transform: translateY(-4px) scale(0.98);
 }
 
 .notif-item-move {
-  transition: transform 550ms var(--ease-out-soft);
+  transition: transform 420ms var(--ease-out-soft);
+}
+
+.notif-item-divider {
+  pointer-events: none;
+}
+
+.notif-item-divider.notif-item-enter-active,
+.notif-item-divider.notif-item-leave-active {
+  transition: opacity 200ms var(--ease-out-soft);
+}
+
+.notif-item-divider.notif-item-enter-from,
+.notif-item-divider.notif-item-leave-to {
+  opacity: 0;
+  transform: none;
+}
+
+.notif-item-body {
+  transition: background-color 280ms var(--ease-out-soft);
+}
+
+.notif-status-enter-active,
+.notif-status-leave-active {
+  transition:
+    opacity 220ms var(--ease-out-soft),
+    transform 220ms var(--ease-out-soft);
+}
+
+.notif-status-leave-active {
+  position: absolute;
+  inset: 0;
+  padding: inherit;
+}
+
+.notif-status-enter-from,
+.notif-status-leave-to {
+  opacity: 0;
+  transform: translateY(5px);
 }
 
 .settings-accordion__chevron {
@@ -596,6 +632,8 @@ button:disabled {
   .notif-item-enter-active,
   .notif-item-leave-active,
   .notif-item-move,
+  .notif-status-enter-active,
+  .notif-status-leave-active,
   .btn,
   .nav-link,
   .toast,
@@ -613,13 +651,11 @@ button:disabled {
   .settings-pane-enter-from,
   .settings-pane-leave-to,
   .notif-item-enter-from,
-  .notif-item-leave-to {
+  .notif-item-leave-to,
+  .notif-status-enter-from,
+  .notif-status-leave-to {
     opacity: 1;
     transform: none;
-  }
-
-  .notif-item-leave-active {
-    background-color: transparent !important;
   }
 
   .settings-accordion__collapse,

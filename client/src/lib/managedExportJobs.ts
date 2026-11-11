@@ -121,11 +121,21 @@ export function useManagedExportJobs() {
       onComplete: (result) => {
         unregisterRenderCancel(trackId)
         const current = jobs.value.find((item) => item.id === id)
-        endTrackedRender(trackId)
         if (current?.state.jobId) forgetRenderJob(current.state.jobId)
-        if (!current) return
+        if (!current) {
+          endTrackedRender(trackId)
+          return
+        }
         if (result === 'done' && current.state.phase === 'done' && current.state.downloadUrl) {
-          notifyRenderReady(input.app, current.displayName, current.state.downloadUrl, current.downloadFilename)
+          notifyRenderReady(
+            input.app,
+            current.displayName,
+            current.state.downloadUrl,
+            current.downloadFilename,
+            trackId,
+          )
+        } else {
+          endTrackedRender(trackId)
         }
         if (result === 'cancelled') {
           patchJob(id, { phase: 'cancelled', message: 'Export cancelled.', error: null })

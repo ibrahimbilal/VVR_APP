@@ -50,6 +50,7 @@ export function syncTrackedRender(trackId: string, state: ExportState): void {
     progress: state.progress,
     message: state.stage || state.message || 'Rendering…',
     stage: state.stage ?? null,
+    etaSec: state.etaSec ?? null,
   })
 }
 
