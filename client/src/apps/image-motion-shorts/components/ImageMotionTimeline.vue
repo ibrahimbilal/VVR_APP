@@ -6,7 +6,7 @@ const store = useImageMotionStore()
 </script>
 
 <template>
-  <div class="studio-panel flex min-h-0 shrink-0 flex-col gap-2 p-3">
+  <div class="studio-panel hidden xl:flex min-h-0 shrink-0 flex-col gap-2 p-3">
     <div class="flex items-center justify-between text-xs text-zinc-500">
       <span class="section-label">Timeline</span>
       <span class="tabular-nums text-zinc-300">{{ formatClock(store.duration) }}</span>

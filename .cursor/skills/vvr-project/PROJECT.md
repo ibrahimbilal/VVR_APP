@@ -184,7 +184,7 @@ Two orders:
 - `playhead` is the sequence clock. Seek loads the right clip and trims inside `trimStart`…`trimEnd`.
 - `previewBlocked` is set when the browser cannot decode a file. Export may still succeed.
 
-`PreviewStage.vue` scales a 1080×1920 (or 720×1280) stage to fit. The video box starts at `bannerHeight` and is `videoHeight` tall. Crop uses `object-fit: cover`. Fit and blur use `contain`. Blur shows the background video with a CSS blur. The canvas is full frame and calls `drawOverlay` with the active clip's list index.
+`PreviewStage.vue` sizes the player with CSS `aspect-ratio` from export width/height, then scales the 1080×1920 (or 720×1280) stage to fit. Image Motion Shorts preview uses the same pattern (`ImageMotionPreview.vue`). The video box starts at `bannerHeight` and is `videoHeight` tall. Crop uses `object-fit: cover`. Fit and blur use `contain`. Blur shows the background video with a CSS blur. The canvas is full frame and calls `drawOverlay` with the active clip's list index.
 
 `frameMetrics` (`shared/frame.ts`) is the shared layout: even banner height, min 80, max 42% of frame height, video height even. A height of 0 means no banner. Preview, `startExport`, and `runExport` all pass 0 when `banner.visible === false`, so the video fills the frame in both places. The Title section has a Show title toggle. `drawOverlay` also skips the banner rectangle when `visible` is false.
 
@@ -445,6 +445,7 @@ Verify slack: `max(0.25s, min(1.5s, 1% of target))`. Source Preview and Loop Pla
 
 ## Changelog
 
+- 2026-11-11 — Shorts previews size the player with CSS `aspect-ratio` (Ranking `PreviewStage.vue`, Image Motion `ImageMotionPreview.vue`).
 - 2026-11-11 — Screensaver and Audio Looper default export duration is 4 hours (`DEFAULT_DURATION_SECONDS` in `shared/screensaver.ts`, `shared/audioLooper.ts`).
 - 2026-11-11 — Render→ready uses `promoteActiveRenderJobToReady` (stable track id), one notification `TransitionGroup`, and `notif-status` crossfade (`AppNotifications.vue`, `platform.ts`, `managedExportJobs.ts`, `style.css`).
 - 2026-11-11 — Ready notification actions align with the title row; Dismiss is icon-only (`AppNotifications.vue`).

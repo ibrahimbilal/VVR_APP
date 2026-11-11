@@ -74,10 +74,9 @@ const progress = computed(() => {
   if (duration.value <= 0) return 0
   return Math.min(100, (Math.min(playhead.value, duration.value) / duration.value) * 100)
 })
-const playerStyle = computed(() => {
-  if (fullscreen.value) return undefined
-  return { width: `${Math.max(180, metrics.value.width * scale.value)}px` }
-})
+const frameAspectStyle = computed(() => ({
+  aspectRatio: `${metrics.value.width} / ${metrics.value.height}`,
+}))
 const placeholder = computed(() => {
   if (!activeClip.value) return 'Add at least one video.'
   if (!activeClip.value.objectUrl) return 'This slot needs a video file. Upload one you have permission to use.'
@@ -86,15 +85,15 @@ const placeholder = computed(() => {
 })
 
 function measure() {
-  const box = fullscreen.value && player.value ? player.value : root.value
-  if (!box) return
-  if (box.clientWidth < 20 || box.clientHeight < 20) return
-  const chrome = controlsEl.value?.offsetHeight ?? 68
-  const pad = fullscreen.value ? 0 : 32
-  const border = fullscreen.value ? 0 : 2
-  const availableW = Math.max(40, box.clientWidth - pad - border)
-  const availableH = Math.max(40, box.clientHeight - pad - chrome)
-  scale.value = Math.min(availableW / metrics.value.width, availableH / metrics.value.height)
+  const box = player.value ?? root.value
+  if (!box || box.clientWidth < 20 || box.clientHeight < 20) return
+  if (fullscreen.value) {
+    const chrome = controlsEl.value?.offsetHeight ?? 68
+    const availableH = Math.max(40, box.clientHeight - chrome)
+    scale.value = Math.min(box.clientWidth / metrics.value.width, availableH / metrics.value.height)
+    return
+  }
+  scale.value = Math.min(box.clientWidth / metrics.value.width, box.clientHeight / metrics.value.height)
 }
 
 function toggleFullscreen() {
@@ -204,9 +203,10 @@ function onSeek(event: Event) {
     <div
       ref="player"
       class="relative flex max-h-full flex-col overflow-hidden rounded-2xl border border-zinc-700 bg-black shadow-2xl"
-      :class="fullscreen ? 'h-full w-full items-center justify-center rounded-none border-0' : ''"
-      :style="playerStyle"
+      :class="fullscreen ? 'h-full w-full items-center justify-center rounded-none border-0' : 'h-full'"
+      :style="fullscreen ? undefined : frameAspectStyle"
     >
+      <div class="absolute inset-0 flex items-center justify-center overflow-hidden">
       <div :style="scaleBoxStyle">
         <div class="relative cursor-pointer bg-black" :style="stageStyle" title="Play or pause" @click="toggle">
           <div class="absolute left-0 z-0 w-full overflow-hidden" :style="videoBoxStyle">
@@ -239,6 +239,7 @@ function onSeek(event: Event) {
           </div>
           <canvas ref="canvas" class="pointer-events-none absolute inset-0 z-10 h-full w-full"></canvas>
         </div>
+      </div>
       </div>
 
       <div ref="controlsEl" class="w-full shrink-0 px-3 pb-3 pt-2 absolute bottom-0 left-0 right-0">

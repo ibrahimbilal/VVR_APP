@@ -33,18 +33,20 @@ const scaleBoxStyle = computed(() => ({
   height: `${store.video.height * scale.value}px`,
 }))
 
-const playerStyle = computed(() => {
-  if (fullscreen.value) return undefined
-  return { width: `${Math.max(180, store.video.width * scale.value)}px` }
-})
+const frameAspectStyle = computed(() => ({
+  aspectRatio: `${store.video.width} / ${store.video.height}`,
+}))
 
 function measure() {
-  if (!root.value || !player.value || fullscreen.value) return
-  const bounds = root.value.getBoundingClientRect()
-  const controls = controlsEl.value?.getBoundingClientRect().height ?? 72
-  const availableW = Math.max(160, bounds.width - 32)
-  const availableH = Math.max(160, bounds.height - controls - 32)
-  scale.value = Math.min(availableW / store.video.width, availableH / store.video.height)
+  const box = player.value ?? root.value
+  if (!box || box.clientWidth < 20 || box.clientHeight < 20) return
+  if (fullscreen.value) {
+    const chrome = controlsEl.value?.offsetHeight ?? 68
+    const availableH = Math.max(40, box.clientHeight - chrome)
+    scale.value = Math.min(box.clientWidth / store.video.width, availableH / store.video.height)
+    return
+  }
+  scale.value = Math.min(box.clientWidth / store.video.width, box.clientHeight / store.video.height)
 }
 
 function loopPaint() {
@@ -75,6 +77,8 @@ onMounted(() => {
   measure()
   resizeObserver = new ResizeObserver(() => measure())
   if (root.value) resizeObserver.observe(root.value)
+  if (player.value) resizeObserver.observe(player.value)
+  if (controlsEl.value) resizeObserver.observe(controlsEl.value)
   document.addEventListener('fullscreenchange', onFullscreenChange)
 })
 
@@ -95,9 +99,10 @@ watch(
     <div
       ref="player"
       class="relative flex max-h-full flex-col overflow-hidden rounded-2xl border border-zinc-700 bg-black shadow-2xl"
-      :class="fullscreen ? 'h-full w-full items-center justify-center rounded-none border-0' : ''"
-      :style="playerStyle"
+      :class="fullscreen ? 'h-full w-full items-center justify-center rounded-none border-0' : 'h-full'"
+      :style="fullscreen ? undefined : frameAspectStyle"
     >
+      <div class="absolute inset-0 flex items-center justify-center overflow-hidden">
       <div class="relative" :style="scaleBoxStyle">
         <div class="relative cursor-pointer bg-black" :style="stageStyle" title="Play or pause" @click="playback.toggle()">
           <canvas ref="canvasRef" class="block" :style="{ width: `${store.video.width}px`, height: `${store.video.height}px` }" />
@@ -108,6 +113,7 @@ watch(
         >
           Add an image to preview the pan.
         </p>
+      </div>
       </div>
       <div ref="controlsEl" class="absolute bottom-0 left-0 right-0 w-full shrink-0 px-3 pb-3 pt-2">
         <div class="flex items-center gap-3 text-white">
