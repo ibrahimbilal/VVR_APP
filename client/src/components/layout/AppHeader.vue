@@ -79,7 +79,7 @@ const emit = defineEmits<{ openNav: [trigger: HTMLElement] }>()
         <CircleCheck v-if="platform.serverOnline" class="text-emerald-400" :size="16" />
         <CircleAlert v-else class="text-red-300" :size="16" />
         <span class="hidden sm:inline" :class="platform.serverOnline ? 'text-emerald-400' : 'text-red-300'">
-          {{ platform.serverOnline ? 'Renderer ready' : 'Renderer offline' }}
+          {{ platform.serverOnline ? 'Online' : 'Offline' }}
         </span>
       </button>
     </div>
