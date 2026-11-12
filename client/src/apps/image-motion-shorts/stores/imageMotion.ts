@@ -165,6 +165,19 @@ export const useImageMotionStore = defineStore('image-motion', () => {
     return fileMap.get(segmentId)
   }
 
+  async function importFromScreensaver(file: File): Promise<void> {
+    await init()
+    const before = segments.value.length
+    await addFiles([file])
+    if (segments.value.length === before) throw new Error('Could not add the image to Image Motion.')
+  }
+
+  async function deleteAllSegments(): Promise<void> {
+    const ids = segments.value.map((segment) => segment.id)
+    for (const id of ids) removeSegment(id)
+    await idb.saveImageMotionScreensaverLinks({}).catch(() => undefined)
+  }
+
   async function addFiles(files: File[]) {
     const room = MAX_IMAGE_MOTION_SEGMENTS - segments.value.length
     if (room <= 0) {
@@ -224,6 +237,18 @@ export const useImageMotionStore = defineStore('image-motion', () => {
       selectedSegmentId.value = segments.value[0]?.id ?? null
     }
     void idb.deleteImageMotionFile(id).catch(() => undefined)
+    void idb.loadImageMotionScreensaverLinks().then((links) => {
+      let changed = false
+      const next: Record<string, string> = {}
+      for (const [projectId, segmentId] of Object.entries(links)) {
+        if (segmentId === id) {
+          changed = true
+          continue
+        }
+        next[projectId] = segmentId
+      }
+      if (changed) void idb.saveImageMotionScreensaverLinks(next).catch(() => undefined)
+    })
     scheduleSave()
   }
 
@@ -409,6 +434,8 @@ export const useImageMotionStore = defineStore('image-motion', () => {
     exporting,
     activeExportCount,
     init,
+    importFromScreensaver,
+    deleteAllSegments,
     addFiles,
     removeSegment,
     reorder,

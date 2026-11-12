@@ -6,6 +6,7 @@ export type PersistedRenderJob = {
   projectName: string
   downloadFilename: string
   savedAt: number
+  projectId?: string | null
 }
 
 const STORAGE_KEY = 'vf-persisted-render-jobs'
@@ -33,6 +34,7 @@ export function loadPersistedRenderJobs(): PersistedRenderJob[] {
         projectName: projectName.trim() || 'Untitled project',
         downloadFilename,
         savedAt: typeof row.savedAt === 'number' ? row.savedAt : Date.now(),
+        projectId: typeof row.projectId === 'string' ? row.projectId : null,
       })
     }
     return jobs.slice(0, MAX_JOBS)

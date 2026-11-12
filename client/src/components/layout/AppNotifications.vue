@@ -4,6 +4,7 @@ import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { formatClock } from '../../lib/format'
 import { renderAppIcon, renderAppLabel, type RenderAppId } from '../../lib/renderNotifications'
+import { requestOpenScreensaverProject } from '../../apps/frame-screensaver/lib/screensaverProjectEvents'
 import { BRAND } from '../../lib/brand'
 import { triggerDownload } from '../../lib/triggerDownload'
 import { usePlatformStore, type ActiveRenderJob, type RenderReadyNotification } from '../../stores/platform'
@@ -92,9 +93,16 @@ function formatRemaining(etaSec: number | null): string {
   return `${formatClock(etaSec)} left`
 }
 
-function openApp(app: RenderAppId, route: string): void {
+function openApp(app: RenderAppId, route: string, projectId?: string | null): void {
+  if (app === 'screensaver' && projectId) requestOpenScreensaverProject(projectId)
   void router.push(route)
   open.value = false
+}
+
+function readyDetail(item: RenderReadyNotification): string {
+  if (item.outcome === 'failed') return item.error || 'Rendering failed'
+  if (item.outcome === 'cancelled') return 'Rendering cancelled'
+  return `Ready to download · ${formatWhen(item.createdAt)}`
 }
 
 function download(item: RenderReadyNotification): void {
@@ -229,7 +237,7 @@ onBeforeUnmount(() => document.removeEventListener('pointerdown', onDocumentPoin
                       type="button"
                       :title="`Open ${renderAppLabel(row.job.app)}`"
                       :aria-label="`Open ${renderAppLabel(row.job.app)}`"
-                      @click="openApp(row.job.app, row.job.route)"
+                      @click="openApp(row.job.app, row.job.route, row.job.projectId)"
                     >
                       <ExternalLink :size="15" aria-hidden="true" />
                     </button>
@@ -273,9 +281,14 @@ onBeforeUnmount(() => document.removeEventListener('pointerdown', onDocumentPoin
                     </div>
                     <div class="min-w-0 flex-1">
                       <p class="truncate text-sm font-medium text-zinc-100">{{ row.item.projectName }}</p>
-                      <p class="mt-0.5 text-xs text-zinc-400">Ready to download · {{ formatWhen(row.item.createdAt) }}</p>
+                      <p class="mt-0.5 text-xs text-zinc-400">{{ readyDetail(row.item) }}</p>
                       <div class="mt-2 flex flex-wrap items-center gap-1.5">
-                        <button class="btn btn-primary cursor-pointer py-1 text-xs" type="button" @click="download(row.item)">
+                        <button
+                          v-if="row.item.outcome !== 'failed' && row.item.outcome !== 'cancelled'"
+                          class="btn btn-primary cursor-pointer py-1 text-xs"
+                          type="button"
+                          @click="download(row.item)"
+                        >
                           <Download :size="14" />
                           Download
                         </button>
@@ -284,7 +297,7 @@ onBeforeUnmount(() => document.removeEventListener('pointerdown', onDocumentPoin
                           type="button"
                           :title="`Open ${renderAppLabel(row.item.app)}`"
                           :aria-label="`Open ${renderAppLabel(row.item.app)}`"
-                          @click="openApp(row.item.app, row.item.route)"
+                          @click="openApp(row.item.app, row.item.route, row.item.projectId)"
                         >
                           <ExternalLink :size="15" aria-hidden="true" />
                         </button>

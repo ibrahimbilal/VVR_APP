@@ -4,6 +4,8 @@ import * as api from '../lib/api'
 import { cancelTrackedRender } from '../lib/renderJobTracking'
 import type { RenderAppId } from '../lib/renderNotifications'
 
+export type RenderNoticeOutcome = 'ready' | 'failed' | 'cancelled'
+
 export type RenderReadyNotification = {
   id: string
   app: RenderAppId
@@ -13,6 +15,11 @@ export type RenderReadyNotification = {
   filename: string
   createdAt: number
   read: boolean
+  /** Screensaver project to open. Older notices omit this. */
+  projectId?: string | null
+  /** Missing means a finished download, so older notices keep their Download action. */
+  outcome?: RenderNoticeOutcome
+  error?: string | null
 }
 
 export type ActiveRenderJob = {
@@ -24,6 +31,7 @@ export type ActiveRenderJob = {
   message: string
   stage: string | null
   etaSec: number | null
+  projectId?: string | null
 }
 
 const MAX_RENDER_NOTIFICATIONS = 30
@@ -80,6 +88,7 @@ export const usePlatformStore = defineStore('platform', () => {
       message: input.message ?? 'Starting export…',
       stage: input.stage ?? null,
       etaSec: input.etaSec ?? null,
+      projectId: input.projectId ?? null,
     }
     activeRenderJobs.value = [...activeRenderJobs.value.filter((item) => item.id !== entry.id), entry]
   }
@@ -128,6 +137,8 @@ export const usePlatformStore = defineStore('platform', () => {
       filename: input.filename,
       createdAt: Date.now(),
       read: false,
+      projectId: job.projectId ?? null,
+      outcome: 'ready',
     }
     renderNotifications.value = [entry, ...renderNotifications.value.filter((item) => item.id !== trackId)].slice(
       0,
@@ -142,6 +153,7 @@ export const usePlatformStore = defineStore('platform', () => {
     route: string
     downloadUrl: string
     filename: string
+    projectId?: string | null
   }): void {
     const entry: RenderReadyNotification = {
       id: crypto.randomUUID(),
@@ -152,8 +164,39 @@ export const usePlatformStore = defineStore('platform', () => {
       filename: input.filename,
       createdAt: Date.now(),
       read: false,
+      projectId: input.projectId ?? null,
+      outcome: 'ready',
     }
     renderNotifications.value = [entry, ...renderNotifications.value].slice(0, MAX_RENDER_NOTIFICATIONS)
+  }
+
+  function addRenderOutcomeNotification(input: {
+    id: string
+    app: RenderAppId
+    projectName: string
+    route: string
+    projectId?: string | null
+    outcome: 'failed' | 'cancelled'
+    error?: string | null
+  }): void {
+    activeRenderJobs.value = activeRenderJobs.value.filter((item) => item.id !== input.id)
+    const entry: RenderReadyNotification = {
+      id: input.id,
+      app: input.app,
+      projectName: input.projectName.trim() || 'Untitled project',
+      route: input.route,
+      downloadUrl: '',
+      filename: '',
+      createdAt: Date.now(),
+      read: false,
+      projectId: input.projectId ?? null,
+      outcome: input.outcome,
+      error: input.error ?? null,
+    }
+    renderNotifications.value = [entry, ...renderNotifications.value.filter((item) => item.id !== input.id)].slice(
+      0,
+      MAX_RENDER_NOTIFICATIONS,
+    )
   }
 
   function markAllNotificationsRead(): void {
@@ -221,6 +264,7 @@ export const usePlatformStore = defineStore('platform', () => {
     removeActiveRenderJob,
     cancelActiveRenderJob,
     addRenderReadyNotification,
+    addRenderOutcomeNotification,
     promoteActiveRenderJobToReady,
     markAllNotificationsRead,
     dismissNotification,

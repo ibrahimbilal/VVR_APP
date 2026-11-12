@@ -3,11 +3,13 @@ import { ChevronDown, ChevronUp, GripVertical, Trash2 } from '@lucide/vue'
 import { ref } from 'vue'
 import { useCardReorder } from '../../../composables/useCardReorder'
 import FileDropZone from '../../../components/FileDropZone.vue'
+import AppDialog from '../../../components/ui/AppDialog.vue'
 import { formatClock } from '../../../lib/format'
 import { useImageMotionStore } from '../stores/imageMotion'
 
 const store = useImageMotionStore()
 const listEl = ref<HTMLElement | null>(null)
+const deleteAllOpen = ref(false)
 const { instant, itemStyle, isPlaceholder, onGripPointerDown } = useCardReorder({
   list: listEl,
   onReorder: (from, to) => store.reorder(from, to),
@@ -20,6 +22,15 @@ function onFiles(files: File[]) {
 function aspect(width: number, height: number): string {
   if (!width || !height) return ''
   return `${(width / height).toFixed(2)}:1`
+}
+
+function closeDeleteAll() {
+  deleteAllOpen.value = false
+}
+
+async function confirmDeleteAll() {
+  deleteAllOpen.value = false
+  await store.deleteAllSegments()
 }
 </script>
 
@@ -38,6 +49,19 @@ function aspect(width: number, height: number): string {
         formats="JPG, PNG, WebP"
         @files="onFiles"
       />
+    </div>
+
+    <div class="flex shrink-0 items-center justify-between gap-2 border-b border-zinc-800 px-4 py-2">
+      <h3 class="section-label">Images</h3>
+      <button
+        class="btn btn-ghost cursor-pointer px-2 py-1 text-xs text-red-300 disabled:cursor-not-allowed disabled:opacity-40"
+        type="button"
+        :disabled="store.segments.length === 0"
+        @click="deleteAllOpen = true"
+      >
+        <Trash2 :size="14" />
+        Delete all
+      </button>
     </div>
 
     <div
@@ -111,5 +135,13 @@ function aspect(width: number, height: number): string {
         </div>
       </article>
     </div>
+
+    <AppDialog :open="deleteAllOpen" title="Delete all images" @cancel="closeDeleteAll">
+      <p class="text-sm text-zinc-300">Remove every image from this Image Motion project?</p>
+      <template #actions>
+        <button class="btn btn-ghost cursor-pointer" type="button" @click="closeDeleteAll">Cancel</button>
+        <button class="btn btn-danger cursor-pointer" type="button" @click="confirmDeleteAll">Delete all</button>
+      </template>
+    </AppDialog>
   </aside>
 </template>

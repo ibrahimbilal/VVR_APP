@@ -5,7 +5,8 @@ import AppDialog from '../../components/ui/AppDialog.vue'
 import AppMobileTabs from '../../components/ui/AppMobileTabs.vue'
 import ThumbnailCanvas from './components/ThumbnailCanvas.vue'
 import ThumbnailControls from './components/ThumbnailControls.vue'
-import ThumbnailSourcePanel from './components/ThumbnailSourcePanel.vue'
+import ThumbnailMediaPanel from './components/ThumbnailMediaPanel.vue'
+import ThumbnailProjectList from './components/ThumbnailProjectList.vue'
 import { useThumbnailStore } from './stores/thumbnail'
 
 const store = useThumbnailStore()
@@ -24,7 +25,25 @@ onMounted(() => {
 <template>
   <div class="relative flex h-full min-h-0 min-w-0 flex-col gap-3 overflow-hidden p-3 lg:flex-row">
     <AppMobileTabs v-model="tab" :items="tabs" />
-    <ThumbnailSourcePanel :class="tab === 'source' ? 'flex max-h-none flex-1' : 'hidden lg:flex'" />
+
+    <aside
+      class="studio-panel flex min-h-0 w-full shrink-0 flex-col gap-4 overflow-hidden p-4 lg:h-full lg:w-[300px] lg:max-w-[300px] lg:flex-none"
+      :class="tab === 'source' ? 'max-h-none flex-1' : 'hidden lg:flex'"
+    >
+      <label class="block shrink-0">
+        <span class="section-label mb-1 block">Project</span>
+        <input
+          class="field text-sm font-semibold"
+          maxlength="80"
+          type="text"
+          :value="store.doc.name"
+          @input="store.setName(($event.target as HTMLInputElement).value)"
+        />
+      </label>
+      <ThumbnailMediaPanel />
+      <ThumbnailProjectList />
+    </aside>
+
     <div
       class="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden"
       :class="tab === 'preview' ? 'flex' : 'hidden lg:flex'"

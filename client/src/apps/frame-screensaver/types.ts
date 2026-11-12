@@ -10,7 +10,11 @@ import type {
 import type { SubscribeAnimationSettings } from '@shared/screensaverSubscribeAnimation'
 
 export interface SavedScreensaverProject {
-  version: 1 | 2
+  version: 1 | 2 | 3
+  /** Persistent id. Missing on projects saved before the project list. */
+  id?: string
+  createdAt?: number
+  updatedAt?: number
   name: string
   mode: ScreensaverMode
   mediaKind: 'image' | 'video' | null
@@ -39,6 +43,8 @@ export interface SavedScreensaverProject {
   profile?: ScreensaverProfile
   encoder?: EncoderChoice
   composition?: ScreensaverComposition
-  /** @deprecated Ignored on load; subscribe animation resets each session. */
+  /** Saved with the project so Open restores the subscribe overlay. */
   subscribeAnimation?: SubscribeAnimationSettings
+  /** Snapshot of export settings; updated when the project is saved. */
+  configFingerprint?: string
 }

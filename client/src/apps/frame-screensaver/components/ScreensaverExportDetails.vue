@@ -6,9 +6,20 @@ import { useScreensaverStore } from '../stores/screensaver'
 const store = useScreensaverStore()
 const open = ref(false)
 
-const visible = computed(
-  () => store.exporting || Boolean(store.exportState.encoder) || store.exportState.phase === 'done',
-)
+const visible = computed(() => {
+  const phase = store.exportState.phase
+  if (phase === 'done') return Boolean(store.exportState.encoder)
+  if (phase === 'error') return true
+  return (
+    store.exporting ||
+    phase === 'queued' ||
+    phase === 'preparing' ||
+    phase === 'rendering' ||
+    phase === 'verifying' ||
+    phase === 'uploading' ||
+    phase === 'overlays'
+  )
+})
 
 const tone = computed(() => {
   if (store.exportState.phase === 'error') return 'error' as const

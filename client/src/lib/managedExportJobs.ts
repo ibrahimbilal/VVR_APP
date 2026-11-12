@@ -11,7 +11,8 @@ import {
   unregisterRenderCancel,
 } from './renderJobTracking'
 import { forgetRenderJob, rememberRenderJob } from './persistedRenderJobs'
-import { notifyRenderReady, type RenderAppId } from './renderNotifications'
+import { notifyRenderOutcome, notifyRenderReady, type RenderAppId } from './renderNotifications'
+import { publishScreensaverRender } from '../apps/frame-screensaver/lib/screensaverProjectEvents'
 import type { JobPollUpdate } from './jobPoll'
 
 const MAX_EXPORT_JOBS = 12
@@ -21,6 +22,7 @@ export type ManagedExportJob = {
   trackId: string
   displayName: string
   downloadFilename: string
+  projectId: string | null
   abort: AbortController
   state: ExportState
 }
@@ -71,6 +73,8 @@ export function useManagedExportJobs() {
     app: RenderAppId
     displayName: string
     downloadFilename: string
+    projectId?: string | null
+    onTrack?: (trackId: string) => void
     submit: (signal: AbortSignal, onUpdate: (patch: JobPollUpdate) => void) => Promise<string>
     onError?: (message: string) => void
     toast?: (text: string, tone?: 'info' | 'error' | 'success') => void
@@ -85,16 +89,33 @@ export function useManagedExportJobs() {
 
     const id = crypto.randomUUID()
     const abort = new AbortController()
-    const trackId = beginTrackedRender(input.app, input.displayName)
+    const projectId = input.projectId ?? null
+    const trackId = beginTrackedRender(input.app, input.displayName, projectId)
+    input.onTrack?.(trackId)
     const job: ManagedExportJob = {
       id,
       trackId,
       displayName: input.displayName,
       downloadFilename: input.downloadFilename,
+      projectId,
       abort,
       state: idleExport(),
     }
     jobs.value = [...jobs.value, job]
+
+    const emit = (state: ExportState) => {
+      if (!projectId) return
+      publishScreensaverRender({
+        projectId,
+        trackId,
+        phase: state.phase,
+        progress: state.progress,
+        error: state.error,
+        jobId: state.jobId,
+        downloadUrl: state.downloadUrl,
+        filename: input.downloadFilename,
+      })
+    }
 
     registerRenderCancel(trackId, {
       abort: () => abort.abort(),
@@ -114,9 +135,11 @@ export function useManagedExportJobs() {
             app: input.app,
             projectName: input.displayName,
             downloadFilename: input.downloadFilename,
+            projectId,
           })
         }
         syncTrackedRender(trackId, updated.state)
+        emit(updated.state)
       },
       onComplete: (result) => {
         unregisterRenderCancel(trackId)
@@ -127,34 +150,48 @@ export function useManagedExportJobs() {
           return
         }
         if (result === 'done' && current.state.phase === 'done' && current.state.downloadUrl) {
+          emit(current.state)
           notifyRenderReady(
             input.app,
             current.displayName,
             current.state.downloadUrl,
             current.downloadFilename,
             trackId,
+            projectId,
           )
         } else {
           endTrackedRender(trackId)
         }
         if (result === 'cancelled') {
-          patchJob(id, { phase: 'cancelled', message: 'Export cancelled.', error: null })
+          const cancelled = patchJob(id, { phase: 'cancelled', message: 'Export cancelled.', error: null })
+          if (cancelled) emit(cancelled.state)
+          notifyRenderOutcome(input.app, current.displayName, 'cancelled', trackId, projectId, null)
           input.toast?.('Export cancelled.', 'info')
           removeJob(id)
           return
         }
         if (result === 'error' && current.state.phase !== 'error') {
           const text = current.state.error || 'Export failed.'
-          patchJob(id, { phase: 'error', error: text, message: text })
+          const failed = patchJob(id, { phase: 'error', error: text, message: text })
+          if (failed) emit(failed.state)
+          notifyRenderOutcome(input.app, current.displayName, 'failed', trackId, projectId, text)
           input.onError?.(text)
+        } else if (result === 'error') {
+          emit(current.state)
+          notifyRenderOutcome(input.app, current.displayName, 'failed', trackId, projectId, current.state.error)
         }
       },
     })
     return true
   }
 
-  function clearFinished(): void {
-    jobs.value = jobs.value.filter((job) => isActiveExportPhase(job.state.phase) || job.state.phase === 'idle')
+  function clearFinished(projectId?: string): void {
+    jobs.value = jobs.value.filter((job) => {
+      const active = isActiveExportPhase(job.state.phase) || job.state.phase === 'idle'
+      if (active) return true
+      if (projectId && job.projectId !== projectId) return true
+      return false
+    })
   }
 
   return {

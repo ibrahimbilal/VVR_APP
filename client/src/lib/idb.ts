@@ -4,6 +4,7 @@ import type { PersistedClip, PresetId, ProjectStyle, TitleSpan } from '../types'
 const DB_NAME = 'vvr'
 const DB_VERSION = 4
 const IMAGE_MOTION_META_KEY = 'project'
+const IMAGE_MOTION_SCREENSAVER_LINKS_KEY = 'screensaver-links'
 const IMAGE_MOTION_MUSIC_KEY = 'music'
 const RANKING_META_KEY = 'ranking-videos'
 const LEGACY_META_KEY = 'current'
@@ -305,6 +306,83 @@ export async function clearScreensaverAudio(): Promise<void> {
   }
 }
 
+export function screensaverProjectKey(id: string): string {
+  return `project:${id}`
+}
+
+export function screensaverSourceKey(id: string): string {
+  return `source:${id}`
+}
+
+export function screensaverAudioKey(id: string): string {
+  return `audio:${id}`
+}
+
+export function screensaverRenderKey(id: string): string {
+  return `render:${id}`
+}
+
+export interface ScreensaverStoreEntry {
+  key: string
+  value: unknown
+}
+
+export async function readScreensaverEntries(): Promise<ScreensaverStoreEntry[]> {
+  const db = await openDb()
+  try {
+    return await new Promise((resolve, reject) => {
+      const items: ScreensaverStoreEntry[] = []
+      const request = db.transaction('screensaver', 'readonly').objectStore('screensaver').openCursor()
+      request.onerror = () => reject(request.error ?? new Error('Local project storage failed.'))
+      request.onsuccess = () => {
+        const cursor = request.result
+        if (!cursor) {
+          resolve(items)
+          return
+        }
+        items.push({ key: String(cursor.key), value: cursor.value })
+        cursor.continue()
+      }
+    })
+  } finally {
+    db.close()
+  }
+}
+
+export async function putScreensaverValue(key: string, value: unknown): Promise<void> {
+  const db = await openDb()
+  try {
+    const transaction = db.transaction('screensaver', 'readwrite')
+    transaction.objectStore('screensaver').put(value, key)
+    await transactionDone(transaction)
+  } finally {
+    db.close()
+  }
+}
+
+export async function getScreensaverValue<T>(key: string): Promise<T | null> {
+  const db = await openDb()
+  try {
+    const saved = await requestToPromise(db.transaction('screensaver', 'readonly').objectStore('screensaver').get(key))
+    return (saved as T | undefined) ?? null
+  } finally {
+    db.close()
+  }
+}
+
+export async function deleteScreensaverKeys(keys: string[]): Promise<void> {
+  if (keys.length === 0) return
+  const db = await openDb()
+  try {
+    const transaction = db.transaction('screensaver', 'readwrite')
+    const store = transaction.objectStore('screensaver')
+    for (const key of keys) store.delete(key)
+    await transactionDone(transaction)
+  } finally {
+    db.close()
+  }
+}
+
 export interface StoredImageAsset {
   id: string
   name: string
@@ -358,6 +436,43 @@ export async function listThumbnailKeys(): Promise<string[]> {
   try {
     const keys = await requestToPromise(db.transaction('thumbnail', 'readonly').objectStore('thumbnail').getAllKeys())
     return keys.filter((key): key is string => typeof key === 'string')
+  } finally {
+    db.close()
+  }
+}
+
+export type ThumbnailStoreEntry = { key: string; value: unknown }
+
+export async function readThumbnailEntries(): Promise<ThumbnailStoreEntry[]> {
+  const db = await openDb()
+  try {
+    return await new Promise((resolve, reject) => {
+      const items: ThumbnailStoreEntry[] = []
+      const request = db.transaction('thumbnail', 'readonly').objectStore('thumbnail').openCursor()
+      request.onerror = () => reject(request.error ?? new Error('Local thumbnail storage failed.'))
+      request.onsuccess = () => {
+        const cursor = request.result
+        if (!cursor) {
+          resolve(items)
+          return
+        }
+        items.push({ key: String(cursor.key), value: cursor.value })
+        cursor.continue()
+      }
+    })
+  } finally {
+    db.close()
+  }
+}
+
+export async function deleteThumbnailKeys(keys: string[]): Promise<void> {
+  if (keys.length === 0) return
+  const db = await openDb()
+  try {
+    const transaction = db.transaction('thumbnail', 'readwrite')
+    const store = transaction.objectStore('thumbnail')
+    for (const key of keys) store.delete(key)
+    await transactionDone(transaction)
   } finally {
     db.close()
   }
@@ -511,6 +626,36 @@ export async function clearImageMotionMusicFile(): Promise<void> {
   }
 }
 
+export async function loadImageMotionScreensaverLinks(): Promise<Record<string, string>> {
+  const db = await openDb()
+  try {
+    const saved = await requestToPromise(
+      db.transaction('image-motion', 'readonly').objectStore('image-motion').get(IMAGE_MOTION_SCREENSAVER_LINKS_KEY),
+    )
+    if (!saved || typeof saved !== 'object') return {}
+    const links: Record<string, string> = {}
+    for (const [key, value] of Object.entries(saved as Record<string, unknown>)) {
+      if (typeof value === 'string' && value.trim()) links[key] = value.trim()
+    }
+    return links
+  } finally {
+    db.close()
+  }
+}
+
+export async function saveImageMotionScreensaverLinks(links: Record<string, string>): Promise<void> {
+  const db = await openDb()
+  try {
+    const transaction = db.transaction('image-motion', 'readwrite')
+    transaction.objectStore('image-motion').put(links, IMAGE_MOTION_SCREENSAVER_LINKS_KEY)
+    await transactionDone(transaction)
+  } catch (error) {
+    throw storageError(error)
+  } finally {
+    db.close()
+  }
+}
+
 export async function clearImageMotionProject(): Promise<void> {
   const db = await openDb()
   try {
@@ -522,6 +667,7 @@ export async function clearImageMotionProject(): Promise<void> {
     const store = transaction.objectStore('image-motion')
     store.delete(IMAGE_MOTION_META_KEY)
     store.delete(IMAGE_MOTION_MUSIC_KEY)
+    store.delete(IMAGE_MOTION_SCREENSAVER_LINKS_KEY)
     for (const id of segmentIds) store.delete(`file:${id}`)
     await transactionDone(transaction)
   } finally {

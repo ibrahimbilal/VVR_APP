@@ -4,9 +4,13 @@ import { stageThumbnailTransfer } from '../../thumbnail-studio/lib/stageTransfer
 import { frameImageUrl } from './frameImageUrl'
 import { useScreensaverStore } from '../stores/screensaver'
 
-export async function createThumbnailFromScreensaver(linkMode: 'snapshot' | 'linked'): Promise<void> {
+export async function createThumbnailFromScreensaver(
+  linkMode: 'snapshot' | 'linked',
+  screensaverProjectId?: string,
+): Promise<void> {
   const store = useScreensaverStore()
   const platform = usePlatformStore()
+  const projectId = screensaverProjectId ?? store.projectId
   try {
     let artwork: Blob | null = null
     let composition: ScreensaverComposition | null = null
@@ -26,12 +30,13 @@ export async function createThumbnailFromScreensaver(linkMode: 'snapshot' | 'lin
       if (response.ok) frame = await response.blob()
       else platform.toast('The decorative frame was not available, so the thumbnail continues without it.', 'info')
     }
-    await stageThumbnailTransfer({
-      sourceApp: 'frame-screensaver',
-      sourceProjectId: 'frame-screensaver',
-      linkMode,
-      returnPath: '/screensaver',
-      title: store.name,
+    await stageThumbnailTransfer(
+      {
+        sourceApp: 'frame-screensaver',
+        sourceProjectId: projectId,
+        linkMode,
+        returnPath: '/screensaver',
+        title: store.name,
       artwork,
       artworkName: store.fileName || 'artwork',
       frame,
@@ -42,7 +47,9 @@ export async function createThumbnailFromScreensaver(linkMode: 'snapshot' | 'lin
         height: store.outputHeight,
         durationSeconds: store.durationSeconds,
       },
-    })
+      },
+      { navigate: false },
+    )
   } catch (error) {
     platform.toast(error instanceof Error ? error.message : 'Could not create a thumbnail.')
   }

@@ -28,7 +28,7 @@ export function cancelTrackedRender(trackId: string): boolean {
   return true
 }
 
-export function beginTrackedRender(app: RenderAppId, projectName: string): string {
+export function beginTrackedRender(app: RenderAppId, projectName: string, projectId?: string | null): string {
   const id = crypto.randomUUID()
   const platform = usePlatformStore()
   platform.addActiveRenderJob({
@@ -39,6 +39,7 @@ export function beginTrackedRender(app: RenderAppId, projectName: string): strin
     progress: 0,
     message: 'Starting export…',
     stage: null,
+    projectId: projectId ?? null,
   })
   return id
 }

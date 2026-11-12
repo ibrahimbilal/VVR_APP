@@ -39,6 +39,7 @@ export function notifyRenderReady(
   downloadUrl: string,
   filename: string,
   trackId?: string,
+  projectId?: string | null,
 ): void {
   const platform = usePlatformStore()
   const name = projectName.trim() || 'Untitled project'
@@ -54,5 +55,28 @@ export function notifyRenderReady(
     route,
     downloadUrl,
     filename,
+    projectId,
+  })
+}
+
+/** Failed and cancelled Screensaver renders stay in the panel so Open can restore that project. */
+export function notifyRenderOutcome(
+  app: RenderAppId,
+  projectName: string,
+  outcome: 'failed' | 'cancelled',
+  trackId: string,
+  projectId?: string | null,
+  error?: string | null,
+): void {
+  if (app !== 'screensaver' || !projectId) return
+  const platform = usePlatformStore()
+  platform.addRenderOutcomeNotification({
+    id: trackId,
+    app,
+    projectName,
+    route: RENDER_APP_ROUTES[app],
+    projectId,
+    outcome,
+    error,
   })
 }

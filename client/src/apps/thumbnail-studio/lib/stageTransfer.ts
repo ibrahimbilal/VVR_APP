@@ -30,7 +30,11 @@ export interface StageThumbnailInput {
   video?: { durationSeconds?: number; width?: number; height?: number }
 }
 
-export async function stageThumbnailTransfer(input: StageThumbnailInput): Promise<void> {
+export type StageThumbnailOptions = {
+  navigate?: boolean
+}
+
+export async function stageThumbnailTransfer(input: StageThumbnailInput, options: StageThumbnailOptions = {}): Promise<void> {
   const platform = usePlatformStore()
   const studio = useThumbnailStore()
   await studio.init()
@@ -58,6 +62,11 @@ export async function stageThumbnailTransfer(input: StageThumbnailInput): Promis
     throw new Error(validated.error)
   }
   await saveThumbnailValue('pending-transfer', validated.payload)
+  const shouldNavigate = options.navigate !== false
+  if (!shouldNavigate) {
+    await studio.applyScreensaverTransfer(validated.payload)
+    return
+  }
   if (router.currentRoute.value.path === '/thumbnails') await studio.consumeStoredTransfer()
   else await router.push('/thumbnails')
   platform.toast('Thumbnail project ready.', 'info')

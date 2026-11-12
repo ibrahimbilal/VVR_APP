@@ -10,6 +10,7 @@ import ScreensaverExportBar from './components/ScreensaverExportBar.vue'
 import ScreensaverExportDetails from './components/ScreensaverExportDetails.vue'
 import EditorCanvas from './components/EditorCanvas.vue'
 import ScreensaverMediaPanel from './components/ScreensaverMediaPanel.vue'
+import ScreensaverProjectList from './components/ScreensaverProjectList.vue'
 import ScreensaverDiagnostics from './components/ScreensaverDiagnostics.vue'
 import ScreensaverSettingsPanel from './components/ScreensaverSettingsPanel.vue'
 import { installPreviewBenchHook } from './lib/benchPreview'
@@ -56,7 +57,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
     <AppMobileTabs v-model="tab" :items="tabs" />
 
     <aside
-      class="studio-panel flex min-h-0 w-full shrink-0 flex-col gap-4 overflow-y-auto p-4 lg:h-full lg:w-[300px] lg:max-w-[300px] lg:flex-none"
+      class="studio-panel flex min-h-0 w-full shrink-0 flex-col gap-4 overflow-hidden p-4 lg:h-full lg:w-[300px] lg:max-w-[300px] lg:flex-none"
       :class="tab === 'source' ? 'max-h-none flex-1' : 'hidden lg:flex'"
     >
       <label class="block">
@@ -64,6 +65,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
         <input v-model="store.name" class="field text-sm font-semibold" type="text" maxlength="80" />
       </label>
       <ScreensaverMediaPanel />
+      <ScreensaverProjectList />
     </aside>
 
     <div

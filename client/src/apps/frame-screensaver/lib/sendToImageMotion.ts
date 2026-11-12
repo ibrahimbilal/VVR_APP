@@ -1,4 +1,3 @@
-import { router } from '../../../app/router'
 import { saveShortsMode } from '../../image-motion-shorts/lib/shortsMode'
 import { useImageMotionStore } from '../../image-motion-shorts/stores/imageMotion'
 import { usePlatformStore } from '../../../stores/platform'
@@ -8,17 +7,14 @@ import { useScreensaverStore } from '../stores/screensaver'
 
 const MAX_IMAGE_BYTES = 80 * 1024 * 1024
 
-export async function sendScreensaverImageToImageMotion(): Promise<void> {
+export async function sendScreensaverImageToImageMotion(_screensaverProjectId?: string): Promise<void> {
   const imageMotion = useImageMotionStore()
   const platform = usePlatformStore()
   try {
     const file = await framedScreensaverFile()
-    await imageMotion.init()
-    const before = imageMotion.segments.length
-    await imageMotion.addFiles([file])
-    if (imageMotion.segments.length === before) return
+    await imageMotion.importFromScreensaver(file)
     saveShortsMode('image-motion')
-    await router.push({ name: 'shorts' })
+    platform.toast('Image added to Image Motion.', 'success')
   } catch (error) {
     platform.toast(error instanceof Error ? error.message : 'Could not send the image to Image Motion.', 'error')
   }

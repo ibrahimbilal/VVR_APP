@@ -33,10 +33,32 @@ import { storeToRefs } from 'pinia'
 import { computed, ref, toRaw, watch } from 'vue'
 import * as api from '../../../lib/api'
 import * as idb from '../../../lib/idb'
+import { titleFromFileName } from '../../../lib/format'
 import { readImageFile, readVideoFile, validateAudioFile, validateImageFile, validateScreensaverVideoFile } from '../../../lib/media'
+import { idleExport, pickDisplayExportState } from '../../../lib/exportState'
 import { useManagedExportJobs } from '../../../lib/managedExportJobs'
 import { pageWasReloaded } from '../../../lib/pageNavigation'
+import { triggerDownload } from '../../../lib/triggerDownload'
 import { usePlatformStore } from '../../../stores/platform'
+import type { ExportState } from '../../../types'
+import {
+  consumePendingScreensaverProject,
+  markScreensaverProjectsReady,
+  onScreensaverProjectOpen,
+  onScreensaverRender,
+  peekScreensaverRenderEvents,
+  takePendingScreensaverProject,
+} from '../lib/screensaverProjectEvents'
+import * as projectLibrary from '../lib/screensaverProjectLibrary'
+import {
+  applyExportToRender,
+  bindRenderTrack,
+  draftRender,
+  isLiveRenderStatus,
+  mediaCountLabel,
+  type ScreensaverRenderEvent,
+  type ScreensaverRenderState,
+} from '../lib/screensaverProjectModel'
 import { composeExportPng } from '../lib/exportComposeWorker'
 import { resolveBuiltinFrameUrl } from '../lib/defaultFrames'
 import { frameImageUrl } from '../lib/frameImageUrl'
@@ -71,6 +93,52 @@ async function fileIsPng(file: File): Promise<boolean> {
 let sourceFile: File | null = null
 let audioFile: File | null = null
 let metaTimer = 0
+let applyingProject = false
+let libraryReady = false
+const exportFingerprints = new Map<string, string>()
+const editStamps = new Map<string, string>()
+
+function editStamp(project: SavedScreensaverProject): string {
+  const { updatedAt: _updatedAt, serverId: _serverId, ...rest } = project
+  return JSON.stringify(rest)
+}
+
+interface ScreensaverProjectSummary {
+  id: string
+  name: string
+  createdAt: number
+  updatedAt: number
+  thumbnail: string | null
+  mediaKind: 'image' | 'video' | null
+  fileName: string
+  sourceWidth: number
+  sourceHeight: number
+  sourceDuration: number | null
+  serverId: string | null
+  durationSeconds: number
+  outputWidth: number
+  outputHeight: number
+  frameId: string
+  audioMode: ScreensaverAudioMode
+  audioFileName: string | null
+  configFingerprint: string
+  render: ScreensaverRenderState
+}
+
+interface SourceUploadStatus {
+  state: 'uploading' | 'ready' | 'error'
+  progress: number
+  error: string | null
+  fileName: string
+  fileSize: number
+  width: number
+  height: number
+  duration: number | null
+}
+
+function projectNameFromFile(file: File): string {
+  return (titleFromFileName(file.name) || 'Untitled screensaver').slice(0, 80)
+}
 
 type ScreensaverExportSnapshot = {
   filename: string
@@ -122,9 +190,16 @@ export const useScreensaverStore = defineStore('screensaver', () => {
   const platform = usePlatformStore()
   const { serverOnline } = storeToRefs(platform)
   const exportQueue = useManagedExportJobs()
-  const lastEnqueuedExportFingerprint = ref<string | null>(null)
 
   const hydrated = ref(false)
+  const projectId = ref('')
+  const createdAt = ref(0)
+  const updatedAt = ref(0)
+  const projectRender = ref<ScreensaverRenderState>(draftRender())
+  const projects = ref<ScreensaverProjectSummary[]>([])
+  const sourceIds = ref<string[]>([])
+  const audioIds = ref<string[]>([])
+  const frameNotice = ref<string | null>(null)
   const name = ref(defaultProject().name)
   const mode = ref<ScreensaverMode>('static')
   const mediaKind = ref<'image' | 'video' | null>(null)
@@ -140,6 +215,7 @@ export const useScreensaverStore = defineStore('screensaver', () => {
   const uploadState = ref<'empty' | 'uploading' | 'ready' | 'error'>('empty')
   const uploadProgress = ref(0)
   const uploadError = ref<string | null>(null)
+  const sourceUploads = ref<Record<string, SourceUploadStatus>>({})
 
   const outputWidth = ref<number>(DEFAULT_SCREENSAVER_OUTPUT.width)
   const outputHeight = ref<number>(DEFAULT_SCREENSAVER_OUTPUT.height)
@@ -180,11 +256,45 @@ export const useScreensaverStore = defineStore('screensaver', () => {
   const subscribeAnimation = ref<SubscribeAnimationSettings>(defaultSubscribeAnimation())
   const subscribeChannelLookupLoading = ref(false)
 
-  const exportState = exportQueue.exportState
+  const liveExportState = computed(() =>
+    pickDisplayExportState(exportQueue.jobs.value.filter((job) => job.projectId === projectId.value)),
+  )
+
+  const exportState = computed<ExportState>(() => {
+    const live = liveExportState.value
+    if (live.phase !== 'idle') return live
+    return exportStateFromSaved(projectRender.value)
+  })
+
   const exporting = exportQueue.exporting
   const activeExportCount = exportQueue.activeExportCount
 
   const durationLabel = computed(() => formatDurationLabel(durationSeconds.value))
+
+  const projectCards = computed(() =>
+    [...projects.value]
+      .filter((item) => item.mediaKind === 'image' || item.mediaKind === 'video')
+      .sort((a, b) => b.updatedAt - a.updatedAt)
+      .map((item) => ({
+        ...item,
+        mediaLabel: mediaCountLabel(item.mediaKind),
+        sourceMissing: item.mediaKind != null && !sourceIds.value.includes(item.id),
+        audioMissing: item.audioMode === 'upload' && !audioIds.value.includes(item.id),
+        frameMissing: frameIsMissing(item.frameId),
+        outputMissing: item.render.outputMissing,
+        live: isLiveRenderStatus(item.render.status),
+        upload: uploadView(item),
+        downloadedUnchanged: Boolean(
+          item.render.downloadedFingerprint &&
+            item.configFingerprint &&
+            item.render.downloadedFingerprint === item.configFingerprint &&
+            !item.render.outputMissing &&
+            !isLiveRenderStatus(item.render.status),
+        ),
+      })),
+  )
+
+  const activeProjectCard = computed(() => projectCards.value.find((item) => item.id === projectId.value) ?? null)
 
   const sizeEstimate = computed(() => {
     const hasOutAudio = audioMode.value === 'upload' || (audioMode.value === 'source' && hasAudio.value)
@@ -265,11 +375,8 @@ export const useScreensaverStore = defineStore('screensaver', () => {
       staticImage: mode.value === 'static' && mediaKind.value === 'image',
     })
     if (subscribeAnimation.value.enabled && !animCheck.ok) return animCheck.message ?? 'Invalid subscribe animation settings.'
-    if (
-      lastEnqueuedExportFingerprint.value !== null &&
-      currentExportFingerprint.value !== '' &&
-      currentExportFingerprint.value === lastEnqueuedExportFingerprint.value
-    ) {
+    const lastFingerprint = exportFingerprints.get(projectId.value)
+    if (lastFingerprint && currentExportFingerprint.value !== '' && currentExportFingerprint.value === lastFingerprint) {
       return DUPLICATE_EXPORT_MESSAGE
     }
     return ''
@@ -303,7 +410,7 @@ export const useScreensaverStore = defineStore('screensaver', () => {
       subscribeAnimation,
     ],
     () => {
-      if (!hydrated.value) return
+      if (!hydrated.value || applyingProject) return
       invalidateCompletedExport()
       window.clearTimeout(metaTimer)
       metaTimer = window.setTimeout(() => {
@@ -342,75 +449,379 @@ export const useScreensaverStore = defineStore('screensaver', () => {
 
   function invalidateCompletedExport() {
     if (!hydrated.value || exporting.value) return
-    if (exportState.value.phase === 'done') exportQueue.clearFinished()
+    if (liveExportState.value.phase === 'done') exportQueue.clearFinished(projectId.value)
   }
 
-  function resetPreviewAfterReload() {
+  function summaryFrom(project: SavedScreensaverProject, render: ScreensaverRenderState): ScreensaverProjectSummary {
+    const now = Date.now()
+    return {
+      id: project.id || '',
+      name: project.name,
+      createdAt: project.createdAt ?? now,
+      updatedAt: project.updatedAt ?? now,
+      thumbnail: project.thumbnail,
+      mediaKind: project.mediaKind,
+      fileName: project.fileName,
+      sourceWidth: project.width,
+      sourceHeight: project.height,
+      sourceDuration: project.sourceDuration,
+      serverId: project.serverId,
+      durationSeconds: project.durationSeconds,
+      outputWidth: project.outputWidth,
+      outputHeight: project.outputHeight,
+      frameId: project.composition?.frameId ?? 'none',
+      audioMode: project.audioMode,
+      audioFileName: project.audioFileName,
+      configFingerprint: project.configFingerprint ?? '',
+      render,
+    }
+  }
+
+  function fingerprintForSaved(project: SavedScreensaverProject, uploadAudio: File | null): string {
+    if (!project.serverId || !project.mediaKind) return ''
+    const animSettings = project.subscribeAnimation
+      ? sanitizeSubscribeAnimation(project.subscribeAnimation)
+      : defaultSubscribeAnimation()
+    const overlay =
+      animSettings.enabled
+        ? subscribeAnimationOverlayOnOutput(project.outputWidth, project.outputHeight, animSettings)
+        : null
+    const composition = project.composition
+      ? clampComposition(project.composition)
+      : compositionForFit(
+          project.fit,
+          project.width || 1,
+          project.height || 1,
+          project.outputWidth,
+          project.outputHeight,
+          project.backgroundColor,
+        )
+    const projectJson: Record<string, unknown> = {
+      filename: project.name.trim() || 'screensaver',
+      mediaId: project.serverId,
+      kind: project.mediaKind,
+      mode: project.mode,
+      width: project.outputWidth,
+      height: project.outputHeight,
+      fps: project.fps,
+      duration: project.durationSeconds,
+      fit: project.fit,
+      loopType: project.loopType,
+      crossfadeSeconds: project.crossfadeSeconds,
+      audioMode: project.audioMode,
+      audioVolume: project.audioVolume,
+      audioFadeIn: project.audioFadeIn,
+      audioFadeOut: project.audioFadeOut,
+      loopAudio: project.loopAudio,
+      backgroundColor: project.backgroundColor,
+      profile: project.profile ?? 'static-fast',
+      encoder: project.encoder ?? 'cpu',
+      composition,
+      subscribeAnimation: overlay
+        ? { ...animSettings, overlayX: overlay.x, overlayY: overlay.y }
+        : animSettings,
+    }
+    return screensaverExportFingerprint(projectJson, project.audioMode === 'upload' ? uploadAudio : null)
+  }
+
+  function uploadView(item: ScreensaverProjectSummary) {
+    const live = sourceUploads.value[item.id]
+    const missing = item.mediaKind != null && !sourceIds.value.includes(item.id)
+    if (live && !missing) {
+      return {
+        state: live.state,
+        progress: live.progress,
+        error: live.error,
+        fileName: live.fileName || item.fileName,
+        fileSize: live.fileSize,
+        width: live.width || item.sourceWidth,
+        height: live.height || item.sourceHeight,
+        duration: live.duration ?? item.sourceDuration,
+      }
+    }
+    if (missing) {
+      return {
+        state: 'error' as const,
+        progress: 0,
+        error: 'The source file is no longer available.',
+        fileName: item.fileName,
+        fileSize: null,
+        width: item.sourceWidth,
+        height: item.sourceHeight,
+        duration: item.sourceDuration,
+      }
+    }
+    if (!item.serverId) {
+      return {
+        state: 'error' as const,
+        progress: 0,
+        error: 'Upload did not finish.',
+        fileName: item.fileName,
+        fileSize: null,
+        width: item.sourceWidth,
+        height: item.sourceHeight,
+        duration: item.sourceDuration,
+      }
+    }
+    return {
+      state: 'ready' as const,
+      progress: 1,
+      error: null,
+      fileName: item.fileName,
+      fileSize: live?.fileSize ?? null,
+      width: item.sourceWidth,
+      height: item.sourceHeight,
+      duration: item.sourceDuration,
+    }
+  }
+
+  function rememberUpload(id: string, status: SourceUploadStatus) {
+    sourceUploads.value = { ...sourceUploads.value, [id]: status }
+  }
+
+  function patchUpload(id: string, patch: Partial<SourceUploadStatus>) {
+    const current = sourceUploads.value[id]
+    if (!current) return
+    rememberUpload(id, { ...current, ...patch })
+  }
+
+  function forgetUpload(id: string) {
+    if (!sourceUploads.value[id]) return
+    const next = { ...sourceUploads.value }
+    delete next[id]
+    sourceUploads.value = next
+  }
+
+  function upsertSummary(summary: ScreensaverProjectSummary) {
+    projects.value = [...projects.value.filter((item) => item.id !== summary.id), summary]
+  }
+
+  function rememberId(list: typeof sourceIds, id: string) {
+    if (!list.value.includes(id)) list.value = [...list.value, id]
+  }
+
+  function forgetId(list: typeof sourceIds, id: string) {
+    list.value = list.value.filter((item) => item !== id)
+  }
+
+  function frameIsMissing(frameId: string): boolean {
+    if (!framesLoaded.value || !frameId || frameId === 'none' || isBuiltinFrameId(frameId)) return false
+    return !frames.value.some((frame) => frame.id === frameId)
+  }
+
+  function detachMedia() {
     clearSourceUrls()
     sourceFile = null
-    serverId.value = null
-    fileName.value = ''
-    sourceFileSize.value = null
-    mediaKind.value = null
-    width.value = 0
-    height.value = 0
-    thumbnail.value = null
-    sourceDuration.value = null
-    hasAudio.value = false
-    uploadState.value = 'empty'
-    uploadProgress.value = 0
-    uploadError.value = null
-    frameImage.value = null
-    if (composition.value.frameId !== 'none') {
-      replaceComposition({ ...composition.value, frameId: 'none' })
-      commitComposition()
+    clearBackgroundAudioInMemory()
+  }
+
+  function applyRenderEvent(event: ScreensaverRenderEvent) {
+    const summary = projects.value.find((item) => item.id === event.projectId)
+    if (!summary) return
+    const next = applyExportToRender(summary.render, event)
+    if (!next) return
+    upsertSummary({ ...summary, render: next })
+    if (event.projectId === projectId.value) projectRender.value = next
+    void projectLibrary.saveScreensaverRenderState(event.projectId, next).catch(() => undefined)
+  }
+
+  function adoptTrack(id: string, trackId: string) {
+    const summary = projects.value.find((item) => item.id === id)
+    const next = bindRenderTrack(summary?.render ?? projectRender.value, trackId)
+    if (summary) upsertSummary({ ...summary, render: next })
+    if (id === projectId.value) projectRender.value = next
+    void projectLibrary.saveScreensaverRenderState(id, next).catch(() => undefined)
+  }
+
+  async function flushPersist() {
+    window.clearTimeout(metaTimer)
+    if (!hydrated.value || applyingProject || !projectId.value) return
+    await persistMeta()
+  }
+
+  async function restoreProjectMedia(id: string) {
+    frameNotice.value = null
+    const stored = await projectLibrary.loadScreensaverProjectFile(id, 'source')
+    if (stored) {
+      sourceFile = new File([stored.blob], stored.name, { type: stored.type || 'application/octet-stream' })
+      objectUrl.value = URL.createObjectURL(sourceFile)
+      fileName.value = stored.name
+      sourceFileSize.value = sourceFile.size
+      uploadState.value = 'uploading'
+      uploadError.value = null
+      rememberId(sourceIds, id)
+      const live = sourceUploads.value[id]
+      if (live?.state === 'uploading') {
+        uploadState.value = 'uploading'
+        uploadProgress.value = live.progress
+        uploadError.value = live.error
+      } else {
+        void resumeUpload()
+      }
+    } else if (mediaKind.value) {
+      sourceFile = null
+      clearSourceUrls()
+      forgetId(sourceIds, id)
+      uploadState.value = 'error'
+      uploadError.value = 'The source file is no longer available.'
+    } else {
+      uploadState.value = 'empty'
+      uploadError.value = null
     }
-    if (audioUrl.value) URL.revokeObjectURL(audioUrl.value)
-    audioFile = null
-    audioUrl.value = null
-    audioFileName.value = null
-    audioFileSize.value = null
-    audioMode.value = 'none'
+
+    const savedAudioName = audioFileName.value
+    const wantsUpload = audioMode.value === 'upload' || Boolean(savedAudioName)
+    const audio = await projectLibrary.loadScreensaverProjectFile(id, 'audio')
+    if (audio && wantsUpload) {
+      clearBackgroundAudioInMemory()
+      audioFile = new File([audio.blob], audio.name, { type: audio.type || 'audio/mpeg' })
+      audioUrl.value = URL.createObjectURL(audioFile)
+      audioFileName.value = audio.name
+      audioFileSize.value = audioFile.size
+      audioMode.value = 'upload'
+      rememberId(audioIds, id)
+      return
+    }
+    clearBackgroundAudioInMemory()
+    if (wantsUpload) {
+      audioMode.value = 'upload'
+      audioFileName.value = savedAudioName
+      forgetId(audioIds, id)
+    }
+  }
+
+  async function refreshRenderRecord(id: string, render: ScreensaverRenderState): Promise<ScreensaverRenderState> {
+    if (render.status !== 'queued' && render.status !== 'rendering') {
+      if (render.status !== 'completed' || !render.jobId || render.outputMissing) return render
+      try {
+        const job = await api.fetchJob(render.jobId)
+        if (!job || job.status !== 'done') return { ...render, outputMissing: true }
+      } catch {
+        return render
+      }
+      return render
+    }
+    const waiting = { ...render, trackId: null }
+    if (!render.jobId) return waiting
+    try {
+      const job = await api.fetchJob(render.jobId)
+      if (!job) {
+        return { ...waiting, status: 'failed', error: 'The render is no longer on the server.' }
+      }
+      if (job.status === 'done') {
+        return {
+          ...waiting,
+          status: 'completed',
+          progress: 1,
+          jobId: job.id,
+          outputUrl: `/api/jobs/${job.id}/download`,
+          outputFilename: render.outputFilename || `${job.downloadName || 'screensaver'}.mp4`,
+          outputMissing: false,
+          error: null,
+        }
+      }
+      if (job.status === 'error') return { ...waiting, status: 'failed', error: job.error || 'Export failed.' }
+      if (job.status === 'cancelled') return { ...waiting, status: 'cancelled', error: null }
+      return {
+        ...waiting,
+        status: job.status === 'queued' ? 'queued' : 'rendering',
+        progress: job.progress,
+        jobId: job.id,
+      }
+    } catch {
+      return waiting
+    }
+  }
+
+  async function refreshStoredRenders() {
+    for (const summary of [...projects.value]) {
+      const next = await refreshRenderRecord(summary.id, summary.render)
+      if (next === summary.render) continue
+      upsertSummary({ ...summary, render: next })
+      if (summary.id === projectId.value) projectRender.value = next
+      void projectLibrary.saveScreensaverRenderState(summary.id, next).catch(() => undefined)
+    }
+  }
+
+  async function loadProjectIntoEditor(id: string): Promise<boolean> {
+    const saved = await projectLibrary.loadScreensaverProjectRecord(id)
+    if (!saved?.id) return false
+    applyingProject = true
+    detachMedia()
+    applySaved(saved)
+    projectId.value = saved.id
+    createdAt.value = saved.createdAt ?? Date.now()
+    updatedAt.value = saved.updatedAt ?? createdAt.value
+    const summary = projects.value.find((item) => item.id === saved.id)
+    let render = summary?.render ?? draftRender()
+    if (isLiveRenderStatus(render.status)) render = { ...render, trackId: null }
+    projectRender.value = render
+    await restoreProjectMedia(saved.id)
+    if (frameIsMissing(composition.value.frameId)) {
+      frameNotice.value = 'The selected frame is no longer on the server.'
+      replaceComposition({ ...composition.value, frameId: 'none' })
+    }
+    seedEditStamp()
+    applyingProject = false
+    if (frameNotice.value) await persistMeta()
+    await projectLibrary.saveScreensaverActiveId(saved.id).catch(() => undefined)
+    return true
   }
 
   async function init() {
-    if (hydrated.value) return
-    const reload = pageWasReloaded()
-    if (reload) {
+    if (hydrated.value) {
+      const pending = takePendingScreensaverProject()
+      if (pending) await openProject(pending)
+      return
+    }
+    if (pageWasReloaded()) {
       exportQueue.cancelAll()
       exportQueue.clearFinished()
     }
     await platform.refreshServer()
     void loadEncoders()
-    if (reload) {
-      await idb.clearScreensaverPreviewCache().catch(() => undefined)
-    }
     try {
-      const saved = await idb.loadScreensaverProject<SavedScreensaverProject>()
-      if (saved && (saved.version === 1 || saved.version === 2)) {
-        applySaved(saved)
-        if (reload) {
-          resetPreviewAfterReload()
-          void persistMeta()
-        } else {
-          const stored = await idb.loadScreensaverSource()
-          if (stored) {
-            sourceFile = new File([stored.blob], stored.name, { type: stored.type })
-            objectUrl.value = URL.createObjectURL(sourceFile)
-            fileName.value = stored.name
-            sourceFileSize.value = sourceFile.size
-            uploadState.value = 'uploading'
-            void resumeUpload()
-          }
-          await restoreBackgroundAudio()
-        }
+      const library = await projectLibrary.loadScreensaverLibrary()
+      sourceIds.value = [...library.sourceIds]
+      audioIds.value = [...library.audioIds]
+      projects.value = library.projects
+        .filter((project) => project.id)
+        .map((project) => summaryFrom(project, library.renders.get(project.id!) ?? draftRender()))
+      let id = library.activeId
+      if (!id || !projects.value.some((item) => item.id === id)) {
+        id = [...projects.value].sort((a, b) => b.updatedAt - a.updatedAt)[0]?.id ?? null
       }
+      if (!id) {
+        const now = Date.now()
+        projectId.value = crypto.randomUUID()
+        createdAt.value = now
+        updatedAt.value = now
+        projectRender.value = draftRender()
+        resetToDefaults()
+        await persistMeta()
+        await projectLibrary.saveScreensaverRenderState(projectId.value, projectRender.value)
+        await projectLibrary.saveScreensaverActiveId(projectId.value)
+      } else {
+        await loadProjectIntoEditor(id)
+      }
+      await refreshStoredRenders()
     } catch {
-      toast('The saved screensaver project could not be restored.')
+      toast('The saved screensaver projects could not be restored.')
+      if (!projectId.value) {
+        projectId.value = crypto.randomUUID()
+        createdAt.value = Date.now()
+        updatedAt.value = createdAt.value
+        resetToDefaults()
+      }
     } finally {
+      const pending = takePendingScreensaverProject()
+      libraryReady = true
+      markScreensaverProjectsReady()
       hydrated.value = true
       ensureServerUploadCleanupOnClose()
       void loadFrames()
+      for (const event of peekScreensaverRenderEvents()) applyRenderEvent(event)
+      if (pending && pending !== projectId.value) await openProject(pending)
     }
   }
 
@@ -424,8 +835,10 @@ export const useScreensaverStore = defineStore('screensaver', () => {
         !isBuiltinFrameId(composition.value.frameId) &&
         !saved.some((frame) => frame.id === composition.value.frameId)
       ) {
+        frameNotice.value = 'The selected frame is no longer on the server.'
         replaceComposition({ ...composition.value, frameId: 'none' })
         commitComposition()
+        toast(frameNotice.value, 'info')
       }
       await syncFrameImage(composition.value.frameId)
     } catch {
@@ -481,6 +894,7 @@ export const useScreensaverStore = defineStore('screensaver', () => {
 
   function selectFrame(id: string) {
     const frameId = composition.value.frameId === id ? 'none' : id
+    frameNotice.value = null
     replaceComposition({ ...composition.value, frameId })
     commitComposition()
   }
@@ -527,18 +941,25 @@ export const useScreensaverStore = defineStore('screensaver', () => {
     profile.value = isScreensaverProfile(saved.profile) ? saved.profile : 'balanced'
     encoder.value = isEncoderChoice(saved.encoder) ? saved.encoder : 'cpu'
     composition.value =
-      saved.version === 2 && saved.composition
+      saved.version !== 1 && saved.composition
         ? clampComposition(saved.composition)
         : compositionForFit(saved.fit, saved.width, saved.height, saved.outputWidth, saved.outputHeight, saved.backgroundColor)
-    subscribeAnimation.value = defaultSubscribeAnimation()
+    subscribeAnimation.value = saved.subscribeAnimation
+      ? sanitizeSubscribeAnimation(saved.subscribeAnimation)
+      : defaultSubscribeAnimation()
     history.value = [cloneComposition(composition.value)]
     historyIndex.value = 0
     uploadState.value = saved.serverId ? 'uploading' : saved.mediaKind ? 'error' : 'empty'
   }
 
-  async function persistMeta() {
-    const payload: SavedScreensaverProject = {
-      version: 2,
+  function buildProjectRecord(): SavedScreensaverProject {
+    const now = Date.now()
+    if (!createdAt.value) createdAt.value = now
+    return {
+      version: 3,
+      id: projectId.value,
+      createdAt: createdAt.value,
+      updatedAt: updatedAt.value,
       name: name.value,
       mode: mode.value,
       mediaKind: mediaKind.value,
@@ -567,21 +988,51 @@ export const useScreensaverStore = defineStore('screensaver', () => {
       profile: profile.value,
       encoder: encoder.value,
       composition: cloneComposition(composition.value),
+      subscribeAnimation: sanitizeSubscribeAnimation(subscribeAnimation.value),
     }
-    await idb.saveScreensaverProject(payload).catch(() => undefined)
+  }
+
+  function seedEditStamp() {
+    const id = projectId.value
+    if (!id) return
+    editStamps.set(id, editStamp(buildProjectRecord()))
+  }
+
+  async function persistMeta() {
+    if (!projectId.value) return
+    const payload = buildProjectRecord()
+    const stamp = editStamp(payload)
+    const id = payload.id || projectId.value
+    if (editStamps.get(id) !== stamp) {
+      const now = Date.now()
+      payload.updatedAt = now
+      updatedAt.value = now
+    }
+    editStamps.set(id, stamp)
+    payload.configFingerprint =
+      currentExportFingerprint.value || fingerprintForSaved(payload, audioMode.value === 'upload' ? audioFile : null)
+    await projectLibrary.saveScreensaverProjectRecord(payload).catch(() => undefined)
+    upsertSummary(summaryFrom(payload, projectRender.value))
+    await projectLibrary.saveScreensaverActiveId(projectId.value).catch(() => undefined)
+  }
+
+  async function sourceKind(file: File): Promise<'image' | 'video' | null> {
+    const videoErr = validateScreensaverVideoFile(file)
+    if (!videoErr) return 'video'
+    const imageErr = await validateImageFile(file)
+    if (!imageErr) return 'image'
+    toast(videoErr || imageErr || 'This file type is not supported.')
+    return null
   }
 
   async function pickSource(file: File) {
-    const videoErr = validateScreensaverVideoFile(file)
-    const imageErr = await validateImageFile(file)
-    let kind: 'image' | 'video'
-    if (!videoErr) kind = 'video'
-    else if (!imageErr) kind = 'image'
-    else {
-      toast(videoErr || imageErr || 'This file type is not supported.')
-      return
-    }
+    const kind = await sourceKind(file)
+    if (!kind) return
+    await attachSourceToActive(file, kind)
+  }
 
+  async function attachSourceToActive(file: File, kind: 'image' | 'video') {
+    const id = projectId.value
     clearSourceUrls()
     sourceFile = file
     fileName.value = file.name
@@ -595,14 +1046,28 @@ export const useScreensaverStore = defineStore('screensaver', () => {
       profile.value = 'animated'
       fps.value = 30
     }
+    if (name.value.trim() === defaultProject().name) name.value = projectNameFromFile(file)
     objectUrl.value = URL.createObjectURL(file)
     uploadState.value = 'uploading'
     uploadProgress.value = 0
     uploadError.value = null
     serverId.value = null
-    void idb.saveScreensaverSource(file).catch(() => {
-      toast('Could not save a local copy of this file.', 'info')
-    })
+    if (id) {
+      rememberId(sourceIds, id)
+      rememberUpload(id, {
+        state: 'uploading',
+        progress: 0,
+        error: null,
+        fileName: file.name,
+        fileSize: file.size,
+        width: 0,
+        height: 0,
+        duration: null,
+      })
+      void projectLibrary.saveScreensaverProjectFile(id, 'source', file).catch(() => {
+        toast('Could not save a local copy of this file.', 'info')
+      })
+    }
     if (kind === 'image') {
       const meta = await readImageFile(objectUrl.value)
       if (meta) {
@@ -612,6 +1077,7 @@ export const useScreensaverStore = defineStore('screensaver', () => {
         sourceDuration.value = null
         hasAudio.value = false
         placeForSource()
+        if (id) patchUpload(id, { width: meta.width, height: meta.height, duration: null })
       }
     } else {
       const meta = await readVideoFile(objectUrl.value)
@@ -622,60 +1088,231 @@ export const useScreensaverStore = defineStore('screensaver', () => {
         sourceDuration.value = meta.duration
         hasAudio.value = true
         placeForSource()
+        if (id) patchUpload(id, { width: meta.width, height: meta.height, duration: meta.duration })
       }
     }
-    void uploadSource()
+    if (id) {
+      void persistMeta()
+      void uploadProjectFile(id, file)
+    }
+  }
+
+  async function addSourceFiles(files: File[]) {
+    if (!files.length) return
+    if (!hydrated.value) await init()
+    const accepted: { file: File; kind: 'image' | 'video' }[] = []
+    for (const file of files) {
+      const kind = await sourceKind(file)
+      if (kind) accepted.push({ file, kind })
+    }
+    if (!accepted.length) return
+
+    const fillCurrent = !mediaKind.value && Boolean(projectId.value)
+    if (fillCurrent) {
+      const [first, ...rest] = accepted
+      if (!first) return
+      await attachSourceToActive(first.file, first.kind)
+      for (const item of rest) await createDetachedProject(item.file, item.kind)
+      return
+    }
+
+    await flushPersist()
+    const created: string[] = []
+    for (const item of accepted) created.push(await createDetachedProject(item.file, item.kind))
+    const openId = created[created.length - 1]
+    if (openId) await openProject(openId)
+  }
+
+  async function createDetachedProject(file: File, kind: 'image' | 'video'): Promise<string> {
+    const id = crypto.randomUUID()
+    const now = Date.now()
+    const defaults = defaultProject()
+    const previewUrl = URL.createObjectURL(file)
+    let sourceWidth = 0
+    let sourceHeight = 0
+    let thumbnail: string | null = null
+    let sourceDuration: number | null = null
+    let hasSourceAudio = false
+    if (kind === 'image') {
+      const meta = await readImageFile(previewUrl)
+      if (meta) {
+        sourceWidth = meta.width
+        sourceHeight = meta.height
+        thumbnail = meta.thumbnail
+      }
+    } else {
+      const meta = await readVideoFile(previewUrl)
+      if (meta) {
+        sourceWidth = meta.width
+        sourceHeight = meta.height
+        thumbnail = meta.thumbnail
+        sourceDuration = meta.duration
+        hasSourceAudio = true
+      }
+    }
+    URL.revokeObjectURL(previewUrl)
+
+    const payload: SavedScreensaverProject = {
+      ...defaults,
+      version: 3,
+      id,
+      createdAt: now,
+      updatedAt: now,
+      name: projectNameFromFile(file),
+      mode: kind === 'image' ? 'static' : 'loop',
+      mediaKind: kind,
+      fileName: file.name,
+      width: sourceWidth,
+      height: sourceHeight,
+      sourceDuration,
+      hasAudio: hasSourceAudio,
+      thumbnail,
+      fps: kind === 'image' ? 1 : 30,
+      profile: kind === 'image' ? 'static-fast' : 'animated',
+      encoder: 'cpu',
+      composition: compositionForFit(
+        'contain',
+        sourceWidth || 1,
+        sourceHeight || 1,
+        defaults.outputWidth,
+        defaults.outputHeight,
+        defaults.backgroundColor,
+      ),
+      subscribeAnimation: sanitizeSubscribeAnimation(defaultSubscribeAnimation()),
+    }
+    await projectLibrary.saveScreensaverProjectRecord(payload)
+    await projectLibrary.saveScreensaverRenderState(id, draftRender())
+    await projectLibrary.saveScreensaverProjectFile(id, 'source', file)
+    rememberId(sourceIds, id)
+    rememberUpload(id, {
+      state: 'uploading',
+      progress: 0,
+      error: null,
+      fileName: file.name,
+      fileSize: file.size,
+      width: sourceWidth,
+      height: sourceHeight,
+      duration: sourceDuration,
+    })
+    upsertSummary(summaryFrom(payload, draftRender()))
+    void uploadProjectFile(id, file)
+    return id
   }
 
   async function hasBlockingSource(): Promise<boolean> {
     if (hydrated.value) return mediaKind.value === 'image' || mediaKind.value === 'video'
-    const stored = await idb.loadScreensaverSource()
+    const library = await projectLibrary.loadScreensaverLibrary()
+    const id = library.activeId
+    if (!id) return false
+    const stored = await projectLibrary.loadScreensaverProjectFile(id, 'source')
     if (stored?.blob) return true
-    const saved = await idb.loadScreensaverProject<SavedScreensaverProject>()
+    const saved = library.projects.find((project) => project.id === id)
     return saved?.mediaKind === 'image' || saved?.mediaKind === 'video'
   }
 
   async function acceptExternalImage(file: File): Promise<void> {
-    if (!hydrated.value) await init()
-    await pickSource(file)
+    await addSourceFiles([file])
   }
 
-  async function uploadSource() {
-    if (!sourceFile) return
-    uploadState.value = 'uploading'
+  async function uploadProjectFile(id: string, file: File) {
+    const previous = sourceUploads.value[id]
+    rememberUpload(id, {
+      state: 'uploading',
+      progress: previous?.progress ?? 0,
+      error: null,
+      fileName: file.name,
+      fileSize: file.size,
+      width: previous?.width || (id === projectId.value ? width.value : 0),
+      height: previous?.height || (id === projectId.value ? height.value : 0),
+      duration: previous?.duration ?? (id === projectId.value ? sourceDuration.value : null),
+    })
+    if (id === projectId.value) {
+      uploadState.value = 'uploading'
+      uploadError.value = null
+    }
     try {
       if (!serverOnline.value) await platform.refreshServer()
       if (!serverOnline.value) throw new Error('The renderer is offline.')
-      const result = await api.uploadScreensaverMedia(sourceFile, (fraction) => {
-        uploadProgress.value = fraction
+      const result = await api.uploadScreensaverMedia(file, (fraction) => {
+        patchUpload(id, { progress: fraction })
+        if (id === projectId.value) uploadProgress.value = fraction
       })
-      serverId.value = result.id
-      mediaKind.value = result.kind
-      width.value = result.width
-      height.value = result.height
-      sourceDuration.value = result.duration
-      hasAudio.value = result.hasAudio
-      uploadState.value = 'ready'
-      uploadProgress.value = 1
+      patchUpload(id, {
+        state: 'ready',
+        progress: 1,
+        error: null,
+        width: result.width,
+        height: result.height,
+        duration: result.duration,
+      })
+      if (id === projectId.value) {
+        serverId.value = result.id
+        mediaKind.value = result.kind
+        width.value = result.width
+        height.value = result.height
+        sourceDuration.value = result.duration
+        hasAudio.value = result.hasAudio
+        uploadState.value = 'ready'
+        uploadProgress.value = 1
+        return
+      }
+      const saved = await projectLibrary.loadScreensaverProjectRecord(id)
+      if (!saved?.id) return
+      const updated: SavedScreensaverProject = {
+        ...saved,
+        serverId: result.id,
+        mediaKind: result.kind,
+        width: result.width,
+        height: result.height,
+        sourceDuration: result.duration,
+        hasAudio: result.hasAudio,
+      }
+      await projectLibrary.saveScreensaverProjectRecord(updated)
+      const summary = projects.value.find((item) => item.id === id)
+      if (summary) {
+        upsertSummary({
+          ...summary,
+          mediaKind: result.kind,
+          serverId: result.id,
+          sourceWidth: result.width,
+          sourceHeight: result.height,
+          sourceDuration: result.duration,
+        })
+      }
     } catch (error) {
-      uploadState.value = 'error'
-      uploadError.value = error instanceof Error ? error.message : 'Upload failed.'
-      toast(uploadError.value)
+      const message = error instanceof Error ? error.message : 'Upload failed.'
+      patchUpload(id, { state: 'error', error: message })
+      if (id === projectId.value) {
+        uploadState.value = 'error'
+        uploadError.value = message
+      }
+      toast(message)
     }
   }
 
   async function resumeUpload() {
-    if (!sourceFile) {
+    const id = projectId.value
+    if (!sourceFile || !id) {
       uploadState.value = 'error'
       return
     }
     if (serverId.value && (await api.clipExists(serverId.value))) {
       uploadState.value = 'ready'
       uploadProgress.value = 1
+      rememberUpload(id, {
+        state: 'ready',
+        progress: 1,
+        error: null,
+        fileName: fileName.value,
+        fileSize: sourceFile.size,
+        width: width.value,
+        height: height.value,
+        duration: sourceDuration.value,
+      })
       return
     }
     serverId.value = null
-    await uploadSource()
+    await uploadProjectFile(id, sourceFile)
   }
 
   function removeSource() {
@@ -691,7 +1328,12 @@ export const useScreensaverStore = defineStore('screensaver', () => {
     hasAudio.value = false
     thumbnail.value = null
     uploadState.value = 'empty'
-    void idb.clearScreensaverSource().catch(() => undefined)
+    uploadError.value = null
+    if (projectId.value) {
+      forgetId(sourceIds, projectId.value)
+      forgetUpload(projectId.value)
+      void idb.deleteScreensaverKeys([idb.screensaverSourceKey(projectId.value)]).catch(() => undefined)
+    }
   }
 
   function resetToDefaults(): void {
@@ -738,14 +1380,37 @@ export const useScreensaverStore = defineStore('screensaver', () => {
     subscribeAnimation.value = defaultSubscribeAnimation()
   }
 
+  function isPristineDraft(): boolean {
+    if (mediaKind.value || audioFileName.value) return false
+    if (projectRender.value.status !== 'draft') return false
+    return name.value.trim() === defaultProject().name
+  }
+
   async function newProject(): Promise<void> {
-    const hasWork = mediaKind.value !== null || audioFileName.value !== null
-    if (hasWork && !window.confirm('Start a new project? The current source and settings will be cleared.')) return
-    removeSource()
-    clearAudio()
+    if (!hydrated.value) return
+    await flushPersist()
+    if (isPristineDraft()) {
+      applyingProject = true
+      detachMedia()
+      resetToDefaults()
+      frameNotice.value = null
+      applyingProject = false
+      await persistMeta()
+      return
+    }
+    const id = crypto.randomUUID()
+    const now = Date.now()
+    applyingProject = true
+    detachMedia()
     resetToDefaults()
-    lastEnqueuedExportFingerprint.value = null
-    await idb.clearScreensaverProject().catch(() => undefined)
+    projectId.value = id
+    createdAt.value = now
+    updatedAt.value = now
+    projectRender.value = draftRender()
+    frameNotice.value = null
+    applyingProject = false
+    await persistMeta()
+    await projectLibrary.saveScreensaverRenderState(id, projectRender.value).catch(() => undefined)
   }
 
   function clearSourceUrls() {
@@ -776,25 +1441,6 @@ export const useScreensaverStore = defineStore('screensaver', () => {
     audioFileSize.value = null
   }
 
-  async function restoreBackgroundAudio(): Promise<void> {
-    const wantsUpload = audioMode.value === 'upload' || Boolean(audioFileName.value)
-    const audio = await idb.loadScreensaverAudio()
-    if (audio && wantsUpload) {
-      clearBackgroundAudioInMemory()
-      audioFile = new File([audio.blob], audio.name, { type: audio.type || 'audio/mpeg' })
-      audioUrl.value = URL.createObjectURL(audioFile)
-      audioFileName.value = audio.name
-      audioFileSize.value = audioFile.size
-      audioMode.value = 'upload'
-      return
-    }
-    if (audio && !wantsUpload) {
-      void idb.clearScreensaverAudio().catch(() => undefined)
-    }
-    clearBackgroundAudioInMemory()
-    if (audioMode.value === 'upload') audioMode.value = 'none'
-  }
-
   async function setAudioFile(file: File) {
     const problem = validateAudioFile(file)
     if (problem) {
@@ -802,7 +1448,10 @@ export const useScreensaverStore = defineStore('screensaver', () => {
       return
     }
     try {
-      await idb.saveScreensaverAudio(file)
+      if (projectId.value) {
+        await projectLibrary.saveScreensaverProjectFile(projectId.value, 'audio', file)
+        rememberId(audioIds, projectId.value)
+      }
     } catch {
       toast('Could not save audio locally. It will work until you refresh.', 'info')
     }
@@ -817,7 +1466,10 @@ export const useScreensaverStore = defineStore('screensaver', () => {
   function clearAudio() {
     clearBackgroundAudioInMemory()
     if (audioMode.value === 'upload') audioMode.value = 'none'
-    void idb.clearScreensaverAudio().catch(() => undefined)
+    if (projectId.value) {
+      forgetId(audioIds, projectId.value)
+      void idb.deleteScreensaverKeys([idb.screensaverAudioKey(projectId.value)]).catch(() => undefined)
+    }
   }
 
   function placeForSource() {
@@ -1077,11 +1729,14 @@ export const useScreensaverStore = defineStore('screensaver', () => {
     const snapshotAnimSettings = animSettings
     const snapshotAudioFile = audioMode.value === 'upload' ? audioFile : null
 
+    const capturedProjectId = projectId.value
     if (
       exportQueue.enqueue({
         app: 'screensaver',
         displayName,
         downloadFilename: `${filename}.mp4`,
+        projectId: capturedProjectId,
+        onTrack: (trackId) => adoptTrack(capturedProjectId, trackId),
         toast,
         onError: (text) => toast(text, 'error'),
         submit: async (signal, onUpdate) => {
@@ -1120,7 +1775,7 @@ export const useScreensaverStore = defineStore('screensaver', () => {
         },
       })
     ) {
-      lastEnqueuedExportFingerprint.value = currentExportFingerprint.value
+      exportFingerprints.set(capturedProjectId, currentExportFingerprint.value)
     }
   }
 
@@ -1133,6 +1788,281 @@ export const useScreensaverStore = defineStore('screensaver', () => {
     void startExport()
   }
 
+  function exportStateFromSaved(render: ScreensaverRenderState): ExportState {
+    const base = idleExport()
+    if (render.status === 'draft') return base
+    const phase =
+      render.status === 'queued'
+        ? 'queued'
+        : render.status === 'rendering'
+          ? 'rendering'
+          : render.status === 'completed'
+            ? 'done'
+            : render.status === 'failed'
+              ? 'error'
+              : 'cancelled'
+    return {
+      ...base,
+      phase,
+      progress: render.progress,
+      message:
+        render.error ||
+        (phase === 'done' ? 'Export complete.' : phase === 'error' ? 'Export failed.' : phase === 'cancelled' ? 'Export cancelled.' : 'Rendering…'),
+      error: render.status === 'failed' ? render.error : null,
+      downloadUrl: render.outputMissing ? null : render.outputUrl,
+      jobId: render.jobId,
+    }
+  }
+
+  async function openProject(id: string): Promise<boolean> {
+    consumePendingScreensaverProject(id)
+    if (id === projectId.value) {
+      if (!projects.value.some((item) => item.id === id)) await persistMeta()
+      return true
+    }
+    if (!projects.value.some((item) => item.id === id)) {
+      const saved = await projectLibrary.loadScreensaverProjectRecord(id)
+      if (!saved?.id) {
+        toast('That screensaver project is no longer available.')
+        return false
+      }
+      const render = (await projectLibrary.loadScreensaverRenderState(id)) ?? draftRender()
+      upsertSummary(summaryFrom(saved, render))
+    }
+    await flushPersist()
+    const opened = await loadProjectIntoEditor(id)
+    if (!opened) {
+      toast('That screensaver project is no longer available.')
+      return false
+    }
+    const summary = projects.value.find((item) => item.id === id)
+    if (summary) {
+      const next = await refreshRenderRecord(id, summary.render)
+      upsertSummary({ ...summary, render: next })
+      projectRender.value = next
+      void projectLibrary.saveScreensaverRenderState(id, next).catch(() => undefined)
+    }
+    return true
+  }
+
+  async function renameProject(id: string, rawName: string): Promise<void> {
+    const nextName = rawName.trim().slice(0, 80)
+    if (!nextName) {
+      toast('Enter a project name.', 'info')
+      return
+    }
+    if (id === projectId.value) {
+      name.value = nextName
+      return
+    }
+    const saved = await projectLibrary.loadScreensaverProjectRecord(id)
+    if (!saved?.id) {
+      toast('That screensaver project is no longer available.')
+      return
+    }
+    const updated = { ...saved, name: nextName, updatedAt: Date.now() }
+    await projectLibrary.saveScreensaverProjectRecord(updated)
+    const summary = projects.value.find((item) => item.id === id)
+    if (summary) upsertSummary({ ...summary, name: nextName, updatedAt: updated.updatedAt })
+  }
+
+  async function duplicateProject(id: string): Promise<void> {
+    if (id === projectId.value) await flushPersist()
+    const saved = await projectLibrary.loadScreensaverProjectRecord(id)
+    if (!saved?.id) {
+      toast('That screensaver project is no longer available.')
+      return
+    }
+    const copyId = crypto.randomUUID()
+    const now = Date.now()
+    const payload: SavedScreensaverProject = {
+      ...saved,
+      id: copyId,
+      name: `Copy of ${saved.name.trim() || 'Screensaver'}`.slice(0, 80),
+      createdAt: now,
+      updatedAt: now,
+    }
+    await projectLibrary.saveScreensaverProjectRecord(payload)
+    const storedSource = await projectLibrary.loadScreensaverProjectFile(id, 'source')
+    if (storedSource) {
+      const file = new File([storedSource.blob], storedSource.name, { type: storedSource.type })
+      await projectLibrary.saveScreensaverProjectFile(copyId, 'source', file)
+      rememberId(sourceIds, copyId)
+    }
+    const storedAudio = await projectLibrary.loadScreensaverProjectFile(id, 'audio')
+    if (storedAudio) {
+      const file = new File([storedAudio.blob], storedAudio.name, { type: storedAudio.type })
+      await projectLibrary.saveScreensaverProjectFile(copyId, 'audio', file)
+      rememberId(audioIds, copyId)
+    }
+    const render = draftRender()
+    await projectLibrary.saveScreensaverRenderState(copyId, render)
+    upsertSummary(summaryFrom(payload, render))
+    await openProject(copyId)
+  }
+
+  async function deleteProject(id: string): Promise<void> {
+    const summary = projects.value.find((item) => item.id === id)
+    if (summary?.render && isLiveRenderStatus(summary.render.status)) {
+      toast('This project is still rendering. Wait until it finishes before deleting it.', 'info')
+      return
+    }
+    await projectLibrary.deleteScreensaverProjectData(id)
+    forgetId(sourceIds, id)
+    forgetId(audioIds, id)
+    forgetUpload(id)
+    editStamps.delete(id)
+    projects.value = projects.value.filter((item) => item.id !== id)
+    exportFingerprints.delete(id)
+    if (id !== projectId.value) return
+    const next = [...projects.value].sort((a, b) => b.updatedAt - a.updatedAt)[0]
+    if (next) {
+      await loadProjectIntoEditor(next.id)
+      return
+    }
+    const now = Date.now()
+    applyingProject = true
+    detachMedia()
+    resetToDefaults()
+    projectId.value = crypto.randomUUID()
+    createdAt.value = now
+    updatedAt.value = now
+    projectRender.value = draftRender()
+    frameNotice.value = null
+    applyingProject = false
+    await persistMeta()
+    await projectLibrary.saveScreensaverRenderState(projectId.value, projectRender.value).catch(() => undefined)
+  }
+
+  async function deleteAllProjects(): Promise<void> {
+    const removable = projects.value.filter(
+      (item) => (item.mediaKind === 'image' || item.mediaKind === 'video') && !isLiveRenderStatus(item.render.status),
+    )
+    const keptLive = projects.value.some(
+      (item) => (item.mediaKind === 'image' || item.mediaKind === 'video') && isLiveRenderStatus(item.render.status),
+    )
+    if (removable.length === 0) {
+      if (keptLive) toast('Projects that are still rendering were kept.', 'info')
+      return
+    }
+    const removed = new Set(removable.map((item) => item.id))
+    for (const item of removable) {
+      await projectLibrary.deleteScreensaverProjectData(item.id)
+      forgetId(sourceIds, item.id)
+      forgetId(audioIds, item.id)
+      forgetUpload(item.id)
+      editStamps.delete(item.id)
+      exportFingerprints.delete(item.id)
+    }
+    const activeRemoved = removed.has(projectId.value)
+    projects.value = projects.value.filter((item) => !removed.has(item.id))
+    if (keptLive) toast('Projects that are still rendering were kept.', 'info')
+    if (!activeRemoved) return
+    const next = [...projects.value]
+      .filter((item) => item.mediaKind === 'image' || item.mediaKind === 'video')
+      .sort((a, b) => b.updatedAt - a.updatedAt)[0]
+    if (next) {
+      await loadProjectIntoEditor(next.id)
+      return
+    }
+    const now = Date.now()
+    applyingProject = true
+    detachMedia()
+    resetToDefaults()
+    projectId.value = crypto.randomUUID()
+    createdAt.value = now
+    updatedAt.value = now
+    projectRender.value = draftRender()
+    frameNotice.value = null
+    applyingProject = false
+    await persistMeta()
+    await projectLibrary.saveScreensaverRenderState(projectId.value, projectRender.value).catch(() => undefined)
+  }
+
+  async function downloadAllProjectOutputs(): Promise<void> {
+    const ready = projectCards.value.filter(
+      (item) => item.render.outputUrl && !item.outputMissing && item.render.status === 'completed',
+    )
+    if (!ready.length) {
+      toast('No rendered videos are ready to download.', 'info')
+      return
+    }
+    let count = 0
+    for (const item of ready) {
+      if (await downloadProjectOutput(item.id)) count++
+    }
+    if (count > 0) toast(`Downloaded ${count} video${count === 1 ? '' : 's'}.`, 'success')
+    else if (ready.length) toast('Could not download any videos.', 'info')
+  }
+
+  async function downloadProjectOutput(id: string): Promise<boolean> {
+    const summary = projects.value.find((item) => item.id === id)
+    const render = id === projectId.value ? projectRender.value : summary?.render
+    if (!render?.outputUrl || render.outputMissing) {
+      toast('The rendered video is no longer available.')
+      return false
+    }
+    if (render.jobId) {
+      try {
+        const job = await api.fetchJob(render.jobId)
+        if (!job || job.status !== 'done') {
+          const missing = { ...render, outputMissing: true }
+          if (summary) upsertSummary({ ...summary, render: missing })
+          if (id === projectId.value) projectRender.value = missing
+          void projectLibrary.saveScreensaverRenderState(id, missing).catch(() => undefined)
+          toast('The rendered video is no longer available.')
+          return false
+        }
+      } catch {
+        toast('The renderer is offline.', 'info')
+        return false
+      }
+    }
+    triggerDownload(render.outputUrl, render.outputFilename || `${summary?.name || name.value || 'screensaver'}.mp4`)
+    await markProjectDownloaded(id)
+    return true
+  }
+
+  async function markProjectDownloaded(id: string): Promise<void> {
+    let fingerprint = ''
+    if (id === projectId.value) fingerprint = currentExportFingerprint.value
+    if (!fingerprint) {
+      const saved = await projectLibrary.loadScreensaverProjectRecord(id)
+      if (saved?.configFingerprint) fingerprint = saved.configFingerprint
+      else if (saved) {
+        const stored =
+          saved.audioMode === 'upload' ? await projectLibrary.loadScreensaverProjectFile(id, 'audio') : null
+        const uploadAudio = stored
+          ? new File([stored.blob], stored.name, { type: stored.type || 'audio/mpeg' })
+          : null
+        fingerprint = fingerprintForSaved(saved, uploadAudio)
+      }
+    }
+    if (!fingerprint) return
+    const summary = projects.value.find((item) => item.id === id)
+    const renderBase = id === projectId.value ? projectRender.value : summary?.render
+    if (!renderBase) return
+    const render = { ...renderBase, downloadedFingerprint: fingerprint }
+    if (id === projectId.value) projectRender.value = render
+    if (summary) upsertSummary({ ...summary, render, configFingerprint: fingerprint })
+    void projectLibrary.saveScreensaverRenderState(id, render).catch(() => undefined)
+  }
+
+  async function retryProject(id: string): Promise<void> {
+    const summary = projects.value.find((item) => item.id === id)
+    if (summary && isLiveRenderStatus(summary.render.status)) {
+      toast('This project is already rendering.', 'info')
+      return
+    }
+    const opened = await openProject(id)
+    if (!opened) return
+    if (exportBlocker.value) {
+      toast(exportBlocker.value, 'info')
+      return
+    }
+    await startExport()
+  }
+
   function downloadExport() {
     const url = exportState.value.downloadUrl
     if (!url) return
@@ -1141,14 +2071,29 @@ export const useScreensaverStore = defineStore('screensaver', () => {
     anchor.download = `${name.value.trim() || 'screensaver'}.mp4`
     anchor.click()
     toast('Download started.', 'info')
+    void markProjectDownloaded(projectId.value)
   }
 
   function getSourceFile(): File | null {
     return sourceFile
   }
 
+  onScreensaverRender((event) => {
+    if (!libraryReady) return
+    applyRenderEvent(event)
+  })
+
+  onScreensaverProjectOpen((id) => {
+    if (!libraryReady) return
+    void openProject(id)
+  })
+
   return {
     hydrated,
+    projectId,
+    projects: projectCards,
+    activeProjectCard,
+    frameNotice,
     name,
     mode,
     mediaKind,
@@ -1211,6 +2156,15 @@ export const useScreensaverStore = defineStore('screensaver', () => {
     SCREENSAVER_OUTPUTS,
     init,
     newProject,
+    addSourceFiles,
+    openProject,
+    renameProject,
+    duplicateProject,
+    deleteProject,
+    deleteAllProjects,
+    downloadProjectOutput,
+    downloadAllProjectOutputs,
+    retryProject,
     pickSource,
     hasBlockingSource,
     acceptExternalImage,
