@@ -51,7 +51,7 @@ async function confirmDeleteAll() {
       />
     </div>
 
-    <div class="flex shrink-0 items-center justify-between gap-2 border-b border-zinc-800 px-4 py-2">
+    <div class="flex shrink-0 items-center justify-between gap-2 px-4 py-3">
       <h3 class="section-label">Images</h3>
       <button
         class="btn btn-ghost cursor-pointer px-2 py-1 text-xs text-red-300 disabled:cursor-not-allowed disabled:opacity-40"
@@ -66,7 +66,7 @@ async function confirmDeleteAll() {
 
     <div
       ref="listEl"
-      class="min-h-0 flex-1 space-y-2 overflow-y-auto p-3"
+      class="min-h-0 flex-1 space-y-2 overflow-y-auto px-3 pb-3"
       :class="{ 'card-reorder-instant': instant }"
     >
       <p v-if="store.segments.length === 0" class="px-2 py-8 text-center text-sm text-zinc-500">

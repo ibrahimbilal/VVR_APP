@@ -17,6 +17,7 @@ export interface LocalUpscaleItem {
   outputName: string | null
   outputBytes: number | null
   outputRevision: number | null
+  downloadedRevision: number | null
   outputWidth: number | null
   outputHeight: number | null
   intermediateWidth: number | null

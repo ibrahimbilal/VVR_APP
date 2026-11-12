@@ -41,6 +41,7 @@ Reuse these instead of copying color and radius values:
 - `.page-enter-*` / `.page-leave-*` — `RouterView` transition in `App.vue`.
 - `.drawer-scrim-enter` / `.drawer-panel-enter` — mobile nav open.
 - `.notif-panel-enter` — header notification panel open.
+- `.dialog-enter-*` / `.dialog-leave-*` — `AppDialog` backdrop fade and card rise.
 - `.notif-item-*` — notification row enter/leave/move (`TransitionGroup name="notif-item"`); leave is fade-left with dark red background.
 - `.settings-accordion__*` — expand/collapse used by `SettingsAccordion`.
 - `.settings-reveal` / `.settings-reveal__inner` — toggle-driven expand/collapse (Thumbnail Show badge, Screensaver Enable subscribe animation).

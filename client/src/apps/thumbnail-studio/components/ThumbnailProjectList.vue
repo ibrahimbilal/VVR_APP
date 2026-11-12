@@ -114,7 +114,7 @@ async function downloadAll() {
 
 <template>
   <section class="flex min-h-0 flex-1 flex-col">
-    <div class="mb-3 flex shrink-0 items-center justify-between gap-2">
+    <div class="flex shrink-0 items-center justify-between gap-2 px-4 py-3">
       <h3 class="section-label">Projects</h3>
       <button
         class="btn btn-ghost cursor-pointer px-2 py-1 text-xs text-red-300 disabled:cursor-not-allowed disabled:opacity-40"
@@ -127,15 +127,17 @@ async function downloadAll() {
       </button>
     </div>
 
-    <div class="min-h-0 flex-1 space-y-2 overflow-y-auto">
-      <p v-if="store.projects.length === 0" class="text-sm text-zinc-500">Drop an image to create a project.</p>
+    <div class="min-h-0 flex-1 space-y-2 overflow-y-auto px-3 pb-3">
+      <p v-if="store.projects.length === 0" class="px-2 py-8 text-center text-sm text-zinc-500">
+        Drop an image to create a project.
+      </p>
 
       <article
         v-for="project in store.projects"
         :key="project.id"
         class="cursor-pointer rounded-lg border bg-inset p-2 transition-opacity"
         :class="[
-          project.id === store.projectId ? 'border-brand' : 'border-zinc-800',
+          project.id === store.projectId ? 'border-zinc-200' : 'border-zinc-800',
           project.downloadedUnchanged ? 'opacity-50' : 'opacity-100',
         ]"
         :data-project-id="project.id"
@@ -165,7 +167,7 @@ async function downloadAll() {
             @focus="showUploadInfo($event, project.id)"
             @blur="hideUploadInfo"
           >
-            <Info :size="15" />
+            <Info :size="16" />
           </button>
           <button
             class="rounded-sm inline-flex size-7 cursor-pointer items-center justify-center bg-transparent text-zinc-300 hover:bg-white/10 hover:text-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand"
@@ -174,7 +176,7 @@ async function downloadAll() {
             title="Rename"
             @click="startRename(project.id, project.name)"
           >
-            <Pencil :size="15" />
+            <Pencil :size="16" />
           </button>
           <button
             class="rounded-sm inline-flex size-7 cursor-pointer items-center justify-center bg-transparent text-zinc-300 hover:bg-white/10 hover:text-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand"
@@ -183,7 +185,7 @@ async function downloadAll() {
             title="Duplicate"
             @click="store.duplicateProject(project.id)"
           >
-            <Copy :size="15" />
+            <Copy :size="16" />
           </button>
           <button
             class="rounded-sm inline-flex size-7 cursor-pointer items-center justify-center bg-transparent text-zinc-300 hover:bg-white/10 hover:text-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand"
@@ -192,7 +194,7 @@ async function downloadAll() {
             title="Download"
             @click="store.downloadProject(project.id)"
           >
-            <Download :size="15" />
+            <Download :size="16" />
           </button>
           <button
             class="ml-auto rounded-sm inline-flex size-7 cursor-pointer items-center justify-center bg-transparent text-red-300 hover:bg-red-500/10 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand"
@@ -201,15 +203,15 @@ async function downloadAll() {
             title="Delete"
             @click="startDelete(project.id)"
           >
-            <Trash2 :size="15" />
+            <Trash2 :size="16" />
           </button>
         </div>
       </article>
     </div>
 
-    <div class="sticky bottom-0 z-10 shrink-0 border-t border-zinc-800 bg-zinc-950 pt-2">
+    <div class="shrink-0 border-t border-zinc-800 p-3">
       <button
-        class="btn btn-primary w-full cursor-pointer disabled:cursor-not-allowed disabled:opacity-40"
+        class="btn btn-ghost w-full cursor-pointer disabled:cursor-not-allowed disabled:opacity-40"
         type="button"
         :disabled="store.projects.length === 0 || downloadingAll || store.exporting"
         @click="downloadAll"
@@ -222,7 +224,7 @@ async function downloadAll() {
     <Teleport to="body">
       <div
         v-if="infoTip && infoProject"
-        class="pointer-events-none fixed z-50 w-56 rounded-md border border-zinc-700 bg-zinc-900 p-2 text-xs text-zinc-200 shadow-lg"
+        class="pointer-events-none fixed z-50 w-56 rounded-md border border-zinc-800 bg-elevated p-2 text-xs text-zinc-200 shadow-[var(--shadow-overlay)]"
         :style="{
           left: `${infoTip.x}px`,
           top: `${infoTip.y}px`,
@@ -231,7 +233,7 @@ async function downloadAll() {
       >
         <p class="font-semibold" :class="uploadIconClass(infoProject.upload.state)">{{ uploadStatusLabel(infoProject) }}</p>
         <p v-if="infoProject.upload.fileName" class="mt-1 truncate text-zinc-100">{{ infoProject.upload.fileName }}</p>
-        <p v-if="uploadMeta(infoProject)" class="mt-1 text-zinc-400">{{ uploadMeta(infoProject) }}</p>
+        <p v-if="uploadMeta(infoProject)" class="mt-1 text-zinc-500">{{ uploadMeta(infoProject) }}</p>
         <p v-if="infoProject.upload.error" class="mt-1 text-red-300">{{ infoProject.upload.error }}</p>
       </div>
     </Teleport>

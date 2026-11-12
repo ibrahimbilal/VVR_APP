@@ -1,9 +1,12 @@
 <script setup lang="ts">
 import { formatBytes } from '@shared/imageUpscaler'
 import { Download, Trash2 } from '@lucide/vue'
+import { ref } from 'vue'
+import AppDialog from '../../../components/ui/AppDialog.vue'
 import { useImageUpscalerStore } from '../stores/imageUpscaler'
 
 const store = useImageUpscalerStore()
+const deleteAllOpen = ref(false)
 
 const statusLabel: Record<string, string> = {
   ready: 'Ready',
@@ -13,53 +16,132 @@ const statusLabel: Record<string, string> = {
   failed: 'Failed',
   cancelled: 'Cancelled',
 }
+
+function statusClass(status: string): string {
+  switch (status) {
+    case 'processing':
+      return 'bg-brand/15 text-brand'
+    case 'pending':
+      return 'bg-amber-400/15 text-amber-200'
+    case 'completed':
+      return 'bg-emerald-400/15 text-emerald-200'
+    case 'failed':
+      return 'bg-red-400/15 text-red-200'
+    case 'cancelled':
+      return 'bg-zinc-700/80 text-zinc-300'
+    default:
+      return 'bg-zinc-800 text-zinc-300'
+  }
+}
+
+function downloaded(item: { status: string; downloadedRevision: number | null; outputRevision: number | null }): boolean {
+  return item.status === 'completed' && item.downloadedRevision != null && item.downloadedRevision === item.outputRevision
+}
+
+function closeDeleteAll() {
+  deleteAllOpen.value = false
+}
+
+async function confirmDeleteAll() {
+  deleteAllOpen.value = false
+  await store.clearFiles()
+}
 </script>
 
 <template>
-  <div v-if="store.items.length" class="space-y-2">
-    <div class="flex justify-end">
-      <button class="focus-ring cursor-pointer rounded-sm text-xs font-semibold text-zinc-400 hover:text-zinc-200 disabled:opacity-40" type="button" :disabled="store.processing" @click="store.clearFiles()">
-        Clear all
+  <section class="flex min-h-0 flex-1 flex-col">
+    <div class="flex shrink-0 items-center justify-between gap-2 px-4 py-3">
+      <h3 class="section-label">Images</h3>
+      <button
+        class="btn btn-ghost cursor-pointer px-2 py-1 text-xs text-red-300 disabled:cursor-not-allowed disabled:opacity-40"
+        type="button"
+        :disabled="store.items.length === 0 || store.processing"
+        @click="deleteAllOpen = true"
+      >
+        <Trash2 :size="14" />
+        Delete all
       </button>
     </div>
-    <ul class="space-y-2">
-      <li v-for="item in store.items" :key="item.localId">
-        <div
-          class="flex w-full items-center gap-2 rounded-lg border px-2 py-2"
-          :class="item.localId === store.selectedId ? 'border-brand bg-brand/10' : 'border-zinc-800 bg-inset'"
-        >
-          <button class="focus-ring flex min-w-0 flex-1 items-center gap-3 rounded-sm text-left" type="button" @click="store.selectItem(item.localId)">
-            <img :src="item.previewUrl" alt="" class="h-12 w-12 shrink-0 rounded object-cover" />
-            <span class="min-w-0 flex-1">
-              <span class="block truncate text-sm font-semibold text-zinc-100">{{ item.name }}</span>
-              <span class="block text-xs text-zinc-500">{{ item.width }}×{{ item.height }} · {{ formatBytes(item.bytes) }}</span>
-              <span class="block text-xs" :class="item.status === 'failed' ? 'text-red-300' : 'text-zinc-400'">
+
+    <div class="min-h-0 flex-1 space-y-2 overflow-y-auto px-3 pb-3">
+      <p v-if="store.items.length === 0" class="px-2 py-8 text-center text-sm text-zinc-500">
+        Drop PNG, JPEG, or WebP files above. Upscale stays off until there is at least one image.
+      </p>
+
+      <article
+        v-for="item in store.items"
+        :key="item.localId"
+        class="cursor-pointer rounded-lg border bg-inset p-2 transition-opacity"
+        :class="[
+          item.localId === store.selectedId ? 'border-zinc-200' : 'border-zinc-800',
+          downloaded(item) ? 'opacity-50' : 'opacity-100',
+        ]"
+        :aria-current="item.localId === store.selectedId ? 'true' : undefined"
+        @click="store.selectItem(item.localId)"
+      >
+        <div class="flex gap-2">
+          <div class="h-14 w-14 shrink-0 overflow-hidden rounded bg-zinc-900">
+            <img :src="item.previewUrl" alt="" class="h-full w-full object-cover" />
+          </div>
+          <div class="min-w-0 flex-1">
+            <div class="flex items-start gap-2">
+              <p class="min-w-0 flex-1 truncate text-sm font-semibold text-zinc-100" :title="item.name">{{ item.name }}</p>
+              <span class="shrink-0 rounded-full px-1.5 py-0.5 text-[10px] font-semibold" :class="statusClass(item.status)">
                 {{ statusLabel[item.status] }}
-                <template v-if="item.outputWidth && item.outputHeight"> · {{ item.outputWidth }}×{{ item.outputHeight }}</template>
               </span>
-            </span>
-          </button>
+            </div>
+            <p class="mt-0.5 truncate text-xs text-zinc-500">
+              {{ item.width }}×{{ item.height }} · {{ formatBytes(item.bytes) }}
+              <template v-if="item.outputWidth && item.outputHeight"> · {{ item.outputWidth }}×{{ item.outputHeight }}</template>
+            </p>
+          </div>
+        </div>
+
+        <p v-if="item.error" class="mt-2 text-xs text-red-300">{{ item.error }}</p>
+
+        <div class="mt-2 flex" @click.stop>
           <button
             v-if="item.status === 'completed'"
-            class="grid h-8 w-8 shrink-0 cursor-pointer place-items-center rounded-md text-zinc-400 hover:bg-zinc-800 hover:text-zinc-100"
+            class="rounded-sm inline-flex size-7 cursor-pointer items-center justify-center bg-transparent text-zinc-300 hover:bg-white/10 hover:text-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand"
             type="button"
             aria-label="Download image"
+            title="Download"
             @click="store.downloadItem(item.localId)"
           >
-            <Download :size="14" />
+            <Download :size="16" />
           </button>
           <button
-            v-if="!store.processing"
-            class="grid h-8 w-8 shrink-0 cursor-pointer place-items-center rounded-md text-zinc-400 hover:bg-zinc-800 hover:text-red-300"
+            class="ml-auto rounded-sm inline-flex size-7 cursor-pointer items-center justify-center bg-transparent text-red-300 hover:bg-red-500/10 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand disabled:cursor-not-allowed disabled:opacity-40"
             type="button"
             aria-label="Remove image"
+            title="Remove"
+            :disabled="store.processing"
             @click="store.removeItem(item.localId)"
           >
-            <Trash2 :size="14" />
+            <Trash2 :size="16" />
           </button>
         </div>
-        <p v-if="item.error" class="mt-1 px-1 text-xs text-red-300">{{ item.error }}</p>
-      </li>
-    </ul>
-  </div>
+      </article>
+    </div>
+
+    <div class="shrink-0 border-t border-zinc-800 p-3">
+      <button
+        class="btn btn-ghost w-full cursor-pointer disabled:cursor-not-allowed disabled:opacity-40"
+        type="button"
+        :disabled="store.completedCount === 0"
+        @click="store.downloadZip()"
+      >
+        <Download :size="16" />
+        Download all
+      </button>
+    </div>
+
+    <AppDialog :open="deleteAllOpen" title="Delete all images" @cancel="closeDeleteAll">
+      <p class="text-sm text-zinc-300">Remove every image from this list?</p>
+      <template #actions>
+        <button class="btn btn-ghost cursor-pointer" type="button" @click="closeDeleteAll">Cancel</button>
+        <button class="btn btn-danger cursor-pointer" type="button" @click="confirmDeleteAll">Delete all</button>
+      </template>
+    </AppDialog>
+  </section>
 </template>

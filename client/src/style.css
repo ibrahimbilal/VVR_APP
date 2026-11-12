@@ -462,6 +462,26 @@ button:disabled {
   animation: vf-notif-panel-in var(--duration-base) var(--ease-out-soft) both;
 }
 
+.dialog-enter-active,
+.dialog-leave-active {
+  transition: opacity var(--duration-base) var(--ease-out-soft);
+}
+
+.dialog-enter-active .dialog-card,
+.dialog-leave-active .dialog-card {
+  transition: transform var(--duration-base) var(--ease-out-soft);
+}
+
+.dialog-enter-from,
+.dialog-leave-to {
+  opacity: 0;
+}
+
+.dialog-enter-from .dialog-card,
+.dialog-leave-to .dialog-card {
+  transform: translateY(8px) scale(0.98);
+}
+
 .notif-item-list {
   display: flex;
   flex-direction: column;
@@ -677,6 +697,10 @@ body.card-reordering {
   .notif-item-move,
   .notif-status-enter-active,
   .notif-status-leave-active,
+  .dialog-enter-active,
+  .dialog-leave-active,
+  .dialog-enter-active .dialog-card,
+  .dialog-leave-active .dialog-card,
   .btn,
   .nav-link,
   .toast,
@@ -698,6 +722,10 @@ body.card-reordering {
   .settings-pane-leave-to,
   .notif-item-enter-from,
   .notif-item-leave-to,
+  .dialog-enter-from,
+  .dialog-leave-to,
+  .dialog-enter-from .dialog-card,
+  .dialog-leave-to .dialog-card,
   .notif-status-enter-from,
   .notif-status-leave-to {
     opacity: 1;

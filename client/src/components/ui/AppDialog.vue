@@ -46,23 +46,25 @@ onBeforeUnmount(() => {
 
 <template>
   <Teleport to="body">
-    <div v-if="open" class="dialog-backdrop" @click.self="emit('cancel')">
-      <div
-        ref="panelRef"
-        class="dialog-card"
-        :class="{ 'dialog-card--wide': wide }"
-        role="dialog"
-        aria-modal="true"
-        :aria-labelledby="titleId"
-      >
-        <h2 :id="titleId" class="text-lg font-bold text-zinc-100">{{ title }}</h2>
-        <div class="mt-2">
-          <slot />
-        </div>
-        <div v-if="$slots.actions" class="mt-4 flex flex-wrap gap-2">
-          <slot name="actions" />
+    <Transition name="dialog">
+      <div v-if="open" class="dialog-backdrop" @click.self="emit('cancel')">
+        <div
+          ref="panelRef"
+          class="dialog-card"
+          :class="{ 'dialog-card--wide': wide }"
+          role="dialog"
+          aria-modal="true"
+          :aria-labelledby="titleId"
+        >
+          <h2 :id="titleId" class="text-lg font-bold text-zinc-100">{{ title }}</h2>
+          <div class="mt-2">
+            <slot />
+          </div>
+          <div v-if="$slots.actions" class="mt-4 flex flex-wrap gap-2">
+            <slot name="actions" />
+          </div>
         </div>
       </div>
-    </div>
+    </Transition>
   </Teleport>
 </template>

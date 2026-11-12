@@ -76,6 +76,7 @@ export const useImageUpscalerStore = defineStore('image-upscaler', () => {
       if (!item.serverItemId) continue
       item.outputBytes = null
       item.outputRevision = null
+      item.downloadedRevision = null
       item.outputName = null
       item.outputWidth = null
       item.outputHeight = null
@@ -132,6 +133,7 @@ export const useImageUpscalerStore = defineStore('image-upscaler', () => {
           outputName: null,
           outputBytes: null,
           outputRevision: null,
+          downloadedRevision: null,
           outputWidth: null,
           outputHeight: null,
           skippedResize: false,
@@ -280,6 +282,7 @@ export const useImageUpscalerStore = defineStore('image-upscaler', () => {
       item.outputName = null
       item.outputBytes = null
       item.outputRevision = null
+      item.downloadedRevision = null
       item.outputWidth = null
       item.outputHeight = null
       item.skippedResize = false
@@ -372,6 +375,7 @@ export const useImageUpscalerStore = defineStore('image-upscaler', () => {
     )
     anchor.download = item.outputName
     anchor.click()
+    item.downloadedRevision = item.outputRevision
   }
 
   function downloadZip(): void {
@@ -380,6 +384,9 @@ export const useImageUpscalerStore = defineStore('image-upscaler', () => {
     anchor.href = zipDownloadUrl(jobId.value)
     anchor.download = 'upscaled-images.zip'
     anchor.click()
+    for (const item of items.value) {
+      if (item.status === 'completed' && item.outputRevision != null) item.downloadedRevision = item.outputRevision
+    }
   }
 
   async function requestSend(localId: string): Promise<void> {
@@ -416,7 +423,6 @@ export const useImageUpscalerStore = defineStore('image-upscaler', () => {
 
   async function clearFiles(): Promise<void> {
     if (processing.value || items.value.length === 0) return
-    if (!window.confirm('Remove all images from this list?')) return
     const id = jobId.value
     clearItems()
     busy.value = false

@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { Trash2 } from '@lucide/vue'
 import { ref } from 'vue'
 import FileDropZone from '../../../components/FileDropZone.vue'
 import AppDialog from '../../../components/ui/AppDialog.vue'
@@ -32,21 +33,24 @@ function onFiles(files: File[]): void {
       <p v-if="store.pickError" class="text-xs text-red-300">{{ store.pickError }}</p>
     </div>
 
-    <div class="min-h-0 flex-1 space-y-2 overflow-y-auto p-3">
+    <div class="flex shrink-0 items-center justify-between gap-2 px-4 py-3">
+      <h3 class="section-label">Tracks</h3>
+      <button
+        class="btn btn-ghost cursor-pointer px-2 py-1 text-xs text-red-300 disabled:cursor-not-allowed disabled:opacity-40"
+        type="button"
+        :disabled="!store.hasSource"
+        @click="confirmClear = true"
+      >
+        <Trash2 :size="14" />
+        Clear all tracks
+      </button>
+    </div>
+
+    <div class="min-h-0 flex-1 space-y-2 overflow-y-auto px-3 pb-3">
       <p v-if="!store.hasSource" class="px-2 py-8 text-center text-sm text-zinc-500">
         Drop audio above. One file loops. Two or more become a playlist.
       </p>
-      <template v-else>
-        <LooperTrackList />
-        <button
-          v-if="store.trackCount > 1"
-          class="btn btn-ghost cursor-pointer w-full text-xs"
-          type="button"
-          @click="confirmClear = true"
-        >
-          Clear all tracks
-        </button>
-      </template>
+      <LooperTrackList v-else />
     </div>
 
     <AppDialog :open="confirmClear" title="Remove all tracks?" @cancel="confirmClear = false">
