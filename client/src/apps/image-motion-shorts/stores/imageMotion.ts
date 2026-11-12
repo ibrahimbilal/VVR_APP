@@ -227,35 +227,6 @@ export const useImageMotionStore = defineStore('image-motion', () => {
     scheduleSave()
   }
 
-  async function replaceSegment(id: string, file: File) {
-    const problem = await validateImageFile(file)
-    if (problem) {
-      toast(problem, 'error')
-      return
-    }
-    const url = URL.createObjectURL(file)
-    const meta = await readImageFile(url)
-    if (!meta) {
-      URL.revokeObjectURL(url)
-      toast(`${file.name} could not be decoded.`, 'error')
-      return
-    }
-    const segment = segments.value.find((s) => s.id === id)
-    if (!segment) return
-    const oldUrl = previewUrlMap.get(id)
-    if (oldUrl) URL.revokeObjectURL(oldUrl)
-    if (segment.serverId) void api.deleteClip(segment.serverId).catch(() => undefined)
-    fileMap.set(id, file)
-    previewUrlMap.set(id, url)
-    segment.fileName = file.name
-    segment.width = meta.width
-    segment.height = meta.height
-    segment.serverId = null
-    void idb.saveImageMotionFile(id, file).catch(() => undefined)
-    void uploadSegment(id)
-    scheduleSave()
-  }
-
   function reorder(from: number, to: number) {
     if (from === to || from < 0 || to < 0 || from >= segments.value.length || to >= segments.value.length) return
     const list = [...segments.value]
@@ -440,7 +411,6 @@ export const useImageMotionStore = defineStore('image-motion', () => {
     init,
     addFiles,
     removeSegment,
-    replaceSegment,
     reorder,
     selectSegment,
     patchSelectedMotion,

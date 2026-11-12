@@ -5,13 +5,18 @@ import type { AudioLooperSettings } from '@shared/audioLooper'
 export type AudioLooperExportUpdate = JobPollUpdate
 
 export async function submitAudioLooperExport(input: {
-  file: File
+  files: File[]
   settings: AudioLooperSettings
   signal: AbortSignal
   onUpdate: (patch: AudioLooperExportUpdate) => void
 }): Promise<string> {
   const body = new FormData()
-  body.append('file', input.file, input.file.name)
+  if (input.files.length <= 1) {
+    const file = input.files[0]
+    if (file) body.append('file', file, file.name)
+  } else {
+    for (const file of input.files) body.append('files', file, file.name)
+  }
   body.append('settings', JSON.stringify(input.settings))
   input.onUpdate({
     phase: 'uploading',
@@ -35,8 +40,30 @@ export async function submitAudioLooperExport(input: {
   return started.jobId
 }
 
+export async function requestAudioLooperPreview(input: {
+  files: File[]
+  settings: AudioLooperSettings
+  signal: AbortSignal
+}): Promise<Blob> {
+  const body = new FormData()
+  for (const file of input.files) body.append('files', file, file.name)
+  body.append('settings', JSON.stringify(input.settings))
+  const response = await fetch('/api/audio-looper/preview', { method: 'POST', body, signal: input.signal })
+  if (!response.ok) {
+    let message = `Request failed (${response.status}).`
+    try {
+      const data = (await response.json()) as { error?: string }
+      if (data.error) message = data.error
+    } catch {
+      // The body was not JSON.
+    }
+    throw new Error(message)
+  }
+  return response.blob()
+}
+
 export async function runAudioLooperExport(input: {
-  file: File
+  files: File[]
   settings: AudioLooperSettings
   signal: AbortSignal
   onUpdate: (patch: AudioLooperExportUpdate) => void

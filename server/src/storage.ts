@@ -11,6 +11,7 @@ export const jobsDir = path.join(tmpDir, 'jobs')
 export const outputsDir = path.join(tmpDir, 'outputs')
 export const incomingDir = path.join(tmpDir, 'incoming')
 export const upscalerDir = path.join(tmpDir, 'upscaler')
+export const looperPreviewDir = path.join(tmpDir, 'looper-previews')
 const registryPath = path.join(tmpDir, 'registry.json')
 
 export type ClipOrigin = 'ranking' | 'screensaver' | 'image-motion'
@@ -37,6 +38,7 @@ export async function ensureStorage(): Promise<void> {
   await mkdir(outputsDir, { recursive: true })
   await mkdir(incomingDir, { recursive: true })
   await mkdir(upscalerDir, { recursive: true })
+  await mkdir(looperPreviewDir, { recursive: true })
   await loadRegistry()
 }
 
@@ -166,6 +168,7 @@ export async function sweepStorage(): Promise<void> {
   await deleteOlder(outputsDir, now - 2 * 60 * 60 * 1000)
   await deleteOlder(jobsDir, now - 6 * 60 * 60 * 1000)
   await deleteOlder(incomingDir, now - 6 * 60 * 60 * 1000)
+  await deleteOlder(looperPreviewDir, now - 6 * 60 * 60 * 1000)
   const week = now - 7 * 24 * 60 * 60 * 1000
   for (const stored of [...clips.values()]) {
     if (stored.createdAt < week && !clipIsBusy(stored.id)) {

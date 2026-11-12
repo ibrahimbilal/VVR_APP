@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { createServer, type Server } from 'node:http'
-import { mkdir, rm, writeFile } from 'node:fs/promises'
+import { mkdir, readdir, rm, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import { after, before, describe, it } from 'node:test'
 import express from 'express'
@@ -9,6 +9,7 @@ import { createAudioLooperRouter } from './audioLooperRoutes'
 import { parseProgressSeconds } from './ffmpegUtil'
 import { cancelJob, createAudioLooperJob, getJob, jobOutput, outputFile } from './jobs'
 import { ensureStorage, incomingDir, outputsDir } from './storage'
+import { playlistStreamArgs } from './renderAudioLooper'
 
 function idleHooks() {
   return true
@@ -117,5 +118,27 @@ describe('audio looper jobs and routes', () => {
     const invalid = await fetch(`http://127.0.0.1:${port}/api/audio-looper/export`, { method: 'POST', body })
     assert.equal(invalid.status, 400)
     await rm(work, { recursive: true, force: true })
+  })
+
+  it('streams an eight-hour playlist from the cycle instead of buffering the output', () => {
+    const settings = { ...defaultAudioLooperSettings(), targetDurationSeconds: 8 * 60 * 60, format: 'wav' as const }
+    const args = playlistStreamArgs('C:/tmp/cycle.wav', settings, 'C:/tmp/out.wav', true)
+    assert.equal(args[args.indexOf('-stream_loop') + 1], '-1')
+    assert.equal(args[args.indexOf('-t') + 1], '28800.000')
+    assert.ok(args.includes('C:/tmp/cycle.wav'))
+    assert.equal(args.at(-1), 'C:/tmp/out.wav')
+    assert.equal(args.includes('-filter_complex'), false)
+  })
+
+  it('rejects a bad file in a multi-file upload and removes the incoming copies', async () => {
+    const before = new Set(await readdir(incomingDir).catch(() => [] as string[]))
+    const body = new FormData()
+    body.append('files', new Blob(['not audio'], { type: 'audio/wav' }), 'a.wav')
+    body.append('files', new Blob(['also not'], { type: 'audio/wav' }), 'b.wav')
+    body.append('settings', JSON.stringify({ ...defaultAudioLooperSettings(), targetDurationSeconds: 10 }))
+    const response = await fetch(`http://127.0.0.1:${port}/api/audio-looper/export`, { method: 'POST', body })
+    assert.equal(response.status, 400)
+    const after = await readdir(incomingDir).catch(() => [] as string[])
+    for (const name of after) assert.ok(before.has(name))
   })
 })

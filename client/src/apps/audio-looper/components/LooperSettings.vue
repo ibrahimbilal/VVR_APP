@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref } from 'vue'
 import { AUDIO_LOOPER_BITRATES, AUDIO_LOOPER_FORMATS, type AudioLooperFormat, type AudioLooperLoopMode } from '@shared/audioLooper'
+import ToggleSwitch from '../../../components/ToggleSwitch.vue'
 import AppSettingsTabs from '../../../components/ui/AppSettingsTabs.vue'
 import { useAudioLooperStore } from '../stores/audioLooper'
 
@@ -61,40 +62,89 @@ function setBitrate(value: string): void {
           </div>
         </div>
         <div v-else-if="inspector === 'loop'" key="loop" class="space-y-3">
-          <div class="grid grid-cols-2 gap-2">
-            <button class="btn cursor-pointer text-xs" :class="store.loopMode === 'simple' ? 'btn-primary' : 'btn-ghost'" type="button" @click="setMode('simple')">Simple</button>
-            <button class="btn cursor-pointer text-xs" :class="store.loopMode === 'seamless' ? 'btn-primary' : 'btn-ghost'" type="button" :disabled="!store.seamlessAvailable" @click="setMode('seamless')">Seamless</button>
-          </div>
-          <p v-if="!store.seamlessAvailable" class="text-xs text-zinc-500">Seamless crossfade is not available on this build.</p>
-          <p v-else class="text-xs text-zinc-500">Simple repeats the file. Seamless overlaps each join with an equal-power crossfade.</p>
-          <label v-if="store.loopMode === 'seamless'" class="block">
-            <span class="mb-1 flex justify-between text-xs text-zinc-500">
-              <span>Crossfade</span>
-              <span class="tabular-nums text-zinc-300">{{ store.crossfadeSeconds.toFixed(2) }}s</span>
-            </span>
-            <input class="w-full accent-brand" type="range" min="0.01" :max="store.maxCrossfade" step="0.01" :value="store.crossfadeSeconds" @input="store.crossfadeSeconds = Number(($event.target as HTMLInputElement).value)" />
-          </label>
-          <label class="block">
-            <span class="mb-1 flex justify-between text-xs text-zinc-500">
-              <span>Fade in</span>
-              <span class="tabular-nums text-zinc-300">{{ store.fadeInSeconds.toFixed(1) }}s</span>
-            </span>
-            <input class="w-full accent-brand" type="range" min="0" max="30" step="0.1" :value="store.fadeInSeconds" @input="store.fadeInSeconds = Number(($event.target as HTMLInputElement).value)" />
-          </label>
-          <label class="block">
-            <span class="mb-1 flex justify-between text-xs text-zinc-500">
-              <span>Fade out</span>
-              <span class="tabular-nums text-zinc-300">{{ store.fadeOutSeconds.toFixed(1) }}s</span>
-            </span>
-            <input class="w-full accent-brand" type="range" min="0" max="30" step="0.1" :value="store.fadeOutSeconds" @input="store.fadeOutSeconds = Number(($event.target as HTMLInputElement).value)" />
-          </label>
-          <label class="block">
-            <span class="mb-1 flex justify-between text-xs text-zinc-500">
-              <span>Volume</span>
-              <span class="tabular-nums text-zinc-300">{{ Math.round(store.volumePercent) }}%</span>
-            </span>
-            <input class="w-full accent-brand" type="range" min="0" max="200" step="1" :value="store.volumePercent" @input="store.volumePercent = Number(($event.target as HTMLInputElement).value)" />
-          </label>
+          <p v-if="!store.hasSource" class="text-xs text-zinc-500">Add audio to configure the loop.</p>
+          <template v-else-if="store.trackCount >= 2">
+            <div class="flex flex-wrap gap-2">
+              <button class="btn btn-ghost cursor-pointer text-xs" type="button" @click="store.shuffleTracks()">
+                {{ store.shuffled ? 'Reshuffle' : 'Shuffle' }}
+              </button>
+              <button v-if="store.shuffled" class="btn btn-ghost cursor-pointer text-xs" type="button" @click="store.restoreOrder()">
+                Restore order
+              </button>
+            </div>
+            <p class="text-xs text-zinc-500">Shuffle changes the order you see, preview, and export. It stays fixed once an export starts.</p>
+            <div class="flex items-center justify-between gap-3 text-sm text-zinc-200">
+              <span title="Overlaps the end of each track with the start of the next, including the loop back to the first track.">Crossfade</span>
+              <ToggleSwitch
+                :model-value="store.playlistCrossfade"
+                :disabled="store.readyTracks.length >= 2 && store.playlistLimit < 0.05"
+                aria-label="Crossfade"
+                @update:model-value="store.setPlaylistCrossfade"
+              />
+            </div>
+            <p v-if="store.readyTracks.length >= 2 && store.playlistLimit < 0.05" class="text-xs text-amber-300">
+              These tracks are too short for a crossfade.
+            </p>
+            <label v-if="store.playlistCrossfade" class="block">
+              <span class="mb-1 flex justify-between text-xs text-zinc-500">
+                <span>Transition</span>
+                <span class="tabular-nums text-zinc-300">{{ store.playlistCrossfadeSeconds.toFixed(2) }}s</span>
+              </span>
+              <input
+                class="w-full accent-brand"
+                type="range"
+                min="0.05"
+                :max="Math.max(0.05, store.playlistLimit || 3)"
+                step="0.05"
+                :value="store.playlistCrossfadeSeconds"
+                @input="store.playlistCrossfadeSeconds = Number(($event.target as HTMLInputElement).value)"
+              />
+              <p class="mt-1 text-xs text-zinc-500">Default is 3 seconds. The longest allowed fade is half the shortest join, including the return to the first track.</p>
+            </label>
+            <div class="flex items-center justify-between gap-3 text-sm text-zinc-200">
+              <span title="Two-pass loudness matching toward -16 LUFS with a -1.5 dBTP peak limit. Tracks can still sound different.">Match loudness</span>
+              <ToggleSwitch v-model="store.normalizeLoudness" aria-label="Match loudness" />
+            </div>
+            <p v-if="store.settingsError" class="text-xs text-amber-300">{{ store.settingsError }}</p>
+          </template>
+          <template v-else>
+            <div class="grid grid-cols-2 gap-2">
+              <button class="btn cursor-pointer text-xs" :class="store.loopMode === 'simple' ? 'btn-primary' : 'btn-ghost'" type="button" @click="setMode('simple')">Simple</button>
+              <button class="btn cursor-pointer text-xs" :class="store.loopMode === 'seamless' ? 'btn-primary' : 'btn-ghost'" type="button" :disabled="!store.seamlessAvailable" @click="setMode('seamless')">Seamless</button>
+            </div>
+            <p v-if="!store.seamlessAvailable" class="text-xs text-zinc-500">Seamless crossfade is not available on this build.</p>
+            <p v-else class="text-xs text-zinc-500">Simple repeats the file. Seamless overlaps each join with an equal-power crossfade.</p>
+            <label v-if="store.loopMode === 'seamless'" class="block">
+              <span class="mb-1 flex justify-between text-xs text-zinc-500">
+                <span>Crossfade</span>
+                <span class="tabular-nums text-zinc-300">{{ store.crossfadeSeconds.toFixed(2) }}s</span>
+              </span>
+              <input class="w-full accent-brand" type="range" min="0.01" :max="store.maxCrossfade" step="0.01" :value="store.crossfadeSeconds" @input="store.crossfadeSeconds = Number(($event.target as HTMLInputElement).value)" />
+            </label>
+          </template>
+          <template v-if="store.hasSource">
+            <label class="block">
+              <span class="mb-1 flex justify-between text-xs text-zinc-500">
+                <span>Fade in</span>
+                <span class="tabular-nums text-zinc-300">{{ store.fadeInSeconds.toFixed(1) }}s</span>
+              </span>
+              <input class="w-full accent-brand" type="range" min="0" max="30" step="0.1" :value="store.fadeInSeconds" @input="store.fadeInSeconds = Number(($event.target as HTMLInputElement).value)" />
+            </label>
+            <label class="block">
+              <span class="mb-1 flex justify-between text-xs text-zinc-500">
+                <span>Fade out</span>
+                <span class="tabular-nums text-zinc-300">{{ store.fadeOutSeconds.toFixed(1) }}s</span>
+              </span>
+              <input class="w-full accent-brand" type="range" min="0" max="30" step="0.1" :value="store.fadeOutSeconds" @input="store.fadeOutSeconds = Number(($event.target as HTMLInputElement).value)" />
+            </label>
+            <label class="block">
+              <span class="mb-1 flex justify-between text-xs text-zinc-500">
+                <span>Volume</span>
+                <span class="tabular-nums text-zinc-300">{{ Math.round(store.volumePercent) }}%</span>
+              </span>
+              <input class="w-full accent-brand" type="range" min="0" max="200" step="1" :value="store.volumePercent" @input="store.volumePercent = Number(($event.target as HTMLInputElement).value)" />
+            </label>
+          </template>
         </div>
         <div v-else key="output" class="space-y-3">
           <label class="block">

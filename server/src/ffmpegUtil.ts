@@ -27,7 +27,7 @@ export interface FfmpegHooks {
   registerKill: (kill: () => void) => void
 }
 
-export function spawnFfmpeg(args: string[], expected: number, hooks: FfmpegHooks): Promise<void> {
+export function spawnFfmpeg(args: string[], expected: number, hooks: FfmpegHooks): Promise<string> {
   return new Promise((resolve, reject) => {
     const child = spawn(ffmpegBinary(), args, {
       windowsHide: true,
@@ -61,7 +61,7 @@ export function spawnFfmpeg(args: string[], expected: number, hooks: FfmpegHooks
       }
     })
     child.stderr.on('data', (chunk: Buffer) => {
-      stderr = (stderr + chunk.toString()).slice(-8000)
+      stderr = (stderr + chunk.toString()).slice(-20000)
     })
     child.on('error', (error) => {
       fail(new Error(error.message.includes('ENOENT') ? 'FFmpeg binary is missing. Reinstall dependencies with npm install.' : error.message))
@@ -74,7 +74,7 @@ export function spawnFfmpeg(args: string[], expected: number, hooks: FfmpegHooks
       if (code === 0) {
         if (!settled) {
           settled = true
-          resolve()
+          resolve(stderr)
         }
         return
       }

@@ -23,6 +23,7 @@ const ready = ref(false)
 
 let raf = 0
 let seeking = false
+let dragHandle: 'start' | 'end' | null = null
 let resizeObserver: ResizeObserver | null = null
 let displayPeaks: Float32Array | null = null
 let lastBarCount = 0
@@ -37,6 +38,14 @@ function currentAudioTime(): number {
   return Number.isFinite(time) ? Math.max(0, time) : 0
 }
 
+function trimBounds(): { start: number; end: number } {
+  const total = duration.value || store.sourceDuration || 0
+  const start = Math.max(0, Math.min(store.selectedTrimStart, total))
+  const endValue = store.selectedTrimEnd == null ? total : store.selectedTrimEnd
+  const end = total > 0 ? Math.max(start, Math.min(total, endValue)) : start
+  return { start, end }
+}
+
 function syncClock(): void {
   currentTime.value = currentAudioTime()
   const audioDuration = audioEl.value?.duration
@@ -44,6 +53,13 @@ function syncClock(): void {
     duration.value = audioDuration
   } else if (store.sourceDuration != null) {
     duration.value = store.sourceDuration
+  }
+  const audio = audioEl.value
+  const { start, end } = trimBounds()
+  if (!seeking && audio && end > start && audio.currentTime >= end - 0.02) {
+    audio.pause()
+    audio.currentTime = Math.max(start, end - 0.03)
+    currentTime.value = audio.currentTime
   }
 }
 
@@ -77,6 +93,19 @@ function paint(): void {
     drawBars(ctx, width, height, displayPeaks, progressX)
   } else {
     drawFallbackTrack(ctx, width, height, progressX)
+  }
+
+  const total = duration.value || store.sourceDuration || 0
+  if (total > 0) {
+    const { start, end } = trimBounds()
+    const startX = (start / total) * width
+    const endX = (end / total) * width
+    ctx.fillStyle = 'rgba(0,0,0,0.55)'
+    if (startX > 1) ctx.fillRect(0, 0, startX, height)
+    if (endX < width - 1) ctx.fillRect(endX, 0, width - endX, height)
+    ctx.fillStyle = '#f4f4f5'
+    ctx.fillRect(startX, 0, 2, height)
+    ctx.fillRect(Math.max(0, endX - 2), 0, 2, height)
   }
 
   ctx.fillStyle = '#f4f4f5'
@@ -153,11 +182,26 @@ function seekToRatio(ratio: number): void {
   const audio = audioEl.value
   const total = duration.value
   if (!audio || !(total > 0)) return
-  const next = Math.min(total, Math.max(0, ratio * total))
+  const { start, end } = trimBounds()
+  const next = Math.min(end, Math.max(start, ratio * total))
   audio.currentTime = next
   currentTime.value = next
-  if (next < total - 0.02) playing.value = !audio.paused
+  if (next < end - 0.02) playing.value = !audio.paused
   paint()
+}
+
+function handleHit(event: PointerEvent): 'start' | 'end' | null {
+  const el = canvas.value
+  const total = duration.value
+  if (!el || !(total > 0) || !store.selectedTrack) return null
+  const ratio = ratioFromEvent(event)
+  const { start, end } = trimBounds()
+  const slack = 12 / Math.max(1, el.clientWidth)
+  const startDist = Math.abs(ratio - start / total)
+  const endDist = Math.abs(ratio - end / total)
+  if (startDist <= slack && startDist <= endDist) return 'start'
+  if (endDist <= slack) return 'end'
+  return null
 }
 
 function ratioFromEvent(event: PointerEvent): number {
@@ -173,18 +217,28 @@ function onPointerDown(event: PointerEvent): void {
   event.preventDefault()
   canvas.value?.setPointerCapture(event.pointerId)
   seeking = true
-  seekToRatio(ratioFromEvent(event))
+  dragHandle = handleHit(event)
+  if (!dragHandle) seekToRatio(ratioFromEvent(event))
   startLoop()
 }
 
 function onPointerMove(event: PointerEvent): void {
   if (!seeking) return
+  const track = store.selectedTrack
+  if (dragHandle && track && duration.value > 0) {
+    const time = ratioFromEvent(event) * duration.value
+    if (dragHandle === 'start') store.setTrim(track.id, time, track.trimEnd ?? duration.value)
+    else store.setTrim(track.id, track.trimStart, time)
+    paint()
+    return
+  }
   seekToRatio(ratioFromEvent(event))
 }
 
 function onPointerUp(event: PointerEvent): void {
   if (!seeking) return
   seeking = false
+  dragHandle = null
   try {
     canvas.value?.releasePointerCapture(event.pointerId)
   } catch {
@@ -197,7 +251,9 @@ async function toggle(): Promise<void> {
   const audio = audioEl.value
   if (!audio || !canPlay.value) return
   if (audio.paused) {
-    if (audio.ended || audio.currentTime >= duration.value - 0.05) audio.currentTime = 0
+    const { start, end } = trimBounds()
+    if (audio.currentTime < start || audio.currentTime >= end - 0.05) audio.currentTime = start
+    store.claimPreview('track')
     try {
       await audio.play()
     } catch {
@@ -308,6 +364,13 @@ function resetForSource(): void {
 }
 
 watch(
+  () => store.previewOwner,
+  (owner) => {
+    if (owner && owner !== 'track') audioEl.value?.pause()
+  },
+)
+
+watch(
   () => store.objectUrl,
   () => {
     resetForSource()
@@ -321,6 +384,11 @@ watch(
     lastBarCount = 0
     paint()
   },
+)
+
+watch(
+  () => [store.selectedTrimStart, store.selectedTrimEnd],
+  () => paint(),
 )
 
 onMounted(() => {

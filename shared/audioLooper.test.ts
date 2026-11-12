@@ -1,10 +1,12 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 import {
+  alignExportTrims,
   applySourceConstraints,
   audioLooperDownloadName,
   combineDuration,
   DEFAULT_CROSSFADE_SECONDS,
+  DEFAULT_PLAYLIST_CROSSFADE_SECONDS,
   defaultAudioLooperSettings,
   estimateOutputBytes,
   formatHms,
@@ -16,11 +18,13 @@ import {
   outputExtension,
   parseDurationHms,
   repeatCount,
+  resolveTrim,
   sanitizeLooperStem,
   splitDuration,
   TEST_MIN_DURATION_SECONDS,
   volumeToFfmpeg,
 } from './audioLooper'
+import { assertPlaylistTimeline, playlistCrossfadeLimit, playlistPeriod, playlistRepeats } from './audioLooperPlaylist'
 
 function valid(overrides: Record<string, unknown> = {}) {
   return { ...defaultAudioLooperSettings(), ...overrides }
@@ -123,5 +127,59 @@ describe('audio looper settings', () => {
     const flac = estimateOutputBytes(10, 'flac', { sampleRate: 48000, channels: 2 })
     assert.ok(flac < wav && flac > 0)
     assert.equal(volumeToFfmpeg(150), 1.5)
+  })
+
+  it('keeps playlist fields optional for older saved settings', () => {
+    const settings = normalizeSettings({
+      targetDurationSeconds: 3600,
+      loopMode: 'simple',
+      crossfadeSeconds: 0.25,
+      fadeInSeconds: 0,
+      fadeOutSeconds: 0,
+      volumePercent: 100,
+      format: 'mp3',
+      mp3Bitrate: 192,
+      filename: 'loop',
+    })
+    assert.equal(settings.playlistCrossfade, false)
+    assert.equal(settings.playlistCrossfadeSeconds, DEFAULT_PLAYLIST_CROSSFADE_SECONDS)
+    assert.equal(settings.normalizeLoudness, false)
+    assert.equal(settings.tracks, undefined)
+  })
+})
+
+describe('audio looper playlist timeline', () => {
+  it('counts the wrap overlap in the loop period', () => {
+    const four = [300, 300, 300, 300]
+    assert.equal(playlistPeriod(four, 0), 1200)
+    assert.equal(playlistPeriod(four, 3), 1188)
+    assert.equal(assertPlaylistTimeline(four, true, 3), 1188)
+    assert.equal(playlistRepeats(1188, 3600), 3600 / 1188)
+    assert.equal(playlistRepeats(1188, 600), 1)
+  })
+
+  it('rejects a crossfade longer than half the shortest join, including the wrap', () => {
+    assert.ok(playlistCrossfadeLimit([2, 10]) <= 1)
+    assert.throws(() => assertPlaylistTimeline([2, 10], true, 3), /at most/)
+    assert.throws(() => assertPlaylistTimeline([0.08, 4], true, 0.05), /at most/)
+    assert.equal(assertPlaylistTimeline([2, 10], false, 3), 12)
+  })
+
+  it('rejects a zero-length trim and clamps a tiny probe mismatch', () => {
+    assert.throws(() => resolveTrim(1, 1, 5), /longer than zero/)
+    assert.throws(() => resolveTrim(0, 6, 3), /inside the file/)
+    assert.deepEqual(resolveTrim(0, 3.4, 3), { trimStart: 0, trimEnd: 3 })
+    assert.throws(() => alignExportTrims([{ id: 'a', trimStart: 0, trimEnd: 1 }], [3, 4]), /do not match/)
+    const aligned = alignExportTrims(
+      [
+        { id: 'a', trimStart: 1, trimEnd: 4 },
+        { id: 'b', trimStart: 0, trimEnd: 2 },
+      ],
+      [5, 2],
+    )
+    assert.deepEqual(aligned, [
+      { id: 'a', trimStart: 1, trimEnd: 4 },
+      { id: 'b', trimStart: 0, trimEnd: 2 },
+    ])
   })
 })

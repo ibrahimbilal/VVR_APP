@@ -81,6 +81,10 @@ const queue: string[] = []
 let pumping = false
 let activeId: string | null = null
 
+export function renderQueueBusy(): boolean {
+  return activeId != null || queue.length > 0
+}
+
 export function createJob(id: string, input: RenderRequest & { downloadName: string }): JobView {
   const job: RankingJob = {
     kind: 'ranking',

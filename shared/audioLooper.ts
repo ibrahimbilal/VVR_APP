@@ -44,6 +44,21 @@ export const MIN_VOLUME_PERCENT = 0
 export const MAX_VOLUME_PERCENT = 200
 export const DEFAULT_VOLUME_PERCENT = 100
 
+export const MAX_AUDIO_LOOPER_TRACKS = 30
+export const DEFAULT_PLAYLIST_CROSSFADE_SECONDS = 3
+export const MAX_PLAYLIST_CROSSFADE_SECONDS = 30
+export const MIN_TRIM_SECONDS = 0.05
+/** Browser duration and ffprobe can disagree on VBR files. */
+export const TRIM_DURATION_SLACK = 1
+
+/**
+ * Listening target for optional loudness matching.
+ * This is not a guarantee that every track will sound equally loud.
+ */
+export const LOUDNESS_TARGET_I = -16
+export const LOUDNESS_TARGET_TP = -1.5
+export const LOUDNESS_TARGET_LRA = 11
+
 export const DEFAULT_MP3_BITRATE = 192
 
 export interface AudioLooperLimits {
@@ -52,6 +67,12 @@ export interface AudioLooperLimits {
 
 export const DEFAULT_AUDIO_LOOPER_LIMITS: AudioLooperLimits = {
   maxFileBytes: 100 * 1024 * 1024,
+}
+
+export interface AudioLooperExportTrack {
+  id: string
+  trimStart: number
+  trimEnd: number
 }
 
 export interface AudioLooperSettings {
@@ -64,6 +85,13 @@ export interface AudioLooperSettings {
   format: AudioLooperFormat
   mp3Bitrate: AudioLooperBitrate
   filename: string
+  /** Playlist transition. Off by default. Ignored for a single untouched file. */
+  playlistCrossfade: boolean
+  playlistCrossfadeSeconds: number
+  /** Per-track loudness matching. Off by default. Used when more than one track is exported. */
+  normalizeLoudness: boolean
+  /** Omitted means each uploaded file plays in full. Order matches the uploaded files. */
+  tracks?: AudioLooperExportTrack[]
 }
 
 export interface AudioLooperNormalizeContext {
@@ -83,6 +111,9 @@ export function defaultAudioLooperSettings(): AudioLooperSettings {
     format: 'mp3',
     mp3Bitrate: DEFAULT_MP3_BITRATE,
     filename: 'loop',
+    playlistCrossfade: false,
+    playlistCrossfadeSeconds: DEFAULT_PLAYLIST_CROSSFADE_SECONDS,
+    normalizeLoudness: false,
   }
 }
 
@@ -276,6 +307,20 @@ export function normalizeSettings(raw: unknown, context: AudioLooperNormalizeCon
   }
 
   const filename = typeof data.filename === 'string' ? sanitizeLooperStem(data.filename) : 'loop'
+  if (typeof data.playlistCrossfade !== 'undefined' && typeof data.playlistCrossfade !== 'boolean') {
+    throw new Error('Playlist crossfade must be on or off.')
+  }
+  if (typeof data.normalizeLoudness !== 'undefined' && typeof data.normalizeLoudness !== 'boolean') {
+    throw new Error('Loudness matching must be on or off.')
+  }
+  const playlistCrossfadeSeconds = requireFiniteNumber(
+    data.playlistCrossfadeSeconds ?? DEFAULT_PLAYLIST_CROSSFADE_SECONDS,
+    'Playlist crossfade',
+  )
+  if (playlistCrossfadeSeconds < 0 || playlistCrossfadeSeconds > MAX_PLAYLIST_CROSSFADE_SECONDS) {
+    throw new Error(`Playlist crossfade must be between 0s and ${MAX_PLAYLIST_CROSSFADE_SECONDS}s.`)
+  }
+  const tracks = readExportTracks(data.tracks)
 
   const settings: AudioLooperSettings = {
     targetDurationSeconds,
@@ -287,6 +332,10 @@ export function normalizeSettings(raw: unknown, context: AudioLooperNormalizeCon
     format: data.format,
     mp3Bitrate: (data.mp3Bitrate ?? DEFAULT_MP3_BITRATE) as AudioLooperBitrate,
     filename,
+    playlistCrossfade: data.playlistCrossfade === true,
+    playlistCrossfadeSeconds,
+    normalizeLoudness: data.normalizeLoudness === true,
+    tracks,
   }
 
   if (context.sourceDuration != null) {
@@ -308,6 +357,63 @@ export function applySourceConstraints(settings: AudioLooperSettings, sourceDura
       `Crossfade must be at most ${maxCrossfade.toFixed(2)}s for this source (half the length, and no more than ${MAX_CROSSFADE_SECONDS}s).`,
     )
   }
+}
+
+function readExportTracks(value: unknown): AudioLooperExportTrack[] | undefined {
+  if (value == null) return undefined
+  if (!Array.isArray(value)) throw new Error('Track list is not valid.')
+  if (value.length === 0) return undefined
+  if (value.length > MAX_AUDIO_LOOPER_TRACKS) {
+    throw new Error(`Choose at most ${MAX_AUDIO_LOOPER_TRACKS} tracks.`)
+  }
+  return value.map((item, index) => {
+    if (item == null || typeof item !== 'object' || Array.isArray(item)) {
+      throw new Error('Track list is not valid.')
+    }
+    const row = item as Record<string, unknown>
+    const id = typeof row.id === 'string' && row.id.trim() ? row.id.trim().slice(0, 80) : `track-${index + 1}`
+    const trimStart = requireFiniteNumber(row.trimStart ?? 0, 'Trim start')
+    const trimEnd = requireFiniteNumber(row.trimEnd, 'Trim end')
+    if (trimStart < 0 || trimEnd <= trimStart) throw new Error('Each trim must be longer than zero.')
+    return { id, trimStart, trimEnd }
+  })
+}
+
+export function resolveTrim(
+  trimStart: number,
+  trimEnd: number,
+  duration: number,
+): { trimStart: number; trimEnd: number } {
+  if (!(duration > 0)) throw new Error('The audio file has no duration.')
+  let start = trimStart
+  let end = trimEnd
+  if (end > duration && end - duration <= TRIM_DURATION_SLACK) end = duration
+  if (start < 0 || end > duration + 1e-3 || end - start < MIN_TRIM_SECONDS) {
+    throw new Error('Each trim must sit inside the file and be longer than zero.')
+  }
+  if (start > 0 && start < 0.001) start = 0
+  return { trimStart: start, trimEnd: Math.min(end, duration) }
+}
+
+export function alignExportTrims(
+  tracks: AudioLooperExportTrack[] | undefined,
+  durations: number[],
+): AudioLooperExportTrack[] {
+  if (durations.length > MAX_AUDIO_LOOPER_TRACKS) {
+    throw new Error(`Choose at most ${MAX_AUDIO_LOOPER_TRACKS} tracks.`)
+  }
+  if (!tracks) {
+    return durations.map((duration, index) => ({
+      id: `track-${index + 1}`,
+      trimStart: 0,
+      trimEnd: duration,
+    }))
+  }
+  if (tracks.length !== durations.length) throw new Error('Track trims do not match the uploaded files.')
+  return tracks.map((track, index) => {
+    const trim = resolveTrim(track.trimStart, track.trimEnd, durations[index] ?? 0)
+    return { id: track.id, ...trim }
+  })
 }
 
 function requireIntegerSeconds(value: unknown, label: string): number {

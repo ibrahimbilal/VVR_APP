@@ -624,6 +624,49 @@ button:disabled {
   transform: translateY(-4px);
 }
 
+.card-reorder-item {
+  transition: transform var(--duration-base) var(--ease-out-soft);
+}
+
+.card-reorder-instant .card-reorder-item {
+  transition: none;
+}
+
+.card-reorder-placeholder {
+  background: color-mix(in srgb, var(--color-ink) 7%, var(--color-sidebar)) !important;
+  border-color: transparent !important;
+  box-shadow: none !important;
+}
+
+.card-reorder-placeholder > * {
+  visibility: hidden;
+}
+
+.card-drag-ghost {
+  position: fixed;
+  z-index: 70;
+  margin: 0 !important;
+  pointer-events: none;
+  cursor: grabbing;
+  box-shadow:
+    0 16px 36px rgb(0 0 0 / 0.48),
+    0 2px 8px rgb(0 0 0 / 0.32);
+  transition: none;
+}
+
+.card-drag-ghost.card-drag-ghost--settle {
+  transition: transform var(--duration-base) var(--ease-out-soft);
+}
+
+body.card-reordering,
+body.card-reordering * {
+  cursor: grabbing !important;
+}
+
+body.card-reordering {
+  user-select: none;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .page-enter-active,
   .page-leave-active,
@@ -641,7 +684,10 @@ button:disabled {
   .settings-accordion__collapse,
   .settings-accordion__inner,
   .settings-reveal,
-  .settings-reveal__inner {
+  .settings-reveal__inner,
+  .card-reorder-item,
+  .card-drag-ghost,
+  .card-drag-ghost.card-drag-ghost--settle {
     transition: none !important;
     animation: none !important;
   }

@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ChevronDown, ChevronUp, FilePlus, GripVertical, Plus, RotateCcw, Trash2 } from '@lucide/vue'
 import { ref } from 'vue'
+import { useCardReorder } from '../composables/useCardReorder'
 import { usePlayback } from '../composables/usePlayback'
 import { formatClock, sourceLabel } from '../lib/format'
 import { useProjectStore } from '../stores/project'
@@ -9,7 +10,11 @@ import FileDropZone from './FileDropZone.vue'
 const store = useProjectStore()
 const playback = usePlayback()
 const urlInput = ref('')
-const dragIndex = ref<number | null>(null)
+const listEl = ref<HTMLElement | null>(null)
+const { instant, itemStyle, isPlaceholder, onGripPointerDown } = useCardReorder({
+  list: listEl,
+  onReorder: (from, to) => store.moveClip(from, to),
+})
 const fileDrag = ref(false)
 const replaceInput = ref<HTMLInputElement | null>(null)
 const replaceId = ref<string | null>(null)
@@ -61,7 +66,6 @@ function onFileDragLeave() {
 function onSidebarDrop(event: DragEvent) {
   dragDepth = 0
   fileDrag.value = false
-  dragIndex.value = null
   if (!isFileDrag(event)) return
   const files = event.dataTransfer?.files
   if (files && files.length > 0) void store.addFiles(files)
@@ -71,22 +75,6 @@ function onSelectClip(id: string) {
   store.selectClip(id)
   const segment = playback.segments.value.find((item) => item.clip.id === id)
   if (segment) void playback.seek(segment.start)
-}
-
-function onDragStart(event: DragEvent, index: number) {
-  dragIndex.value = index
-  event.dataTransfer?.setData('application/x-vvr-clip', String(index))
-  if (event.dataTransfer) event.dataTransfer.effectAllowed = 'move'
-}
-
-function onDropItem(event: DragEvent, index: number) {
-  const files = event.dataTransfer?.files
-  if (files && files.length > 0) return
-  const raw = event.dataTransfer?.getData('application/x-vvr-clip')
-  const from = raw ? Number(raw) : dragIndex.value
-  if (from == null || Number.isNaN(from)) return
-  store.moveClip(from, index)
-  dragIndex.value = null
 }
 
 function kept(duration: number, start: number, end: number): string {
@@ -127,30 +115,33 @@ function kept(duration: number, start: number, end: number): string {
       />
     </div>
 
-    <div class="min-h-0 flex-1 space-y-2 overflow-y-auto p-3" @dragover.prevent>
+    <div
+      ref="listEl"
+      class="min-h-0 flex-1 space-y-2 overflow-y-auto p-3"
+      :class="{ 'card-reorder-instant': instant }"
+      @dragover.prevent
+    >
       <p v-if="store.clips.length === 0" class="px-2 py-8 text-center text-sm text-zinc-500">
         Drop MP4, MOV, or WebM files here. Export stays off until there is at least one clip.
       </p>
       <article
         v-for="(clip, index) in store.clips"
         :key="clip.id"
-        class="rounded-lg border cursor-pointer bg-inset p-2"
+        data-reorder-item
+        class="card-reorder-item rounded-lg border cursor-pointer bg-inset p-2"
         :class="[
           store.selectedClipId === clip.id ? 'border-zinc-200' : 'border-zinc-800',
-          dragIndex === index ? 'opacity-50' : '',
+          isPlaceholder(index) ? 'card-reorder-placeholder' : '',
         ]"
+        :style="itemStyle(index)"
         @click="onSelectClip(clip.id)"
-        @dragover.prevent
-        @drop.prevent="onDropItem($event, index)"
       >
         <div class="flex gap-2">
           <button
-            class="mt-1 w-5 shrink-0 cursor-grab text-zinc-500"
+            class="mt-1 w-5 shrink-0 cursor-grab touch-none select-none text-zinc-500"
             type="button"
-            draggable="true"
             aria-label="Drag to reorder"
-            @dragstart="onDragStart($event, index)"
-            @dragend="dragIndex = null"
+            @pointerdown.stop="onGripPointerDown($event, index)"
           >
             <GripVertical :size="16" />
           </button>
@@ -177,20 +168,20 @@ function kept(duration: number, start: number, end: number): string {
           <div class="h-full bg-brand" :style="{ width: `${Math.round(clip.uploadProgress * 100)}%` }"></div>
         </div>
         <p v-if="clip.error" class="mt-2 text-xs text-red-300">{{ clip.error }}</p>
-        <div class="mt-2 flex flex-wrap gap-2">
-          <button class="btn cursor-pointer btn-ghost px-2 py-1" type="button" aria-label="Move up" title="Move up" :disabled="index === 0" @click.stop="store.moveClip(index, index - 1)">
+        <div class="mt-2 flex">
+          <button class="rounded-sm inline-flex size-7 cursor-pointer items-center justify-center bg-transparent text-zinc-300 hover:bg-white/10 hover:text-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand disabled:cursor-not-allowed disabled:opacity-40" type="button" aria-label="Move up" title="Move up" :disabled="index === 0" @click.stop="store.moveClip(index, index - 1)">
             <ChevronUp :size="16" />
           </button>
-          <button class="btn cursor-pointer btn-ghost px-2 py-1" type="button" aria-label="Move down" title="Move down" :disabled="index === store.clips.length - 1" @click.stop="store.moveClip(index, index + 1)">
+          <button class="rounded-sm inline-flex size-7 cursor-pointer items-center justify-center bg-transparent text-zinc-300 hover:bg-white/10 hover:text-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand disabled:cursor-not-allowed disabled:opacity-40" type="button" aria-label="Move down" title="Move down" :disabled="index === store.clips.length - 1" @click.stop="store.moveClip(index, index + 1)">
             <ChevronDown :size="16" />
           </button>
-          <button v-if="clip.uploadState === 'error'" class="btn cursor-pointer btn-ghost px-2 py-1" type="button" aria-label="Retry upload" title="Retry upload" @click.stop="store.retryUpload(clip.id)">
+          <button v-if="clip.uploadState === 'error'" class="rounded-sm inline-flex size-7 cursor-pointer items-center justify-center bg-transparent text-zinc-300 hover:bg-white/10 hover:text-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand" type="button" aria-label="Retry upload" title="Retry upload" @click.stop="store.retryUpload(clip.id)">
             <RotateCcw :size="16" />
           </button>
-          <button v-if="clip.uploadState === 'empty'" class="btn cursor-pointer btn-ghost px-2 py-1" type="button" aria-label="Add file" title="Add file" @click.stop="pickReplace(clip.id)">
+          <button v-if="clip.uploadState === 'empty'" class="rounded-sm inline-flex size-7 cursor-pointer items-center justify-center bg-transparent text-zinc-300 hover:bg-white/10 hover:text-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand" type="button" aria-label="Add file" title="Add file" @click.stop="pickReplace(clip.id)">
             <FilePlus :size="16" />
           </button>
-          <button class="btn cursor-pointer btn-danger ml-auto px-2 py-1" type="button" aria-label="Remove clip" title="Remove clip" @click.stop="store.removeClip(clip.id)">
+          <button class="ml-auto rounded-sm inline-flex size-7 cursor-pointer items-center justify-center bg-transparent text-red-300 hover:bg-red-500/10 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand" type="button" aria-label="Remove clip" title="Remove clip" @click.stop="store.removeClip(clip.id)">
             <Trash2 :size="16" />
           </button>
         </div>

@@ -1,41 +1,20 @@
 <script setup lang="ts">
-import { ChevronDown, ChevronUp, GripVertical, Replace, Trash2 } from '@lucide/vue'
+import { ChevronDown, ChevronUp, GripVertical, Trash2 } from '@lucide/vue'
 import { ref } from 'vue'
+import { useCardReorder } from '../../../composables/useCardReorder'
 import FileDropZone from '../../../components/FileDropZone.vue'
 import { formatClock } from '../../../lib/format'
 import { useImageMotionStore } from '../stores/imageMotion'
 
 const store = useImageMotionStore()
-const dragIndex = ref<number | null>(null)
-const replaceInput = ref<HTMLInputElement | null>(null)
-const replaceId = ref<string | null>(null)
+const listEl = ref<HTMLElement | null>(null)
+const { instant, itemStyle, isPlaceholder, onGripPointerDown } = useCardReorder({
+  list: listEl,
+  onReorder: (from, to) => store.reorder(from, to),
+})
 
 function onFiles(files: File[]) {
   if (files.length) void store.addFiles(files)
-}
-
-function onDragStart(event: DragEvent, index: number) {
-  dragIndex.value = index
-  event.dataTransfer?.setData('text/plain', String(index))
-}
-
-function onDrop(index: number) {
-  if (dragIndex.value == null) return
-  store.reorder(dragIndex.value, index)
-  dragIndex.value = null
-}
-
-function pickReplace(id: string) {
-  replaceId.value = id
-  replaceInput.value?.click()
-}
-
-function onReplace(event: Event) {
-  const target = event.target
-  const id = replaceId.value
-  if (!(target instanceof HTMLInputElement) || !target.files?.[0] || !id) return
-  void store.replaceSegment(id, target.files[0])
-  target.value = ''
 }
 
 function aspect(width: number, height: number): string {
@@ -61,30 +40,32 @@ function aspect(width: number, height: number): string {
       />
     </div>
 
-    <div class="min-h-0 flex-1 space-y-2 overflow-y-auto p-3">
+    <div
+      ref="listEl"
+      class="min-h-0 flex-1 space-y-2 overflow-y-auto p-3"
+      :class="{ 'card-reorder-instant': instant }"
+    >
       <p v-if="store.segments.length === 0" class="px-2 py-8 text-center text-sm text-zinc-500">
         Drop JPG, PNG, or WebP files here. Export stays off until there is at least one image.
       </p>
       <article
         v-for="(segment, index) in store.segments"
         :key="segment.id"
-        class="cursor-pointer rounded-lg border bg-inset p-2"
+        data-reorder-item
+        class="card-reorder-item cursor-pointer rounded-lg border bg-inset p-2"
         :class="[
           store.selectedSegmentId === segment.id ? 'border-zinc-200' : 'border-zinc-800',
-          dragIndex === index ? 'opacity-50' : '',
+          isPlaceholder(index) ? 'card-reorder-placeholder' : '',
         ]"
+        :style="itemStyle(index)"
         @click="store.selectSegment(segment.id)"
-        @dragover.prevent
-        @drop.prevent="onDrop(index)"
       >
         <div class="flex gap-2">
           <button
-            class="mt-1 w-5 shrink-0 cursor-grab text-zinc-500"
+            class="mt-1 w-5 shrink-0 cursor-grab touch-none select-none text-zinc-500"
             type="button"
-            draggable="true"
             aria-label="Drag to reorder"
-            @dragstart="onDragStart($event, index)"
-            @dragend="dragIndex = null"
+            @pointerdown.stop="onGripPointerDown($event, index)"
           >
             <GripVertical :size="16" />
           </button>
@@ -117,22 +98,18 @@ function aspect(width: number, height: number): string {
           />
           <span>seconds</span>
         </label>
-        <div class="mt-2 flex flex-wrap gap-2">
-          <button class="btn cursor-pointer btn-ghost px-2 py-1" type="button" aria-label="Move up" title="Move up" :disabled="index === 0" @click.stop="store.reorder(index, index - 1)">
+        <div class="mt-2 flex">
+          <button class="rounded-sm inline-flex size-7 cursor-pointer items-center justify-center bg-transparent text-zinc-300 hover:bg-white/10 hover:text-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand disabled:cursor-not-allowed disabled:opacity-40" type="button" aria-label="Move up" title="Move up" :disabled="index === 0" @click.stop="store.reorder(index, index - 1)">
             <ChevronUp :size="16" />
           </button>
-          <button class="btn cursor-pointer btn-ghost px-2 py-1" type="button" aria-label="Move down" title="Move down" :disabled="index === store.segments.length - 1" @click.stop="store.reorder(index, index + 1)">
+          <button class="rounded-sm inline-flex size-7 cursor-pointer items-center justify-center bg-transparent text-zinc-300 hover:bg-white/10 hover:text-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand disabled:cursor-not-allowed disabled:opacity-40" type="button" aria-label="Move down" title="Move down" :disabled="index === store.segments.length - 1" @click.stop="store.reorder(index, index + 1)">
             <ChevronDown :size="16" />
           </button>
-          <button class="btn cursor-pointer btn-ghost px-2 py-1" type="button" aria-label="Replace image" title="Replace image" @click.stop="pickReplace(segment.id)">
-            <Replace :size="16" />
-          </button>
-          <button class="btn cursor-pointer btn-danger ml-auto px-2 py-1" type="button" aria-label="Remove image" title="Remove image" @click.stop="store.removeSegment(segment.id)">
+          <button class="ml-auto rounded-sm inline-flex size-7 cursor-pointer items-center justify-center bg-transparent text-red-300 hover:bg-red-500/10 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand" type="button" aria-label="Remove image" title="Remove image" @click.stop="store.removeSegment(segment.id)">
             <Trash2 :size="16" />
           </button>
         </div>
       </article>
-      <input ref="replaceInput" class="hidden" type="file" accept="image/jpeg,image/png,image/webp,.jpg,.jpeg,.png,.webp" @change="onReplace" />
     </div>
   </aside>
 </template>

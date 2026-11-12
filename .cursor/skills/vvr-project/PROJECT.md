@@ -6,7 +6,7 @@ Local **Video's Factory** platform with five apps:
 2. **Screensaver** — long-form 16:9 ambient video from one image or looping video.
 3. **Thumbnail Studio** — browser-only YouTube thumbnail tool. Upload an image or take one from Screensaver, then place a resolution badge and a duration badge. It does not call FFmpeg.
 4. **Image Upscaler** — PNG, JPEG, and WebP through a **two-stage** pipeline: upscale to a lossless intermediate PNG (`mid/`), then export fit to preset pixels (default 4K). Standard is Sharp Lanczos3; optional AI Lite runs Real-ESRGAN at native 4× then resizes to the effective scale (auto or 1–4×). Re-export skips upscale when only export settings change. See `docs/image-upscaler.md`.
-5. **Audio Looper** — one short audio file repeated to an exact duration (60s–12h, same presets and default as Screensaver) as MP3, WAV, or FLAC. Simple uses `-stream_loop`; Seamless builds an equal-power crossfaded cycle then streams it. Shares the FFmpeg job queue as `kind: 'audio-looper'`.
+5. **Audio Looper** — one or more audio files repeated to an exact duration (60s–12h, same presets and default as Screensaver) as MP3, WAV, or FLAC. One file keeps Simple `-stream_loop` and Seamless equal-power cycle. Two or more add trim, order, optional crossfade, and optional loudness, then stream one PCM cycle. Shares the FFmpeg job queue as `kind: 'audio-looper'`.
 
 Ranking behavior is unchanged in substance: upload clips (or link titles only), order, style banner and ranks, preview, export MP4.
 
@@ -58,8 +58,9 @@ server/src/imageUpscalerJobs.ts         sequential image jobs, separate from FFm
 tools/realesrgan/                      optional NCNN runner + models (gitignored); see MANIFEST.json
 server/src/imageUpscalerRoutes.ts       `/api/image-upscaler/*`
 shared/imageUpscaler.ts                 presets, limits, options, filenames
-shared/audioLooper.ts                   formats, duration, loop modes, filenames
-server/src/audioLooperRoutes.ts         `/api/audio-looper/export`
+shared/audioLooper.ts                   formats, duration, loop modes, playlist fields
+shared/audioLooperPlaylist.ts           playlist period, crossfade limit, repeats
+server/src/audioLooperRoutes.ts         `/api/audio-looper/export` and `/preview`
 server/src/renderAudioLooper.ts         Simple stream_loop and Seamless cycle encode
 client/src/components/layout/           AppSidebar, AppHeader, MobileNavDrawer
 client/src/composables/usePlayback.ts     ranking preview clock
@@ -100,7 +101,7 @@ Stack: Vue 3, **vue-router**, Pinia, Tailwind 4, Lucide. Client aliases `@shared
 ## What the user can do
 
 1. Add up to 30 local files (MP4, MOV, WebM, m4v) or a recognized link.
-2. Reorder by drag. Edit a clip title in the sidebar. Select a clip to trim, recolor its number and title, replace the file, or mark it "Play at the end".
+2. Reorder by drag. The card lifts and tilts under the pointer, and the other cards slide to open the drop gap. The same drag is used for Image Motion stills and Audio Looper tracks. Edit a clip title in the sidebar. Select a clip to trim, recolor its number and title, replace the file, or mark it "Play at the end".
 3. Edit the banner sentence. Each word is a span with its own color. A newline in the title sets `breakBefore` on the first word of the next line.
 4. Pick a preset (Classic Ranking, Tier List, Minimal) or keep Custom. Style banner, ranking, video, and audio.
 5. Play the preview. Banner and ranks stay painted on a canvas while `<video>` elements play underneath.
@@ -305,7 +306,7 @@ Sweep every 10 minutes: outputs older than 2 hours, jobs and incoming older than
 | Shared file drop / browse upload | `client/src/components/FileDropZone.vue` |
 | Create Thumbnail + link toggle, send still to Image Motion | `client/src/components/CreateThumbnailAction.vue`, `client/src/apps/frame-screensaver/lib/sendToImageMotion.ts` |
 | Shared audio upload + advanced sliders | `client/src/components/audio/` (`AudioFileField.vue`, `AdvancedAudioControls.vue`, `SourceClipAudioControls.vue`) |
-| Clip list, URL add, drag reorder | `client/src/components/ClipSidebar.vue` |
+| Clip list, URL add, drag reorder | `client/src/components/ClipSidebar.vue`, `client/src/composables/useCardReorder.ts` |
 | Trim, colors, play-last, replace | `client/src/components/SelectedClipPanel.vue` |
 | Presets, banner, ranks, video, audio controls | `client/src/components/StylePanel.vue` |
 | Preview stage and controls | `client/src/components/PreviewStage.vue` |
@@ -437,13 +438,26 @@ Comparison previews are WebP with a 1440px long edge. Downloads are the verified
 
 ## Audio Looper
 
-Editor state is `useAudioLooperStore` (`client/src/apps/audio-looper/stores/audioLooper.ts`). Ranking and screensaver stores stay independent. Desktop layout matches the other editors: source column `300px` (project name and audio), preview in the center with the export bar under it, settings column `360px` titled Settings (Duration, Loop, Output). Settings persist in `localStorage` key `vf-audio-looper-settings` (duration, mode, fades, volume, format, name). The source `File` is memory-only.
+Editor state is `useAudioLooperStore` (`client/src/apps/audio-looper/stores/audioLooper.ts`). Ranking and screensaver stores stay independent. Desktop layout matches the other editors: source column `300px` (project name and drop zone stay fixed, the track list scrolls), preview in the center with the export bar under it, settings column `360px` titled Settings (Duration, Loop, Output). Settings persist in `localStorage` key `vf-audio-looper-settings` (duration, mode, fades, volume, format, name, playlist crossfade, loudness). Uploaded files stay in memory for the session. There is no playlist library.
 
-Import: MP3, WAV, FLAC, M4A, AAC, OGG, max 100 MB, confirmed with ffprobe. Target 60–43200 integer seconds (Screensaver presets 30m–12h, default 4h, or custom minutes). Simple: `-stream_loop -1 -t TARGET`. Seamless: equal-power `afade` (`esin`) of tail and head, `amix` those into a wrap-around join, concat with the mid segment into a PCM cycle of duration `source - crossfade`, then `-stream_loop` that cycle (output starts at the wrap-around join). Source longer than target is trimmed. Volume 0–200%, fades 0–30s. MP3 128–320 kbps; WAV PCM 16-bit; FLAC lossless.
+One interface covers every upload count. No files: the source column shows the drop zone, and the player, track list, loop plan, and loop controls stay hidden. One file: the existing custom player, trim, Simple (`-stream_loop`) or Seamless (equal-power cycle), fades, and volume. Two or more files (max 30, 100 MB each): reorder (same lifted-card drag as Shorts), per-track trim, shuffle, optional crossfade, and optional loudness. Crossfade and Match loudness use `ToggleSwitch`. Dropping back to one file restores Simple/Seamless and keeps duration, format, fades, and volume.
 
-Verify slack: `max(0.25s, min(1.5s, 1% of target))`. Source Preview and Loop Plan render only after a file is in memory. Preview uses a custom canvas player (Shorts-style play/pause, mute, clock); the waveform is the seek timeline. Unplayed samples draw at opacity 0.8 and played samples at 1.0 from the real `HTMLAudioElement` position. Waveform decode stays capped at 16 MB (`WAVEFORM_MAX_BYTES`); larger files keep the player and a fallback track.
+Import: MP3, WAV, FLAC, M4A, AAC, OGG, max 100 MB, confirmed with ffprobe. Target 60–43200 integer seconds (Screensaver presets 30m–12h, default 4h, or custom minutes). A single full-length file is unchanged: Simple uses `-stream_loop -1 -t TARGET`; Seamless builds an equal-power `afade` (`esin`) cycle of duration `source - crossfade`, then streams it. A sub-range trim is applied with `atrim` to 48 kHz stereo PCM first, then that same Simple or Seamless path. Volume 0–200%, fades 0–30s. MP3 128–320 kbps; WAV PCM 16-bit; FLAC lossless.
+
+Playlist timing lives in `shared/audioLooperPlaylist.ts`. Crossfade is off by default. When on, the default is 3s and the maximum is half the shorter side of every join, including last → first. The loop period is the sum of trimmed lengths, minus one crossfade per track when the transition is on (internal joins plus the wrap). The renderer trims each file, optionally runs two-pass `loudnorm` (I=-16 LUFS, TP=-1.5 dBTP, LRA=11), joins tracks with `acrossfade`, and builds the loop wrap with the same equal-power `afade`/`amix` cycle Seamless uses. It then limits overlap peaks on that cycle and `-stream_loop -1 -t TARGET`. Mixed inputs become 48 kHz stereo only on that playlist path. Loudness matching is a listening target, not a claim that every track sounds the same. The browser sequence preview overlaps by the same duration and draws one waveform for the whole period (each trimmed track in order, louder sample kept where they overlap). **Preview mix** renders a short WAV (one period up to 20s, otherwise 12s) when loudness is on. Preview files go to `server/tmp/looper-previews` and the 6-hour sweep removes anything left behind.
+
+Verify slack: `max(0.25s, min(1.5s, 1% of target))`. Source Preview and Loop Plan render only after a file is in memory. Preview uses a custom canvas player (Shorts-style play/pause, mute, clock); the waveform is the seek timeline. Unplayed samples draw at opacity 0.5 and played samples at 1.0 from the real `HTMLAudioElement` position. Trim handles dim the audio outside the selection. Waveform decode stays capped at 16 MB (`WAVEFORM_MAX_BYTES`); larger files keep the player and a fallback track.
 
 ## Changelog
+
+- 2026-11-12 — Audio Looper sequence waveform is the combined playlist, not the first track (`LooperSequencePlayer.vue`, `waveform.ts`).
+- 2026-11-12 — Audio Looper keeps the drop zone fixed and scrolls the track list (`AudioLooperView.vue`, `LooperSourcePanel.vue`).
+- 2026-11-12 — Image Motion cards no longer replace a still in place (`ImageMediaLibrary.vue`, `imageMotion.ts`).
+- 2026-11-12 — Reorder-card actions are transparent square icon buttons on clips, Image Motion stills, and looper tracks (`ClipSidebar.vue`, `ImageMediaLibrary.vue`, `LooperTrackList.vue`).
+- 2026-11-12 — Audio Looper Crossfade and Match loudness use the shared toggle (`LooperSettings.vue`, `ToggleSwitch.vue`).
+- 2026-11-12 — Drag reorder lifts and tilts the card and slides the others aside, for clips, Image Motion stills, and looper tracks (`useCardReorder.ts`, `ClipSidebar.vue`, `ImageMediaLibrary.vue`, `LooperTrackList.vue`).
+- 2026-11-12 — Audio Looper upload stays in the source column, matching the other editors (`AudioLooperView.vue`, `LooperSourcePanel.vue`).
+- 2026-11-12 — Audio Looper is one upload flow: per-track trim, reorder, shuffle, optional playlist crossfade with a wrapped cycle, and optional two-pass loudness (`shared/audioLooper.ts`, `shared/audioLooperPlaylist.ts`, `server/src/renderAudioLooper.ts`, `server/src/audioLooperRoutes.ts`, `client/src/apps/audio-looper/`).
 
 - 2026-11-11 — Shorts previews size the player with CSS `aspect-ratio` (Ranking `PreviewStage.vue`, Image Motion `ImageMotionPreview.vue`).
 - 2026-11-11 — Screensaver and Audio Looper default export duration is 4 hours (`DEFAULT_DURATION_SECONDS` in `shared/screensaver.ts`, `shared/audioLooper.ts`).
