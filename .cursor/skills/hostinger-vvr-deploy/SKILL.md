@@ -67,4 +67,4 @@ If the repo is on GitHub/GitLab with a Hostinger Git installation: `hosting_node
 
 ## After deploy
 
-If product behavior or hosting notes changed, add one line to `PROJECT.md` changelog.
+If product behavior or hosting notes changed, add one dated line under **Unreleased** in `docs/ai/CHANGELOG.md`. Do not bump `package.json` unless the user approved a release.

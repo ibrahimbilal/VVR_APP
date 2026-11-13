@@ -1,0 +1,14 @@
+---
+description: Express/FFmpeg server conventions for routes, jobs, and temp storage
+globs: server/**/*.{ts,mjs,cjs,js}
+alwaysApply: false
+---
+
+# Backend
+
+- Routes: `server/src/index.ts` and focused `*Routes.ts`. Validate with limits from `shared/`.
+- Product FFmpeg exports go through `jobs.ts` (one encode at a time). Do not start a parallel FFmpeg pipeline.
+- Image Upscaler uses `imageUpscalerJobs.ts` (separate from FFmpeg queue).
+- Use `ffmpegUtil.ts`, `encoders.ts`, `ffmpegThreading.ts` for spawn/progress/encode helpers.
+- Temp data only under `server/tmp/` (gitignored). Clips/frames/outputs are caches, not editor source of truth.
+- Never commit secrets or write API tokens into source. Optional AI Lite config stays in env / `docs/image-upscaler.md`.

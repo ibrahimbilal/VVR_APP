@@ -1,38 +1,47 @@
 ---
 name: vvr-project
 description: >-
-  Maintains the Vertical Video Ranking (VVR) project map and is the first
-  thing to read before any work in this repo. Use before editing, debugging,
-  reviewing, or answering questions about the VVR app, client, renderer,
-  export, clips, ranking, timeline, preview, or styles, and update the map
-  after those tasks change the project.
+  Maintains Video's Factory deep project references (limits, HTTP, storage,
+  per-app behavior). Use when docs/ai is insufficient and you need detailed
+  ranking, screensaver, thumbnail, upscaler, looper, or server behavior.
 ---
 
 # VVR project role
 
-This repo is a local editor for 9:16 ranking compilations. The full map lives in [PROJECT.md](PROJECT.md). Read that file before searching code.
+Prefer `docs/ai/PROJECT_MAP.md` for navigation. Read **only** the deep topic file(s) below that match the task — never load every file at once.
 
-## Before any task
+## Deep references (progressive)
 
-1. Read [PROJECT.md](PROJECT.md) from top to bottom.
-2. Answer or implement from the map. Open only the files listed under "Where to change things" for the area you touch.
-3. If the map is silent or stale, read that area's source, then correct the map before finishing.
+| Topic | File |
+| --- | --- |
+| Overview, layout, where-to-change, invariants | [overview.md](overview.md) |
+| Run / scripts / build | [run.md](run.md) |
+| IndexedDB / persistence | [persistence.md](persistence.md) |
+| Shorts ranking (state, preview, export) | [ranking.md](ranking.md) |
+| Server queue, HTTP, disk, limits | [server.md](server.md) |
+| Screensaver | [screensaver.md](screensaver.md) |
+| Thumbnail Studio | [thumbnail.md](thumbnail.md) |
+| Image Upscaler | [upscaler.md](upscaler.md) |
+| Audio Looper | [audio-looper.md](audio-looper.md) |
+| Changelog | [docs/ai/CHANGELOG.md](../../../docs/ai/CHANGELOG.md) |
+
+## Before a deep task
+
+1. Start with `docs/ai/PROJECT_MAP.md` (and FEATURES/ARCHITECTURE as needed).
+2. Open only the matching deep file(s) from the table.
+3. Open only the source files those docs name.
+4. If a doc is silent or stale, trust the code, then correct the smallest doc + `docs/ai/` before finishing.
 
 ## After the task
 
-Update [PROJECT.md](PROJECT.md) in the same turn when any of these changed:
+Update the relevant deep file(s) and `docs/ai/` when behavior, data shapes, APIs, limits, storage, layout, or file responsibilities change.
 
-- user-visible behavior or layout
-- Pinia state, persisted fields, or clip/style types
-- HTTP routes, export payload, or FFmpeg behavior
-- limits, storage locations, or file responsibilities
+Append **one** dated line under **Unreleased** in `docs/ai/CHANGELOG.md`. Skip when the task did not alter the project. Version bumps need user approval (`.cursor/rules/versioning.mdc`). See `docs/ai/MAINTENANCE.md`.
 
-Add one changelog line: date, what changed, which files. Leave the map alone when the task was a question or a change that did not alter the project.
+## Working rules
 
-## Working rules for this repo
-
-- Preview and export must stay aligned. Both use `shared/frame.ts`, `shared/timeline.ts`, `client/src/lib/drawOverlay.ts`, and `client/src/lib/format.ts`. A visual change in one path is unfinished until the other path uses the same numbers.
-- The Pinia store in `client/src/stores/project.ts` is the editor state. Do not add a second store for project data.
-- Links never download video. A clip exports only after a local file is uploaded to the renderer.
-- One render runs at a time. Do not start a second FFmpeg pipeline in parallel.
-- Keep edits inside the area the task names. Match existing Vue, Pinia, and Express style.
+- Preview and export must stay aligned (`shared/frame.ts`, `shared/timeline.ts`, `client/src/lib/drawOverlay.ts`, `client/src/lib/format.ts`).
+- Ranking state only in `client/src/stores/project.ts`.
+- Links never download video.
+- One FFmpeg render at a time.
+- Keep edits inside the named area. Match existing Vue, Pinia, and Express style.

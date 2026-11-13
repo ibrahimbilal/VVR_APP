@@ -2,6 +2,7 @@
 node_modules
 dist
 client/dist
+server/dist
 client/node_modules
 server/tmp
 .DS_Store
@@ -13,6 +14,7 @@ vvr-app.zip
 launcher/bin/
 launcher/obj/
 Video factory.exe
+*.exe
 tools/realesrgan/win-x64/
 tools/realesrgan/linux-x64/
 tools/realesrgan/models/*.param

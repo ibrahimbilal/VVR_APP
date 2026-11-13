@@ -1,0 +1,37 @@
+﻿# Dependencies and builds
+node_modules/
+**/node_modules/
+dist/
+**/dist/
+client/dist/
+server/dist/
+launcher/bin/
+launcher/obj/
+
+# Runtime / temp / large binaries
+server/tmp/
+tools/realesrgan/win-x64/
+tools/realesrgan/linux-x64/
+tools/realesrgan/models/*.param
+tools/realesrgan/models/*.bin
+*.exe
+vvr-app.zip
+*.log
+
+# Secrets and local env
+.env
+.env.*
+!.env.example
+
+# Editor / OS noise
+.DS_Store
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Optional local sample media (not source)
+client/public/samples/
+
+# Lockfile is large and rarely needed for agent reasoning
+package-lock.json

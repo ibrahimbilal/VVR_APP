@@ -1,0 +1,232 @@
+﻿# Changelog
+
+Product and architecture history for Video's Factory.
+Version source of truth: root `package.json` (currently **3.0.0**). See `.cursor/rules/versioning.mdc`.
+
+## Unreleased
+
+Changes since the current `package.json` version. On release, fold these under a `Release **vX.Y.Z**` line and clear this section.
+
+- 2026-11-13 — Versioning rule aligned to SemVer + Unreleased; agents propose bumps only with approval (`.cursor/rules/versioning.mdc`, `docs/ai/CHANGELOG.md`).
+- 2026-11-13 — Split deep project map into topic files under `.cursor/skills/vvr-project/`; moved changelog to `docs/ai/CHANGELOG.md`; removed monolithic `PROJECT.md`.
+- 2026-11-13 — AI context system: concise `docs/ai/` maps, modular Cursor rules/skills, `.cursorignore`; agents prefer `docs/ai` over full-tree scans.
+
+## History
+
+Dated notes for work included in current and earlier builds. Explicit package bumps use a `Release **vX.Y.Z**` line.
+
+- 2026-11-13 — Production Optimized CFR for Screensaver: timeline segment reuse, quality presets, export UI, VFR duration fix, validation, tests, and YouTube candidates (`server/src/screensaverCfr/`, `renderScreensaverHybrid.ts`, `shared/screensaver.ts`, `docs/optimized-cfr-production-report.md`).
+- 2026-11-12 — Optimized CFR proof of concept for Screensaver: 60 s 4K segment-reuse encode, benchmark report, YouTube candidate left unwired (`server/scripts/poc-optimized-cfr.ts`, `docs/optimized-cfr-poc-report.md`).
+- 2026-11-12 — Audio Looper **Clear all tracks** sits above the track list and uses the same ghost red style as Delete all (`LooperSourcePanel.vue`).
+- 2026-11-12 — Confirmations, including Delete all, fade the backdrop and lift the card (`AppDialog.vue`, `style.css`).
+- 2026-11-12 — Image Upscaler cards drop to 50% opacity after download and return when that image is upscaled again (`ImageBatchList.vue`, `stores/imageUpscaler.ts`).
+- 2026-11-12 — Image Upscaler left panel matches the other editors: fixed project name and drop zone, scrolling image cards, and Source / Preview / Settings tabs (`ImageUpscalerView.vue`, `ImageUploader.vue`, `ImageBatchList.vue`).
+- 2026-11-12 — Screensaver and Thumbnail project lists keep the status pill beside the name, and the upload block has the same bottom border as the other editors (`ScreensaverProjectList.vue`, `ThumbnailProjectList.vue`, `FrameScreensaverView.vue`, `ThumbnailStudioView.vue`).
+- 2026-11-12 — Screensaver and Thumbnail project cards match clip cards: light selection border, status as text, ghost Download all (`ScreensaverProjectList.vue`, `ThumbnailProjectList.vue`).
+- 2026-11-12 — Screensaver keeps a project list in IndexedDB (id, settings, source, audio, render status). Notification Open loads that project (`screensaver.ts`, `screensaverProjectLibrary.ts`, `AppNotifications.vue`, `managedExportJobs.ts`).
+- 2026-11-12 — Opening a saved Screensaver project that is not in the in-memory list adds that project back (`openProject`).
+- 2026-11-12 — Screensaver upload stays fixed and each dropped file becomes a project. The list scrolls, hides empty projects, and shows upload status on an info icon (`ScreensaverMediaPanel.vue`, `ScreensaverProjectList.vue`, `screensaver.ts`).
+- 2026-11-12 — Selecting a Screensaver project no longer moves it to the top of the list (`screensaver.ts`).
+- 2026-11-12 — Screensaver project cards open on click; redundant Open icon removed (`ScreensaverProjectList.vue`).
+- 2026-11-12 — Downloaded Screensaver cards stay dimmed until the project settings change (`ScreensaverProjectList.vue`, `screensaver.ts`).
+- 2026-11-12 — Screensaver project cards add Create Thumbnail and Send to Image Motion actions (`ScreensaverProjectList.vue`).
+- 2026-11-12 — Thumbnail Studio persists multiple projects in IndexedDB (`project:<id>`, `meta:<id>`, `catalog`) with legacy `document` migration (`thumbnail.ts`, `thumbnailProjectLibrary.ts`, `idb.ts`).
+- 2026-11-12 — Thumbnail upload matches Screensaver: multi-drop, sticky drop zone, scrollable project list, info-icon upload details, Delete all, and dimmed cards after unchanged download (`ThumbnailMediaPanel.vue`, `ThumbnailProjectList.vue`, `ThumbnailStudioView.vue`, `thumbnail.ts`).
+- 2026-11-12 — Screensaver **Create Thumbnail** saves in the background (no redirect); replaces the thumbnail tied to that screensaver project id when one already exists (`createThumbnail.ts`, `stageTransfer.ts`, `stores/thumbnail.ts`).
+- 2026-11-12 — Screensaver **Send image to Image Motion Shorts** stays on Screensaver and appends each framed still as its own timeline segment (`sendToImageMotion.ts`, `stores/imageMotion.ts`).
+- 2026-11-12 — Image Motion image list adds **Delete all** at the top of the segment list (`ImageMediaLibrary.vue`, `stores/imageMotion.ts`).
+- 2026-11-12 — Screensaver and Thumbnail project lists add a sticky **Download all** action at the bottom (`ScreensaverProjectList.vue`, `ThumbnailProjectList.vue`, `screensaver.ts`, `thumbnail.ts`).
+- 2026-11-12 — Audio Looper sequence waveform is the combined playlist, not the first track (`LooperSequencePlayer.vue`, `waveform.ts`).
+- 2026-11-12 — Audio Looper keeps the drop zone fixed and scrolls the track list (`AudioLooperView.vue`, `LooperSourcePanel.vue`).
+- 2026-11-12 — Image Motion cards no longer replace a still in place (`ImageMediaLibrary.vue`, `imageMotion.ts`).
+- 2026-11-12 — Reorder-card actions are transparent square icon buttons on clips, Image Motion stills, and looper tracks (`ClipSidebar.vue`, `ImageMediaLibrary.vue`, `LooperTrackList.vue`).
+- 2026-11-12 — Audio Looper Crossfade and Match loudness use the shared toggle (`LooperSettings.vue`, `ToggleSwitch.vue`).
+- 2026-11-12 — Drag reorder lifts and tilts the card and slides the others aside, for clips, Image Motion stills, and looper tracks (`useCardReorder.ts`, `ClipSidebar.vue`, `ImageMediaLibrary.vue`, `LooperTrackList.vue`).
+- 2026-11-12 — Audio Looper upload stays in the source column, matching the other editors (`AudioLooperView.vue`, `LooperSourcePanel.vue`).
+- 2026-11-12 — Audio Looper is one upload flow: per-track trim, reorder, shuffle, optional playlist crossfade with a wrapped cycle, and optional two-pass loudness (`shared/audioLooper.ts`, `shared/audioLooperPlaylist.ts`, `server/src/renderAudioLooper.ts`, `server/src/audioLooperRoutes.ts`, `client/src/apps/audio-looper/`).
+- 2026-11-11 — Shorts previews size the player with CSS `aspect-ratio` (Ranking `PreviewStage.vue`, Image Motion `ImageMotionPreview.vue`).
+- 2026-11-11 — Screensaver and Audio Looper default export duration is 4 hours (`DEFAULT_DURATION_SECONDS` in `shared/screensaver.ts`, `shared/audioLooper.ts`).
+- 2026-11-11 — Render→ready uses `promoteActiveRenderJobToReady` (stable track id), one notification `TransitionGroup`, and `notif-status` crossfade (`AppNotifications.vue`, `platform.ts`, `managedExportJobs.ts`, `style.css`).
+- 2026-11-11 — Ready notification actions align with the title row; Dismiss is icon-only (`AppNotifications.vue`).
+- 2026-11-11 — Header notification rows show per-app icons, icon-only Open/Cancel on in-progress exports, and remaining time from export ETA (`AppNotifications.vue`, `renderNotifications.ts`, `platform.ts`, `renderJobTracking.ts`).
+- 2026-11-10 — Image Motion total duration is the sum of the image durations. A crossfade no longer shortens the timeline (`imageMotionTimeline.ts`, `renderImageMotion.ts`).
+- 2026-11-10 — Send to Image Motion bakes the screensaver placement and frame into the still. The Image Motion preview keeps its image cache when leaving the page (`sendToImageMotion.ts`, `useImageMotionPlayback.ts`).
+- 2026-11-10 — Screensaver export bar uses an image-plus icon for Create Thumbnail and an image-play icon that appends the current still to Image Motion Shorts (`CreateThumbnailAction.vue`, `sendToImageMotion.ts`, `FrameScreensaverView.vue`).
+- 2026-11-10 — New Image Motion segments default Transition to next to a 0.5 s crossfade (`shared/imageMotion.ts`).
+- 2026-11-10 — Ranking and Image Motion export status lists the same rows as Screensaver: total frames, rendered frames, encoder, speed, elapsed, and output (`RankingExportDetails.vue`, `ImageMotionExportDetails.vue`).
+- 2026-11-10 — New Ranking and Image Motion projects default the encoding method to CPU. Saved projects keep their stored choice (`presets.ts`, `shared/imageMotion.ts`).
+- 2026-11-10 — Image Motion Output includes the Screensaver encoding method list (Auto, CPU, verified hardware). Ranking Output already has the same control (`ImageMotionSettings.vue`, `stores/imageMotion.ts`).
+- 2026-11-10 — Image Motion Shorts uses the studio layout: settings tabs, clip-style image list, scaled preview player, and panel timeline (`ImageMotionShortsView.vue`, image-motion components).
+- 2026-11-10 — Shorts: Image Motion Shorts mode (dual editor, shared motion math, IDB v4, `/api/image-motion/*`, `renderImageMotion.ts`, `npm run test:image-motion`) (`shared/imageMotion*.ts`, `client/src/apps/image-motion-shorts/`, `RankingVideosView.vue`, `server/src/jobs.ts`, `PROJECT.md`).
+- 2026-11-10 — Screensaver Content: Subscribe Animation accordion opens by default; Frames starts collapsed (`ScreensaverSettingsPanel.vue`).
+- 2026-11-10 — Notification **Download** no longer dismisses the ready row; use **Dismiss** to remove it (`AppNotifications.vue`).
+- 2026-11-09 — YouTube Fetch keeps CDN URL in `channelAvatarUrl`; lookup returns separate `avatarDataUrl` ingested as a blob for preview/export (`youtubeChannel.ts`, `subscribeAnimationChannelAvatar.ts`, `shared/youtubeAvatar.ts`).
+- 2026-11-09 — Export status uses the studio panel: rounded card, progress bar, and a collapsed rail (`AppExportStatusPanel.vue`, `RankingExportDetails.vue`, `ScreensaverExportDetails.vue`).
+- 2026-11-09 — Notification row leave is fade-left with dark red background; Cancel clears untracked rows (`AppNotifications.vue`, `style.css`, `renderJobTracking.ts`, `platform.ts`).
+- 2026-11-08 — Thumbnail app menu label is Thumbnails; route is `/thumbnails` (`navigation.ts`, `router.ts`, `AppSidebar.vue`).
+- 2026-11-08 — App routes are one-word paths matching the sidebar labels: `/shorts`, `/screensaver`, `/thumbnails`, `/upscale`, `/looper` (`router.ts`, `navigation.ts`, `renderNotifications.ts`, thumbnail return paths).
+- 2026-11-08 — Shorts Settings add an Output tab for Video settings (resolution, fps, encoder, scaling, transition); Style no longer includes Video (`RankingVideosView.vue`, `StylePanel.vue`).
+- 2026-11-08 — Screensaver Enable subscribe animation toggle uses `.settings-reveal` (`ScreensaverSettingsPanel.vue`).
+- 2026-11-08 — Thumbnail Show badge toggle expands/collapses controls with `.settings-reveal` (`ThumbnailControls.vue`, `style.css`).
+- 2026-11-08 — Settings motion: animated accordions, shared `AppSettingsTabs`, pane transitions on Shorts/Screensaver/Looper/Thumbnail (`SettingsAccordion.vue`, `AppSettingsTabs.vue`, settings panels, `style.css`).
+- 2026-11-08 — Shell motion: route page transition, active-nav pulse, dashboard stagger, drawer/toast/button transitions (`style.css`, `App.vue`, `AppSidebar.vue`, `DashboardView.vue`, `MobileNavDrawer.vue`, `docs/ui-design-system.md`).
+- 2026-11-08 — Remove Create Thumbnail from Shorts (`RankingVideosView.vue`, `CreateThumbnailButton.vue`, `createThumbnail.ts`).
+- 2026-11-08 — Shared Create Thumbnail + Link control for Shorts and Screensaver (`CreateThumbnailAction.vue`, `CreateThumbnailButton.vue`, `FrameScreensaverView.vue`).
+- 2026-11-08 — Shared `AppStudioExportBar` under the preview for Shorts, Screensaver, and Audio Looper (`AppStudioExportBar.vue`, `RankingVideosView.vue`, `FrameScreensaverView.vue`, `AudioLooperView.vue`).
+- 2026-11-08 — Remove Shorts `TimelineBar` component (`TimelineBar.vue`, `RankingVideosView.vue`).
+- 2026-11-08 — Shorts puts timeline, status, Create Thumbnail, and Export under the preview in a studio-panel; the timeline footer is removed (`RankingVideosView.vue`, `TimelineBar.vue`).
+- 2026-11-08 — Screensaver preview canvas stays centered on both axes inside the stage (`EditorCanvas.vue`).
+- 2026-11-08 — Shorts clip and export status sits with Create Thumbnail in one bar above the timeline (`RankingVideosView.vue`, `CreateThumbnailButton.vue`).
+- 2026-11-08 — Shorts right panel is titled Settings, above Clip, Style, and Sound (`RankingVideosView.vue`).
+- 2026-11-08 — Audio Looper settings move to a 360px right Settings panel; the left source panel stays 300px. Screensaver, Thumbnail Studio, Image Upscaler, and Shorts already use 300px left and 360px right (`AudioLooperView.vue`, `LooperSettings.vue`, `ImageUpscalerView.vue`).
+- 2026-11-08 — Screensaver settings move to a right Settings panel; the left panel keeps the project name and source (`FrameScreensaverView.vue`, `ScreensaverSettingsPanel.vue`).
+- 2026-11-08 — Screensaver route is `/screensaver` (`/frame-screensaver` redirects). Settings tabs are Content, Output, Sound, Style (`router.ts`, `navigation.ts`, `ScreensaverSettingsPanel.vue`).
+- 2026-11-08 — Screensaver settings groups are Style, Output, Content (frames and subscribe), and Sound. The nav label stays Screensaver (`ScreensaverSettingsPanel.vue`, `AppSidebar.vue`, `RankingVideosView.vue`).
+- 2026-11-08 — Image Upscaler always saves the upscaled size in the uploaded format (JPEG quality 100). Export settings and full-resolution inspect are removed from the UI (`UpscaleSettings.vue`, `imageUpscaler.ts`, `ImageComparison.vue`).
+- 2026-11-08 — Image Upscaler fit and padding controls show only when the export resolution is not Original or Upscaled Dimensions (`UpscaleSettings.vue`).
+- 2026-11-08 — Image Upscaler export inspector has more space between resolution, fit, padding, format, and sharpen (`UpscaleSettings.vue`).
+- 2026-11-08 — Audio Looper uses the same left-panel, stage, and export-bar layout as the other editors (`AudioLooperView.vue`, `LooperSettings.vue`).
+- 2026-11-08 — Studio redesign: icon rail, dashboard home, and new workspace layouts for all five editors. Processing, stores, and exports are unchanged (`DashboardView.vue`, app views, `AppSidebar.vue`, `docs/ui-design-system.md`).
+- 2026-11-08 — Audio Looper duration matches Screensaver: 2h default, 30m–12h presets, custom minutes (`shared/audioLooper.ts`, `LooperSettings.vue`).
+- 2026-11-08 — Audio Looper hides Source Preview and Loop Plan until a file is loaded; custom canvas player with 0.8/1.0 waveform progress replaces native audio controls (`LooperPreview.vue`, `LooperPlayer.vue`).
+- 2026-11-08 — Dashboard app cards are fully clickable with hover lift; Open Editor button removed (`DashboardView.vue`).
+- 2026-11-08 — Audio Looper export enables after a file drop by keeping the source `File` in a reactive store field (`stores/audioLooper.ts`).
+- 2026-11-08 — Add Audio Looper: `/audio-looper`, shared FFmpeg queue `kind: 'audio-looper'`, Simple stream_loop and Seamless equal-power cycle, MP3/WAV/FLAC (`shared/audioLooper.ts`, `server/src/renderAudioLooper.ts`, `client/src/apps/audio-looper/`).
+- 2026-11-08 — Image Upscaler: removed Re-export button; Upscale Images always deletes output and re-runs export when engine/scale unchanged (`shouldReexportOnly`, `outputGeneration`, `stores/imageUpscaler.ts`).
+- 2026-11-08 — Image Upscaler re-export with a new crop position refreshes the comparison preview (`outputRevision` on job items, `upscaleOutputCacheStamp`, `imageUpscalerJobs.ts`, `ImageComparison.vue`).
+- 2026-11-08 — Image Upscaler Cover export uses explicit scale-and-crop so left/right/top/bottom crop position is honored (`coverCropRect`, `server/src/imageUpscaler.ts`).
+- 2026-11-08 — Image Upscaler default export format follows the first uploaded file until the user changes Format (`outputFormatFromMime`, `stores/imageUpscaler.ts`).
+- 2026-11-08 — Image Upscaler download filenames use the resolved export preset tag and actual output pixels, not placeholder settings (`uniqueOutputName`, `server/src/imageUpscalerJobs.ts`).
+- 2026-11-08 — Image Upscaler two-stage pipeline: intermediate PNG, scale factor auto/1–4×, export resolutions original/upscaled/FHD–8K, intermediate reuse, re-export API and UI (`shared/imageUpscaler.ts`, `server/src/imageUpscaler*.ts`, `server/src/realesrganEngine.ts`, `client/src/apps/image-upscaler/`, `docs/image-upscaler.md`).
+- 2026-11-08 — AI Lite standalone: Windows + Ubuntu Linux x64 (`process.platform` / `process.arch`), shared `models/`, Linux `setup:ai-lite` + `launch:linux`, platform tests, deploy archive skips foreign NCNN dirs (`scripts/setup-ai-lite.mjs`, `scripts/ai-lite-platform.cjs`, `scripts/launch-linux.sh`, `server/src/realesrganStandalone.ts`, `tools/realesrgan/MANIFEST.json`, `docs/image-upscaler.md`).
+- 2026-11-07 — Launcher warns when the process path is not `*.exe` (extension stripping breaks Windows behavior); `launcher/README.md` notes keeping `.exe` (`launcher/Program.cs`).
+- 2026-11-07 — `Video factory.exe` opens the Vite dev URL `http://127.0.0.1:5173/` instead of matching the API log on 3001 (`launcher/Program.cs`, `launcher/README.md`).
+- 2026-11-06 — `Video factory.exe` runs `npm run setup:ai-lite` when AI is enabled and `tools/realesrgan/` is incomplete (unless both `VVR_REALESRGAN_BINARY` and `VVR_REALESRGAN_MODEL_DIR` are set); `launcher/README.md`, `launcher/Program.cs`, `PROJECT.md` Run section.
+- 2026-11-06 — Repo-root `.env` loaded on server boot (`server/src/loadEnv.ts`, `dotenv`) and by `scripts/launch-dev.cjs` / `launcher/Program.cs`; `.env.example` added (`docs/image-upscaler.md`). Empty `VVR_REALESRGAN_*=` lines are cleared so standalone `tools/realesrgan/` auto-detect works (`server/src/envOptional.ts`, `realesrganConfig.ts`).
+- 2026-11-06 — Image Upscaler AI Lite standalone: `tools/realesrgan/` layout, server resolves from project root (`server/src/realesrganStandalone.ts`, `server/src/projectRoot.ts`, `server/src/realesrganConfig.ts`), launcher + `scripts/launch-dev.cjs` via `scripts/ai-lite-env.cjs`, optional `npm run setup:ai-lite`, Hostinger archive skips `tools/realesrgan/win-x64`, docs (`docs/image-upscaler.md`, `tools/realesrgan/THIRD_PARTY_NOTICES.md`, `launcher/README.md`).
+- 2026-11-05 — Earlier launch integration detected an installed Upscayl app under `C:\Program Files\Upscayl` (superseded 2026-11-06 by standalone `tools/realesrgan/`).
+- 2026-11-04 — Image Upscaler optional AI Lite (`realesrgan-lite`): local Real-ESRGAN NCNN Vulkan, Lanczos3 remains the default, capabilities endpoint, exact-size fit (`shared/imageUpscaler.ts`, `server/src/realesrganEngine.ts`, `server/src/imageUpscaler*.ts`, `client/src/apps/image-upscaler/`, `docs/image-upscaler.md`).
+- 2026-11-04 — Thumbnail image **FileStatusBox** uses full status flow (`uploading` → `processing` → `ready` / `error`); shared labels in `fileStatusBox.ts`.
+- 2026-11-04 — Thumbnail Studio **FileStatusBox** on image upload with format, size, dimensions; `clearImage`, asset meta refs (`ThumbnailControls.vue`, `stores/thumbnail.ts`).
+- 2026-11-04 — **FileStatusBox** (`FileStatusBox.vue`): shared file row with `ready` (green), `uploading` (brand blue), `error` (red), `processing` (amber); replaces ad-hoc UploadedFileBox styling (`ScreensaverMediaPanel.vue`, `AudioFileField.vue`).
+- 2026-11-04 — Screensaver visual **UploadedFileBox** meta: format, file size, dimensions, duration (`sourceFileSize`, `ScreensaverMediaPanel.vue`).
+- 2026-11-04 — **AudioFileField** meta line: format, size, duration via `useAudioFileMeta.ts`, `audioFormatLabel` (`AudioFileField.vue`, `media.ts`; `audioFileSize` / `musicFileSize` in stores).
+- 2026-11-04 — Shared **UploadedFileBox** (`UploadedFileBox.vue`): uploaded filename, optional meta slot, trash remove; used for screensaver media and audio (`ScreensaverMediaPanel.vue`, `AudioFileField.vue`).
+- 2026-11-04 — Clearer uploaded-file labels: emerald “Uploaded” + filename on screensaver media and audio (`ScreensaverMediaPanel.vue`, `AudioFileField.vue`); uploaded frame PNG names under thumbnails (`ScreensaverSettingsPanel.vue`).
+- 2026-11-04 — Subscribe animation **edge distance**: extra bottom padding inside the overlay PNG (horizontal inset only on X); overlay Y stays frame-bottom aligned (`subscribeAnimationLayout.ts`).
+- 2026-11-04 — Subscribe animation mouse pointer hides after the last button click completes (`subscribeAnimationMouse.ts`).
+- 2026-11-04 — Subscribe animation intro/outro: slide up/down only (no opacity fade) for all styles (`subscribeAnimationTimeline.ts`).
+- 2026-11-04 — Screensaver export status sidebar shows progress %, total frames, and rendered frames (`encodeProgress` from job poll, `ScreensaverExportDetails.vue`, `jobPoll.ts`).
+- 2026-11-04 — Logo, Video's Factory name, and header page title link to the dashboard (`AppSidebar.vue`, `MobileNavDrawer.vue`, `AppHeader.vue`).
+- 2026-11-04 — Image Upscaler cover crop positions are icon buttons on one row (`UpscaleSettings.vue`).
+- 2026-11-03 — Image Upscaler comparison zoom keeps the divider on the same pixels while zooming and panning (`ImageComparison.vue`).
+- 2026-11-03 — Add Image Upscaler: Lanczos3 Sharp pipeline, `/image-upscaler`, batch ZIP, Screensaver handoff (`shared/imageUpscaler.ts`, `server/src/imageUpscaler*.ts`, `client/src/apps/image-upscaler/`, `docs/image-upscaler.md`).
+- 2026-11-03 — Subscribe animation 60 fps: multer multipart file cap and hybrid FFmpeg fps follow `SUBSCRIBE_ANIMATION_FPS`; upload PNG budget scales with frame count (`shared/screensaverSubscribeAnimation.ts`, `server/src/index.ts`, `renderScreensaverHybrid.ts`).
+- 2026-11-03 — Screensaver defaults: **Preview rendering** CPU when unset; **Encoding method** CPU for new/reset projects (`previewRendererPreference.ts`, `stores/screensaver.ts`).
+- 2026-11-03 — Screensaver Settings: **Subscribe Animation** accordion above **Frames** (`ScreensaverSettingsPanel.vue`).
+- 2026-11-03 — Subscribe animation alerts bell: **bell-ring** icon only after click completes, not during press/hover (`subscribeAnimationDraw.ts`).
+- 2026-11-03 — Screensaver and Thumbnail Studio: visible **Project** title field (Shorts-style label); thumbnail document `name`, transfer from `title`, download filename (`FrameScreensaverView.vue`, `ThumbnailControls.vue`, `shared/thumbnailProject.ts`, `thumbnailTransfer.ts`).
+- 2026-11-03 — Thumbnail Studio Image section: removed cover/contain, zoom, pan, and reset image controls (`ThumbnailControls.vue`, `stores/thumbnail.ts`).
+- 2026-11-03 — Screensaver Frames: selected frame shows hover overlay with remove icon (`ScreensaverSettingsPanel.vue`).
+- 2026-11-03 — Block duplicate export when project content is unchanged since the last enqueue/download (`exportFingerprint.ts`, ranking/screensaver/thumbnail stores).
+- 2026-11-03 — Notification **Cancel** shows a spinner until the active render row clears (`AppNotifications.vue`).
+- 2026-11-03 — Export buttons are export-only (no progress, cancel, or download on the button); removed `exportButtonMode.ts` (`ExportActionButton.vue`, `ScreensaverExportBar.vue`, `ThumbnailControls.vue`).
+- 2026-11-03 — **New project** no longer cancels exports or deletes server uploads; only resets editor state (`stores/project.ts`, `apps/frame-screensaver/stores/screensaver.ts`).
+- 2026-11-02 — Subscribe animation mouse pointer smaller (20 vs 26 design px; `SUBSCRIBE_ANIMATION_MOUSE_POINTER_SIZE_DESIGN`, `subscribeAnimationDraw.ts`).
+- 2026-11-02 — Subscribe animation alert icon: removed continuous bell wiggle; bell-ring swap and click press unchanged (`subscribeAnimationTimeline.ts`, `subscribeAnimationDraw.ts`, `renderSubscribeAnimation.ts`).
+- 2026-11-02 — Root devDependency `archiver` ^8 + `minimatch` override ^11.0.1 clears Hostinger/npm moderate advisories (glob/minimatch); deploy script uses `ZipArchive`.
+- 2026-11-02 — Client devDependency `sharp` bumped to ^0.35.5 (GHSA-wq5f-xc86-pv6w / librsvg RCE advisory).
+- 2026-11-02 — Subscribe animation per-style default size % and edge 0; pre-export PNG size blocker removed (check after render).
+- 2026-11-02 — YouTube channel lookup: parse subscriber count from modern `metadataParts` JSON when `subscriberCountText` is absent (`server/src/youtubeChannel.ts`).
+- 2026-11-03 — Reload recovery for Shorts/Screensaver exports: persist server job ids in `localStorage`, resume polling on app load, `GET /api/jobs/active` (`persistedRenderJobs.ts`, `resumePersistedRenderJobs.ts`, `managedExportJobs.ts`, `App.vue`, `server/src/jobs.ts`, `server/src/index.ts`).
+- 2026-11-01 — Subscribe animation alert click: **bell-ring** icon + continuous bell wiggle from click through hold (`subscribeAnimationLucideIcons.ts`, timeline/draw).
+- 2026-11-01 — Subscribe animation timeline: **1 s** between like → subscribe → alerts; channel card uses separate subscribe + bell buttons; clip length **7 s** (`subscribeAnimationTimeline.ts`).
+- 2026-11-01 — Screensaver experimental **Subscribe Animation** PoC: shared settings, canvas renderer, hybrid 1/30/1 fps segment export, tests/bench/docs (`shared/screensaverSubscribeAnimation.ts`, `renderScreensaverHybrid.ts`, `SubscribeAnimation.vue`, `docs/screensaver-subscribe-animation-poc.md`).
+
+
+- 2026-11-01 — Release **v1.1.0** (`package.json`): Shorts/Screensaver naming, brand colors, favicon/launcher sync, Screensaver 4K + 2 h defaults.
+- 2026-11-01 — User-facing app name **Shorts** (was Ranking Videos); routes and code paths stay `ranking-videos` (`navigation.ts`, `router.ts`, `renderNotifications.ts`, docs).
+- 2026-11-01 — User-facing app name **Screensaver** (was Frame Screensaver); routes and code paths stay `frame-screensaver` (`navigation.ts`, `router.ts`, `renderNotifications.ts`, docs).
+- 2026-11-01 — Screensaver defaults: 3840×2160 output and 2 h duration (`DEFAULT_SCREENSAVER_OUTPUT`, `DEFAULT_DURATION_*`, `stores/screensaver.ts`).
+- 2026-11-01 — Brand accent `#0078f8` sampled from `client/public/logo.png`; replaces gold UI accent via Tailwind `brand` tokens and `client/src/lib/brand.ts` (`style.css`, layout, buttons, timeline, notifications, canvas guides).
+- 2026-11-01 — Favicon pack in `client/public/` (PNG sizes, `site.webmanifest`, `index.html` links); launcher build always syncs `favicon.ico` → `launcher/icon.ico` when content differs (`launcher/build.mjs`, `client/index.html`).
+- 2026-10-31 — Root `README.md` documents three apps, bundled frames, Thumbnail Studio, production URLs, launcher, and `frames:thumbs` script.
+- 2026-10-29 — Screensaver **New project** and source removal clear the preview canvas (WebGL empty-source path, stale media load guard, `EditorCanvas.vue`).
+- 2026-10-29 — Per-job **Cancel** on in-progress render notifications (`AppNotifications.vue`, `renderJobTracking.ts`, `platform.ts`).
+- 2026-10-29 — Queued multi-export for Shorts and Screensaver: snapshot on each click, shared prep queue, up to 12 jobs per app, header notifications per job (`exportQueueRunner.ts`, `managedExportJobs.ts`, ranking/screensaver stores, export buttons).
+- 2026-10-29 — Hostinger deploy archive excludes `launcher/` and all `*.exe` (e.g. root `Video Factory.exe`; Hostinger deploy skill).
+- 2026-10-29 — Live deploy to `videos.ibrahimbilal.com` via SSH `scp` + Hostinger archive Node.js build (commit `87c3d98`).
+- 2026-10-29 — Ranking **Hide clip title after a while** (`ranking.titleHideAfter`); dual export overlays + FFmpeg timed switch (`format.ts`, `exportJob.ts`, `render.ts`, `StylePanel.vue`).
+- 2026-10-29 — Style panel collapses dependent controls when **Show title**, **Show ranking numbers**, or **Show clip titles** is off (`StylePanel.vue`).
+- 2026-10-29 — Ranking export allows a single clip (client `exportBlocker`, server `parseProject`, copy in `ClipSidebar.vue` / `PreviewStage.vue`).
+- 2026-10-29 — Ranking style: **Show ranking numbers** toggle (`ranking.visible`); **Show clip titles** and **Show previous titles** moved from Video to Ranking accordion (`StylePanel.vue`, `format.ts`, `drawOverlay.ts`, `types.ts`).
+- 2026-10-29 — Launcher: `launcher/nuget.config` for NuGet.org (fixes NU1100 when no global feed); TFM `net8.0` console app.
+- 2026-10-29 — Remove browser desktop notifications for render-ready; in-app header notifications only (`renderNotifications.ts`, `project.ts`, `screensaver.ts`).
+- 2026-10-29 — Replace Node SEA launcher with native C# `Video Factory.exe` (`launcher/`, `npm run build:launcher`).
+- 2026-10-29 — Full page reload clears header render queues and export-in-progress UI; bfcache restore clears queues too (`renderQueueBootstrap.ts`, `platform.ts`, ranking/screensaver `init`).
+- 2026-10-29 — Ranking and Screensaver export status sidebars start collapsed (`RankingExportDetails.vue`, `ScreensaverExportDetails.vue`).
+- 2026-10-29 — Header notifications: in-progress renders with per-item progress, aggregate ring around operation count, ready downloads (`AppNotifications.vue`, `platform.ts`, `renderJobTracking.ts`).
+- 2026-10-29 — Header notification bell and panel (render-ready items with download/open) left of renderer status (`AppNotifications.vue`, `platform.ts`, `AppHeader.vue`).
+- 2026-10-29 — Render-ready in-app notifications and optional browser notifications for Shorts and Screensaver; launcher exe icon from favicon; Screensaver mobile Settings/Preview tabs and preview layout (`renderNotifications.ts`, `build-launcher.mjs`, `FrameScreensaverView.vue`, `EditorCanvas.vue`).
+- 2026-10-29 — Thumbnail resolution badge defaults to top-left (`thumbnailProject.ts`).
+- 2026-10-29 — Screensaver preview draws a dashed export-frame outline (dims outside when view zoom/pan changes) (`EditorCanvas.vue`).
+- 2026-10-29 — Screensaver desktop preview fits the center column height (16:9 letterboxed) so export and **Create Thumbnail** stay visible without scrolling (`FrameScreensaverView.vue`, `EditorCanvas.vue`).
+- 2026-10-29 — **New project** in the platform header for Shorts, Screensaver, and Thumbnail Studio (`AppHeader.vue`, `stores/screensaver.ts`, `stores/thumbnail.ts`, `idb.ts`).
+- 2026-10-28 — Thumbnail Studio resets to a fresh document on full page load; persisted `document` is cleared and asset refs released (`stores/thumbnail.ts`).
+- 2026-10-28 — Thumbnail badge anchors align to the chip box using separate SVG padX/padY (`ThumbnailBadge.vue`, `rasterizeBadge.ts`, `renderThumbnail.ts`).
+- 2026-10-28 — Re-enable thumbnail badge drag on the preview (`ThumbnailBadge.vue`).
+- 2026-10-28 — Thumbnail badge “Distance from edges” is in export pixels; legacy normalized margins migrate on load (`thumbnailLayout.ts`, `thumbnailProject.ts`, `ThumbnailControls.vue`, `thumbnail.test.ts`).
+- 2026-10-28 — Remove badge import npm scripts and `client/scripts/importThumbnailBadges.ts`; SVGs are maintained in-repo only (`package.json`, `PROJECT.md`).
+- 2026-10-28 — Thumbnail badges default off; Show badge hides per-badge settings and the shared Badge style section until at least one badge is on (`thumbnailProject.ts`, `ThumbnailControls.vue`).
+- 2026-10-28 — Thumbnail badge resolution/duration are catalog dropdowns only; labels map 1:1 to SVG slugs; style previews use 4K artwork (`thumbnailBadges.ts`, `ThumbnailControls.vue`, `thumbnailTransfer.ts`).
+- 2026-10-28 — Thumbnail badges use imported SVG assets instead of HTML/canvas markup; remove HTML badge catalog (`thumbnailBadges.ts`, `badgeAssets.ts`, `importThumbnailBadges.ts`, `client/src/assets/thumbnail-badges/`).
+- 2026-10-28 — Add `npm run export:badges` to generate `docs/thumbnail-badges.html` (`exportBadgeCatalog.ts`, `package.json`).
+- 2026-10-28 — Thumbnail download uses the preview badge layout, size, and artwork (`badgeHtml.ts`, `rasterizeBadge.ts`, `renderThumbnail.ts`).
+- 2026-10-28 — Add a silver chip badge style (`badgeHtml.ts`, `thumbnailProject.ts`, `rasterizeBadge.ts`).
+- 2026-10-28 — Remove Mono and Line badge styles; six styles remain (`thumbnailProject.ts`, `badgeHtml.ts`).
+- 2026-10-31 — Bundled frame picker uses 150px thumbs in `assets/frames/thumbs/`; canvas and export keep full PNGs (`generate-frame-thumbs.mjs`, `defaultFrames.ts`, `ScreensaverSettingsPanel.vue`).
+- 2026-10-31 — Screensaver shows bundled PNG frames from `client/src/assets/frames/` above upload; preview, thumbnail transfer, and video export resolve `default:*` ids (`defaultFrames.ts`, `screensaverFrames.ts`, `ScreensaverSettingsPanel.vue`, `stores/screensaver.ts`, `server/src/index.ts`).
+- 2026-10-28 — Chip badges show a number and one letter: `4K` for resolution and `8H` for duration (`badgeHtml.ts`, `thumbnailProject.ts`).
+- 2026-10-28 — Thumbnail badge markup is sized in pixels and resized with CSS scale (`badgeHtml.ts`).
+- 2026-10-27 — Thumbnail badges share a size slider from 40% to 200% (`ThumbnailControls.vue`, `thumbnailProject.ts`).
+- 2026-10-27 — Thumbnail badges are HTML/CSS resolution labels (gold, silver, stack, mono, line, outline, invert) shared by the duration badge (`badgeHtml.ts`, `rasterizeBadge.ts`, `thumbnailProject.ts`).
+- 2026-10-27 — Thumbnail Studio badge style is one shared panel that updates both badges (`ThumbnailControls.vue`, `stores/thumbnail.ts`).
+- 2026-10-27 — Simplify Thumbnail Studio to one image and two badges: drop layers, templates, catalogs, and ZIP; keep screensaver and ranking transfer (`client/src/apps/thumbnail-studio/`, `shared/thumbnailProject.ts`, `shared/thumbnailTransfer.ts`, `shared/thumbnailLayout.ts`).
+- 2026-10-27 — Add Thumbnail Studio: route, editor, IndexedDB v3 assets, screensaver and ranking transfer, PNG/JPEG/WebP and ZIP export (`client/src/apps/thumbnail-studio/`, `shared/thumbnail*.ts`, `client/src/lib/idb.ts`).
+- 2026-10-27 — Boolean settings use shared toggle switches instead of checkboxes (`ToggleSwitch.vue`, `style.css`, ranking/style/audio/thumbnail/screensaver UI).
+- 2026-10-27 — Fix Screensaver frame upload (`FileDropZone` import in `ScreensaverSettingsPanel.vue`).
+- 2026-10-27 — Shared advanced audio UI (`components/audio/`); ranking background music fade in/out on export (`VideoStyle`, `render.ts`).
+- 2026-10-27 — Screensaver full page reload clears cached background audio and resets audio to No audio (`idb.ts`, `stores/screensaver.ts`).
+- 2026-10-27 — Tab close and server boot purge leftover `jobs/` work dirs; only queued/encoding jobs are kept (`storage.ts`, `jobs.ts`, `index.ts`).
+- 2026-10-27 — Screensaver export no longer stays blocked after a background audio file is chosen (`stores/screensaver.ts`).
+- 2026-10-27 — Shared `FileDropZone` for all file uploads (screensaver audio/media/frames, ranking clips/music/replace).
+- 2026-10-27 — Screensaver duration floor temporarily 5 minutes for local export testing (`shared/screensaver.ts`, settings min, server parse).
+- 2026-10-25 — Ranking layout: New project beside app title in `AppHeader`; export status column right of the style sidebar (`RankingVideosView.vue`, `AppHeader.vue`).
+- 2026-10-25 — Shared render optimization: adaptive FFmpeg threading (`ffmpegThreading.ts`), ranking encoder Auto/CPU/HW via `encoders.ts`, `GET /api/encoders`, ranking Style panel + export diagnostics, bench/test scripts, `docs/render-benchmark-report.md` (`server/src/render.ts`, `client` ranking UI, `server/scripts/`).
+- 2026-10-27 — Windows launcher spawns dev via `cmd.exe /c npm run dev` (fixes Node 24 `spawn EINVAL` on `npm.cmd`) (`scripts/launch-dev.cjs`).
+- 2026-10-27 — Windows dev launcher script and optional `dist/VVR-Dev.exe` build (`scripts/launch-dev.cjs`, `npm run launch`, `npm run build:launcher`, root `package.json`).
+- 2026-10-25 — Upgrade `multer` to 2.5.0 (CVE-2026-113872); root `overrides` pin (`package.json`, `server/package.json`).
+- 2026-10-25 — Screensaver export progress stats in a collapsible right sidebar (toggle rail, not accordion) (`ScreensaverExportDetails.vue`, `FrameScreensaverView.vue`).
+- 2026-10-25 — Screensaver auto-applies the latest frame PNG after upload (`stores/screensaver.ts`).
+- 2026-10-25 — Screensaver: full page reload clears IndexedDB main-media preview cache and selected frame; reverted active-frame IDB persistence (`client/src/lib/idb.ts`, `stores/screensaver.ts`).
+- 2026-10-25 — Screensaver Output settings: preview rendering selector (Auto / GPU / CPU) with active backend label (`ScreensaverSettingsPanel.vue`, `previewRendererPreference.ts`, `stores/screensaver.ts`).
+- 2026-10-25 — Screensaver export frame rate options include 60 fps (`shared/screensaver.ts`, `server/src/index.ts`).
+- 2026-10-25 — Screensaver: WebGL context restore + Canvas2D fallback on failed restore; adjust pipeline doc; CPU/FFmpeg visual SSIM tests; richer encoder bench workloads; compose CPU bench script and performance report (`shared/screensaverAdjustPipeline.md`, `server/scripts/visual-screensaver-adjust.ts`, `server/scripts/bench-screensaver-compose.ts`, `docs/screensaver-performance-report.md`, `server/src/encoders.ts`).
+- 2026-10-25 — Screensaver: WebGL2 preview renderer with Canvas 2D fallback, rAF draw scheduling, 4K export compose worker, developer diagnostics panel (`client/src/apps/frame-screensaver/`, `shared/screensaverAdjustUniforms.ts`, `docs/screensaver-performance-baseline.md`).
+- 2026-10-24 — Server upload purge runs only on tab/window close, not when downloading an export (`client/src/stores/project.ts`, `client/src/apps/frame-screensaver/stores/screensaver.ts`).
+- 2026-10-24 — Root `overrides` pin `body-parser` 2.4.0 (Express transitive dep; Hostinger CVE advisory) (`package.json`, `package-lock.json`).
+- 2026-10-24 — Ranking export download and tab close use the same `POST /api/uploads/cleanup` purge as Screensaver (`client/src/lib/serverUploadCleanup.ts`, `client/src/stores/project.ts`).
+- 2026-10-24 — Screensaver upload cleanup also removes all non-busy clips, export MP4s in `outputs/`, and orphan clip files (`server/src/storage.ts`, `server/src/jobs.ts`, `server/src/index.ts`).
+- 2026-10-24 — Screensaver upload cleanup also deletes orphan files in `server/tmp/clips/` that are no longer in `registry.json` (`server/src/storage.ts`).
+- 2026-10-24 — Screensaver server cleanup purges all frame PNGs and all non-ranking clips (including leftovers from earlier sessions); clips are tagged `origin` on upload (`server/src/storage.ts`, `server/src/frames.ts`, `server/src/index.ts`, `client/src/lib/api.ts`, `client/src/apps/frame-screensaver/stores/screensaver.ts`).
+- 2026-10-23 — Screensaver Frames section uploads PNG files, stores them on the server, and previews them in a grid. The preset dropdown is gone.
+- 2026-10-23 — Production also deployed at `videos.ibrahimbilal.com`; Hostinger deploy reference lists both domains.
+- 2026-10-22 — Screensaver adjustment controls use icons for reset, reset all, and before/after. Names stay on the tooltips.
+- 2026-10-22 — Screensaver canvas toolbar uses icons for zoom, fit, center, crop, undo, and playback. Names stay on the button tooltips.
+- 2026-10-22 — Screensaver: canvas editor (crop, transform, adjustments, procedural frames), 1 fps stills, precomposed PNG encode, hardware-encoder probe with CPU fallback, stream-copy loops, export diagnostics. Ranking encode is unchanged.
+- 2026-10-22 — Screensaver media panel matches Ranking drag-and-drop upload styling and behavior.
+- 2026-10-22 — Multi-app **Video's Factory**: vue-router shell, Dashboard, Screensaver app, IDB v2 ranking migration, screensaver API/render, shared job queue.
+- 2026-10-22 — Documented Hostinger production URL and added `hostinger-vvr-deploy` skill for archive-based redeploys.
+- 2026-10-22 — Timeline uses one export button (progress fill, hover-to-cancel, download when ready); project edits after export clear the ready state.
+- 2026-10-22 — Ranking overlay keeps list order when sort is “As listed”; `playAtEnd` affects playback only, not stack position.
+- 2026-10-22 — Created this map from the current client, server, and shared code. No product behavior changed.

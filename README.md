@@ -47,7 +47,7 @@ On Windows, `npm run launch` starts the same dev stack and opens the browser onc
 | `npm run test:audio-looper` | Audio Looper contract tests, HTTP rejection, and short FFmpeg loop/crossfade checks |
 | `npm run frames:thumbs -w client` | Regenerate 150px Screensaver picker thumbs after editing `client/src/assets/frames/*.png` |
 
-More scripts (benchmarks, visual tests) are listed in `.cursor/skills/vvr-project/PROJECT.md`.
+More scripts (benchmarks, visual tests) are listed in `.cursor/skills/vvr-project/run.md` and `docs/ai/PROJECT_MAP.md`.
 
 ## Architecture
 
@@ -106,7 +106,7 @@ Screensaver limits (also enforced on the server):
 
 ## Shorts
 
-Upload clips (or link titles only), order and trim, style banner and ranks, preview, export MP4. Queue multiple exports from one project; the server encodes one job at a time. See `.cursor/skills/vvr-project/PROJECT.md` for file-level detail.
+Upload clips (or link titles only), order and trim, style banner and ranks, preview, export MP4. Queue multiple exports from one project; the server encodes one job at a time. See `docs/ai/PROJECT_MAP.md` and `.cursor/skills/vvr-project/ranking.md` for file-level detail.
 
 ## Screensaver
 
@@ -120,7 +120,7 @@ Upload clips (or link titles only), order and trim, style banner and ranks, prev
 
 Static images are drawn once at the output size and then looped. A matching H.264 video with no crop, frame, or color change is copied instead of re-encoded. Undo is Ctrl+Z or Cmd+Z. Redo is Ctrl+Shift+Z or Cmd+Shift+Z. Arrow keys nudge the image when the canvas is focused.
 
-Long 4K exports can still take a long time. The size estimate is an extrapolation from short local encodes, not a bitrate guarantee. Measured times are in `.cursor/skills/vvr-project/PROJECT.md`.
+Long 4K exports can still take a long time. The size estimate is an extrapolation from short local encodes, not a bitrate guarantee. Measured times are in `.cursor/skills/vvr-project/screensaver.md`.
 
 ## Thumbnail Studio
 

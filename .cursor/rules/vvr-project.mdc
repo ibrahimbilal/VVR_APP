@@ -1,15 +1,15 @@
 ---
-description: Read and update the VVR project map before and after every task
+description: Minimal VVR context entry — read docs/ai before exploring the repo
 alwaysApply: true
 ---
 
-# VVR project map
+# VVR core
 
-Before any task in this repo — a question, a bugfix, a feature, or a review — read these two files and use them instead of scanning the tree:
+Before exploring or editing this repo:
 
-1. `.cursor/skills/vvr-project/SKILL.md`
-2. `.cursor/skills/vvr-project/PROJECT.md`
+1. Read `docs/ai/PROJECT_MAP.md` (not the whole tree).
+2. Open only files that map names for the task area.
+3. For deep detail, use the `vvr-project` skill and open **only** the matching topic file (ranking, screensaver, server, etc.) — never every deep file at once.
+4. If map and code disagree, trust the code, then update `docs/ai/` (and the matching deep topic + `docs/ai/CHANGELOG.md` when behavior/APIs/limits change).
 
-Open source files only for the area the map names. If the map and the code disagree, trust the code, then fix the map.
-
-After the task, if behavior, data shapes, APIs, limits, storage, layout, or file responsibilities changed, update `PROJECT.md` in the same turn and add one line to its changelog. Skip the update when the project itself did not change.
+Do not invent apps, routes, or APIs. Do not modify application behavior when the task is documentation or context only.

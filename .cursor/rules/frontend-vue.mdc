@@ -1,0 +1,14 @@
+---
+description: Vue/Pinia client conventions for Video's Factory editors and shell
+globs: client/**/*.{vue,ts,css}
+alwaysApply: false
+---
+
+# Frontend
+
+- Vue 3 `<script setup>` + Pinia. Aliases `@` and `@shared`.
+- Ranking state only in `client/src/stores/project.ts`. Per-app stores under `client/src/apps/*/stores/`.
+- Shared UI in `client/src/components/ui/` must stay presentational (no Pinia).
+- Reuse `style.css` tokens/classes and `docs/ui-design-system.md` components before new primitives.
+- Preview/export ranking visuals: change `drawOverlay.ts` / `format.ts` / `shared/frame.ts` / `shared/timeline.ts`, not one-off Vue math.
+- Uploads: `FileDropZone` + `FileStatusBox`. Booleans: `ToggleSwitch`. Settings: `SettingsAccordion` / `AppSettingsTabs`.

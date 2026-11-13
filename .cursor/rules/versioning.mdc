@@ -1,0 +1,31 @@
+---
+description: SemVer and release process for Video's Factory (package.json + docs/ai/CHANGELOG.md)
+alwaysApply: false
+---
+
+# Version management
+
+Follow SemVer 2.0.0.
+
+- **MAJOR** — breaking compatibility (APIs, persisted shapes, limits that break old projects).
+- **MINOR** — backward-compatible features.
+- **PATCH** — backward-compatible fixes.
+
+## Source of truth
+
+- App version: root `package.json` `"version"` only (workspaces do not own a version).
+- Never hardcode the version in UI components; read from the package if display is needed.
+- History: `docs/ai/CHANGELOG.md`.
+
+## During development
+
+- Do **not** bump `package.json` after every edit.
+- Append dated bullets under **Unreleased** in `docs/ai/CHANGELOG.md` when behavior/APIs/limits/storage/layout change (same bar as `docs/ai/MAINTENANCE.md`).
+- Prefer Conventional Commits for commits when the user asks to commit.
+
+## When releasing
+
+1. Propose the next version from changes under **Unreleased** since the current `package.json` version. Ask for approval before bumping.
+2. After approval: set `"version"` in root `package.json`, move Unreleased bullets under a `Release **vX.Y.Z**` line (date + summary), leave Unreleased empty.
+3. Run relevant `npm run typecheck` / `test:*` for touched areas before tagging or deploy.
+4. Never overwrite an existing release tag. Never push, publish, or deploy a release without explicit user approval.

@@ -175,7 +175,7 @@ export function formatDurationLabel(seconds: number): string {
 /**
  * Approximate file size in bytes.
  * Still and motion rates at 1920×1080, and the still rate at 3840×2160, come from the
- * 8-second libx264 CRF 20 baseline on 2026-10-22 (see PROJECT.md). Other sizes scale
+ * 8-second libx264 CRF 20 baseline on 2026-10-22 (see `.cursor/skills/vvr-project/screensaver.md`). Other sizes scale
  * those 1080p bytes/sec by pixel count. This is an extrapolation, not a guarantee.
  * Audio adds 192 kbit/s when a track is present.
  */

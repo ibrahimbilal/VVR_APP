@@ -1,0 +1,15 @@
+---
+description: Testing and regression checks when changing renders, shared contracts, exports, or test scripts
+alwaysApply: false
+---
+
+# Testing & regression
+
+Use when implementing features, fixing bugs, or touching export/render/shared math.
+
+- Prefer existing root scripts: `npm run typecheck`, `test:ranking`, `test:screensaver`, `test:screensaver-cfr`, `test:screensaver-subscribe`, `test:image-motion`, `test:thumbnail`, `test:upscaler`, `test:audio-looper`.
+- Shared contract tests sit next to modules (`shared/*.test.ts`). Server verifiers live in `server/scripts/`.
+- Ranking visual changes: preview and export must still share `drawOverlay` / `timeline` / `frame` metrics.
+- Screensaver encode changes: run the relevant `test:screensaver*` (CFR/subscribe when those paths change).
+- Do not delete or skip regression scripts to force a pass.
+- Env-gated short tests (`VVR_*_TEST=1`) stay optional; document gate changes.

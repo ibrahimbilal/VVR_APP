@@ -41,4 +41,4 @@ Root `package.json` script `build:prod` runs client Vite production build then s
 
 - FFmpeg runs via `ffmpeg-static` / `ffprobe-static` (same as local).
 - Video render is CPU-heavy; one FFmpeg job at a time (app design).
-- Uploaded clips and exports live under `server/tmp/` on the server and are swept on a schedule (see PROJECT.md).
+- Uploaded clips and exports live under `server/tmp/` on the server and are swept on a schedule (see `.cursor/skills/vvr-project/server.md`).
