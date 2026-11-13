@@ -68,7 +68,7 @@ onMounted(() => {
   void store.init()
   window.addEventListener('keydown', onKeyDown)
   if (import.meta.env.DEV) {
-    ;(window as unknown as { __vvr?: typeof store }).__vvr = store
+    ;(window as unknown as { __ribo?: typeof store }).__ribo = store
   }
 })
 

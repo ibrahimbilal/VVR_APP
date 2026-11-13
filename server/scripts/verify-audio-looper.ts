@@ -12,12 +12,12 @@ import { ensureStorage, jobsDir, outputsDir } from '../src/storage'
 const execFileAsync = promisify(execFile)
 
 async function main(): Promise<void> {
-  const enabled = process.env.VVR_AUDIO_LOOPER_TEST === '1' || process.env.npm_lifecycle_event === 'test:audio-looper'
+  const enabled = process.env.RIBO_AUDIO_LOOPER_TEST === '1' || process.env.npm_lifecycle_event === 'test:audio-looper'
   if (!enabled) {
-    console.log('Run via npm run test:audio-looper or set VVR_AUDIO_LOOPER_TEST=1.')
+    console.log('Run via npm run test:audio-looper or set RIBO_AUDIO_LOOPER_TEST=1.')
     return
   }
-  process.env.VVR_AUDIO_LOOPER_TEST = '1'
+  process.env.RIBO_AUDIO_LOOPER_TEST = '1'
   await ensureStorage()
   const work = path.join(outputsDir, '..', 'verify-audio-looper')
   await rm(work, { recursive: true, force: true })

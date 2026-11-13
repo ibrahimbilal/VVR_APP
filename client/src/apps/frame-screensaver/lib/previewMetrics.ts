@@ -15,7 +15,7 @@ export function screensaverDiagnosticsEnabled(): boolean {
   if (typeof window === 'undefined') return false
   if (diagnosticsOn) return true
   try {
-    if (localStorage.getItem('vvr-screensaver-diagnostics') === '1') return true
+    if (localStorage.getItem('ribo-screensaver-diagnostics') === '1') return true
     if (new URLSearchParams(window.location.search).get('screensaver_diag') === '1') return true
   } catch {
     // localStorage may be blocked.
@@ -26,8 +26,8 @@ export function screensaverDiagnosticsEnabled(): boolean {
 export function setScreensaverDiagnosticsEnabled(on: boolean): void {
   diagnosticsOn = on
   try {
-    if (on) localStorage.setItem('vvr-screensaver-diagnostics', '1')
-    else localStorage.removeItem('vvr-screensaver-diagnostics')
+    if (on) localStorage.setItem('ribo-screensaver-diagnostics', '1')
+    else localStorage.removeItem('ribo-screensaver-diagnostics')
   } catch {
     // ignore
   }

@@ -52,7 +52,7 @@ After a job finishes, change export-only settings and use **Re-export** (or **Up
 
 AI Lite always runs the model at that native scale on the prepared input, then resizes the intermediate to the effective upscale factor. Contain, Cover, and Fill happen on the export stage. Cover crops after upscale, not on the original. Sharpen, when enabled, runs once on the final export fit.
 
-If a native 4× image would exceed the temporary size cap (`VVR_REALESRGAN_MAX_INTERMEDIATE_EDGE`, default 8192 px), the input is reduced before the model and the job says so. A roughly 1972×1109 image at 4× stays under that cap (7888×4436) and is not reduced.
+If a native 4× image would exceed the temporary size cap (`RIBO_REALESRGAN_MAX_INTERMEDIATE_EDGE`, default 8192 px), the input is reduced before the model and the job says so. A roughly 1972×1109 image at 4× stays under that cap (7888×4436) and is not reduced.
 
 **Skip Lanczos resampling** applies only to Standard. When the image is already the target size, Standard can copy it. AI Lite still runs the model, then fits the result back to those exact pixels.
 
@@ -100,7 +100,7 @@ Sharpen is off by default. **None**, **Subtle**, and **Moderate** are separate f
 
 ## Batch, download, comparison
 
-Add up to 8 images. They share one resolution, engine, and export setup. Standard follows `VVR_UPSCALER_CONCURRENCY` (default 1, maximum 2). AI Lite runs one image at a time even if that value is 2, and it waits while a Shorts or Screensaver FFmpeg job is active.
+Add up to 8 images. They share one resolution, engine, and export setup. Standard follows `RIBO_UPSCALER_CONCURRENCY` (default 1, maximum 2). AI Lite runs one image at a time even if that value is 2, and it waits while a Shorts or Screensaver FFmpeg job is active.
 
 Each row is Pending, Processing, Completed, Failed, or Cancelled. The active image shows an indeterminate indicator. The UI does not invent a percentage. Cancel stops the job. For AI Lite, cancel terminates the native process and its child processes. On Windows that is `taskkill /T /F`. On Linux it kills the process group. Marking the job cancelled without stopping the process is not enough.
 
@@ -129,7 +129,7 @@ npm run test:upscaler
 npm run typecheck
 ```
 
-`npm run test:upscaler` does not need a GPU. The native program is mocked. Set `VVR_AI_UPSCALER_INTEGRATION=1` plus a working binary and model paths to also run one real upscale. CI should leave that unset.
+`npm run test:upscaler` does not need a GPU. The native program is mocked. Set `RIBO_AI_UPSCALER_INTEGRATION=1` plus a working binary and model paths to also run one real upscale. CI should leave that unset.
 
 Sharp is a **server** dependency (`server/package.json`). The client copy of Sharp is only a devDependency for frame thumbnails and is not the upscaler runtime. The Real-ESRGAN program is not an npm dependency and is not part of the client bundle.
 
@@ -197,48 +197,48 @@ Native libs: the official ubuntu zip is built for glibc (typical Ubuntu). It nee
 
 ### Automatic enable (development)
 
-**`npm run launch`**, **`npm run launch:linux`**, and **`Video Factory.exe`** (Windows only) set the same environment when the standalone files exist and you have not set both `VVR_REALESRGAN_BINARY` and `VVR_REALESRGAN_MODEL_DIR` yourself (existing env vars are never overwritten):
+**`npm run launch`**, **`npm run launch:linux`**, and **`Video Factory.exe`** (Windows only) set the same environment when the standalone files exist and you have not set both `RIBO_REALESRGAN_BINARY` and `RIBO_REALESRGAN_MODEL_DIR` yourself (existing env vars are never overwritten):
 
-- `VVR_AI_UPSCALER_ENABLED=true`
-- `VVR_REALESRGAN_BINARY` → `tools/realesrgan/<platform>/realesrgan-ncnn-vulkan[.exe]`
-- `VVR_REALESRGAN_MODEL_DIR` → `tools/realesrgan/models`
-- `VVR_REALESRGAN_PROJECT_ROOT` → repo root (so the server resolves paths the same way when relative overrides are used)
+- `RIBO_AI_UPSCALER_ENABLED=true`
+- `RIBO_REALESRGAN_BINARY` → `tools/realesrgan/<platform>/realesrgan-ncnn-vulkan[.exe]`
+- `RIBO_REALESRGAN_MODEL_DIR` → `tools/realesrgan/models`
+- `RIBO_REALESRGAN_PROJECT_ROOT` → repo root (so the server resolves paths the same way when relative overrides are used)
 
-They print either `[VVR] AI Lite: Ready (standalone engine)` or `[VVR] AI Lite: Unavailable — missing engine, model, or Vulkan support`, then start the app either way.
+They print either `[Ribo] AI Lite: Ready (standalone engine)` or `[Ribo] AI Lite: Unavailable — missing engine, model, or Vulkan support`, then start the app either way.
 
-The server discovers `tools/realesrgan` when AI is enabled and you leave **both** `VVR_REALESRGAN_BINARY` and `VVR_REALESRGAN_MODEL_DIR` unset: it resolves the project root from `VVR_REALESRGAN_PROJECT_ROOT`, or from the installed server package path (`server/dist` or `server/src` under the repo).
+The server discovers `tools/realesrgan` when AI is enabled and you leave **both** `RIBO_REALESRGAN_BINARY` and `RIBO_REALESRGAN_MODEL_DIR` unset: it resolves the project root from `RIBO_REALESRGAN_PROJECT_ROOT`, or from the installed server package path (`server/dist` or `server/src` under the repo).
 
-**Optional external engine root:** set `VVR_REALESRGAN_ENGINE_DIR` to a folder that mirrors the same layout (`<platform>/` + `models/`). Priority is: explicit env (`VVR_REALESRGAN_BINARY` / `VVR_REALESRGAN_MODEL_DIR`), then bundled layout under `VVR_REALESRGAN_ENGINE_DIR` or `tools/realesrgan`, then failure with a clear reason.
+**Optional external engine root:** set `RIBO_REALESRGAN_ENGINE_DIR` to a folder that mirrors the same layout (`<platform>/` + `models/`). Priority is: explicit env (`RIBO_REALESRGAN_BINARY` / `RIBO_REALESRGAN_MODEL_DIR`), then bundled layout under `RIBO_REALESRGAN_ENGINE_DIR` or `tools/realesrgan`, then failure with a clear reason.
 
-**Relative paths:** if you set `VVR_REALESRGAN_PROJECT_ROOT` to the repo root, `VVR_REALESRGAN_BINARY` and `VVR_REALESRGAN_MODEL_DIR` may be relative to that root. Without `VVR_REALESRGAN_PROJECT_ROOT`, relative paths are rejected (use absolute paths or rely on standalone auto-detection).
+**Relative paths:** if you set `RIBO_REALESRGAN_PROJECT_ROOT` to the repo root, `RIBO_REALESRGAN_BINARY` and `RIBO_REALESRGAN_MODEL_DIR` may be relative to that root. Without `RIBO_REALESRGAN_PROJECT_ROOT`, relative paths are rejected (use absolute paths or rely on standalone auto-detection).
 
-Optional **repo-root `.env`**: copy **`.env.example`** (at the repo root) to **`.env`** and set `VVR_*` variables there. The **server loads `.env` on startup** (via `server/src/loadEnv.ts`); values already set in the OS environment are **not** overridden. **`npm run launch`** and **`Video factory.exe`** also merge `.env` into the dev process before starting `npm run dev`. Lines such as `VVR_REALESRGAN_BINARY=` with **no value** are treated as **unset** so standalone **`tools/realesrgan/`** can be auto-detected; omit those keys entirely if you rely on auto-detect.
+Optional **repo-root `.env`**: copy **`.env.example`** (at the repo root) to **`.env`** and set `RIBO_*` variables there. The **server loads `.env` on startup** (via `server/src/loadEnv.ts`); values already set in the OS environment are **not** overridden. **`npm run launch`** and **`Video factory.exe`** also merge `.env` into the dev process before starting `npm run dev`. Lines such as `RIBO_REALESRGAN_BINARY=` with **no value** are treated as **unset** so standalone **`tools/realesrgan/`** can be auto-detected; omit those keys entirely if you rely on auto-detect.
 
 ### Manual env (absolute paths)
 
 **Windows (PowerShell):**
 
 ```powershell
-$env:VVR_AI_UPSCALER_ENABLED = 'true'
-$env:VVR_REALESRGAN_BINARY = 'C:\path\to\ribo-studio\tools\realesrgan\win-x64\realesrgan-ncnn-vulkan.exe'
-$env:VVR_REALESRGAN_MODEL_DIR = 'C:\path\to\ribo-studio\tools\realesrgan\models'
-$env:VVR_REALESRGAN_MODEL_NAME = 'upscayl-lite-4x'
+$env:RIBO_AI_UPSCALER_ENABLED = 'true'
+$env:RIBO_REALESRGAN_BINARY = 'C:\path\to\ribo-studio\tools\realesrgan\win-x64\realesrgan-ncnn-vulkan.exe'
+$env:RIBO_REALESRGAN_MODEL_DIR = 'C:\path\to\ribo-studio\tools\realesrgan\models'
+$env:RIBO_REALESRGAN_MODEL_NAME = 'upscayl-lite-4x'
 npm run dev
 ```
 
 **Linux (bash):**
 
 ```bash
-export VVR_AI_UPSCALER_ENABLED=true
-export VVR_REALESRGAN_BINARY=/path/to/ribo-studio/tools/realesrgan/linux-x64/realesrgan-ncnn-vulkan
-export VVR_REALESRGAN_MODEL_DIR=/path/to/ribo-studio/tools/realesrgan/models
-export VVR_REALESRGAN_MODEL_NAME=upscayl-lite-4x
+export RIBO_AI_UPSCALER_ENABLED=true
+export RIBO_REALESRGAN_BINARY=/path/to/ribo-studio/tools/realesrgan/linux-x64/realesrgan-ncnn-vulkan
+export RIBO_REALESRGAN_MODEL_DIR=/path/to/ribo-studio/tools/realesrgan/models
+export RIBO_REALESRGAN_MODEL_NAME=upscayl-lite-4x
 npm run dev
 ```
 
-To use a different NCNN build with **official** Real-ESRGAN weights instead, download the platform zip from [Real-ESRGAN releases](https://github.com/xinntao/Real-ESRGAN/releases), point `VVR_REALESRGAN_BINARY` and `VVR_REALESRGAN_MODEL_DIR` at that tree, and set `VVR_REALESRGAN_MODEL_NAME` to `realesrgan-x4plus` (or another allowlisted official name). The panel will say this is not the Upscayl Lite model.
+To use a different NCNN build with **official** Real-ESRGAN weights instead, download the platform zip from [Real-ESRGAN releases](https://github.com/xinntao/Real-ESRGAN/releases), point `RIBO_REALESRGAN_BINARY` and `RIBO_REALESRGAN_MODEL_DIR` at that tree, and set `RIBO_REALESRGAN_MODEL_NAME` to `realesrgan-x4plus` (or another allowlisted official name). The panel will say this is not the Upscayl Lite model.
 
-Allowed program file names: `realesrgan-ncnn-vulkan.exe`, `upscayl-bin.exe`, and `upscayl-ncnn.exe` (and the same names without `.exe` on Linux). Paths must be absolute unless `VVR_REALESRGAN_PROJECT_ROOT` is set. A shortcut to another program is rejected.
+Allowed program file names: `realesrgan-ncnn-vulkan.exe`, `upscayl-bin.exe`, and `upscayl-ncnn.exe` (and the same names without `.exe` on Linux). Paths must be absolute unless `RIBO_REALESRGAN_PROJECT_ROOT` is set. A shortcut to another program is rejected.
 
 Vulkan comes from the GPU driver. Intel UHD has worked with the official NCNN build in some setups; many machines cannot. There is no CUDA, Python, or PyTorch requirement, and nothing is sent to an external API.
 
@@ -246,15 +246,15 @@ Vulkan comes from the GPU driver. Intel UHD has worked with the official NCNN bu
 
 | Variable | Default | Role |
 | --- | --- | --- |
-| `VVR_AI_UPSCALER_ENABLED` | off | `true`, `1`, or `yes` turns AI Lite on. Anything else leaves it off. |
-| `VVR_REALESRGAN_BINARY` | empty | Absolute path to the allowed executable (or relative when `VVR_REALESRGAN_PROJECT_ROOT` is set). |
-| `VVR_REALESRGAN_MODEL_DIR` | empty | Absolute path to the folder that contains `<model>.param` and `<model>.bin` (or relative with `VVR_REALESRGAN_PROJECT_ROOT`). |
-| `VVR_REALESRGAN_PROJECT_ROOT` | empty | Repo root used to resolve relative binary/model paths and `tools/realesrgan` discovery. |
-| `VVR_REALESRGAN_ENGINE_DIR` | empty | Optional root that mirrors `tools/realesrgan` (`win-x64`/`linux-x64` + `models`). |
-| `VVR_REALESRGAN_MODEL_NAME` | `upscayl-lite-4x` | One allowlisted model id. |
-| `VVR_REALESRGAN_TIMEOUT_MS` | `180000` | Kills the process after this long. Clamped to 10 seconds–30 minutes. |
-| `VVR_REALESRGAN_TILE` | `0` | Passed as `-t`. `0` lets the program pick a tile size. Otherwise 32–512. |
-| `VVR_REALESRGAN_MAX_INTERMEDIATE_EDGE` | `8192` | Longest edge of the temporary 4× image. Clamped to 1024–16384. |
+| `RIBO_AI_UPSCALER_ENABLED` | off | `true`, `1`, or `yes` turns AI Lite on. Anything else leaves it off. |
+| `RIBO_REALESRGAN_BINARY` | empty | Absolute path to the allowed executable (or relative when `RIBO_REALESRGAN_PROJECT_ROOT` is set). |
+| `RIBO_REALESRGAN_MODEL_DIR` | empty | Absolute path to the folder that contains `<model>.param` and `<model>.bin` (or relative with `RIBO_REALESRGAN_PROJECT_ROOT`). |
+| `RIBO_REALESRGAN_PROJECT_ROOT` | empty | Repo root used to resolve relative binary/model paths and `tools/realesrgan` discovery. |
+| `RIBO_REALESRGAN_ENGINE_DIR` | empty | Optional root that mirrors `tools/realesrgan` (`win-x64`/`linux-x64` + `models`). |
+| `RIBO_REALESRGAN_MODEL_NAME` | `upscayl-lite-4x` | One allowlisted model id. |
+| `RIBO_REALESRGAN_TIMEOUT_MS` | `180000` | Kills the process after this long. Clamped to 10 seconds–30 minutes. |
+| `RIBO_REALESRGAN_TILE` | `0` | Passed as `-t`. `0` lets the program pick a tile size. Otherwise 32–512. |
+| `RIBO_REALESRGAN_MAX_INTERMEDIATE_EDGE` | `8192` | Longest edge of the temporary 4× image. Clamped to 1024–16384. |
 
 `GET /api/image-upscaler/capabilities` checks the files and starts the program with `-h` only. It does not upscale an image. The response names the model and whether it is Upscayl Lite. It does not include file paths or the GPU name.
 
@@ -262,7 +262,7 @@ Arguments passed to the program are a fixed list: input, output, scale, model di
 
 ## Production
 
-`npm run build:prod` bundles the server with esbuild and leaves Sharp external. The Real-ESRGAN executable is not part of the npm bundle; place it under `tools/realesrgan` on the deployment host if you use AI there. The Hostinger deploy archive **excludes foreign-platform** `tools/realesrgan/win-x64` or `linux-x64` folders (Linux builds omit Windows NCNN binaries). On Hostinger, leave `VVR_AI_UPSCALER_ENABLED` unset. Shared hosting is not assumed to have Vulkan, and a missing AI setup must not break Standard.
+`npm run build:prod` bundles the server with esbuild and leaves Sharp external. The Real-ESRGAN executable is not part of the npm bundle; place it under `tools/realesrgan` on the host if you use AI there. Leave `RIBO_AI_UPSCALER_ENABLED` unset when Vulkan/AI is unavailable — a missing AI setup must not break Standard.
 
 Image work waits while a Shorts or Screensaver FFmpeg job is active, then continues. It does not join the video render queue.
 
@@ -274,27 +274,27 @@ Defaults, overridable with environment variables. Values above the caps below ar
 
 | Limit | Default | Variable |
 | --- | --- | --- |
-| File size | 40 MB | `VVR_UPSCALER_MAX_FILE_MB` (1–80) |
-| Images per batch | 8 | `VVR_UPSCALER_MAX_BATCH` (1–12) |
-| Input edge | 8192 px | `VVR_UPSCALER_MAX_INPUT_EDGE` |
-| Input pixels | 7680×4320 | `VVR_UPSCALER_MAX_INPUT_PIXELS` |
-| Output edge | 7680 px | `VVR_UPSCALER_MAX_OUTPUT_EDGE` |
-| Output pixels | 7680×4320 | `VVR_UPSCALER_MAX_OUTPUT_PIXELS` |
-| Parallel images | 1 | `VVR_UPSCALER_CONCURRENCY` (1–2). AI Lite stays at one. |
-| libvips threads | up to 2 | `VVR_UPSCALER_VIPS_CONCURRENCY` (max 4) |
-| Keep finished jobs | 2 hours | `VVR_UPSCALER_JOB_TTL_MIN` |
-| Free disk required | 512 MB | `VVR_UPSCALER_MIN_FREE_MB` |
-| Comparison preview edge | 1440 px | `VVR_UPSCALER_PREVIEW_EDGE` (320–1920) |
+| File size | 40 MB | `RIBO_UPSCALER_MAX_FILE_MB` (1–80) |
+| Images per batch | 8 | `RIBO_UPSCALER_MAX_BATCH` (1–12) |
+| Input edge | 8192 px | `RIBO_UPSCALER_MAX_INPUT_EDGE` |
+| Input pixels | 7680×4320 | `RIBO_UPSCALER_MAX_INPUT_PIXELS` |
+| Output edge | 7680 px | `RIBO_UPSCALER_MAX_OUTPUT_EDGE` |
+| Output pixels | 7680×4320 | `RIBO_UPSCALER_MAX_OUTPUT_PIXELS` |
+| Parallel images | 1 | `RIBO_UPSCALER_CONCURRENCY` (1–2). AI Lite stays at one. |
+| libvips threads | up to 2 | `RIBO_UPSCALER_VIPS_CONCURRENCY` (max 4) |
+| Keep finished jobs | 2 hours | `RIBO_UPSCALER_JOB_TTL_MIN` |
+| Free disk required | 512 MB | `RIBO_UPSCALER_MIN_FREE_MB` |
+| Comparison preview edge | 1440 px | `RIBO_UPSCALER_PREVIEW_EDGE` (320–1920) |
 
 Sharp's input pixel cap rejects decompression bombs before a full decode. Inputs, outputs, and previews are files, not one in-memory copy of every image. The ZIP is stored uncompressed and streamed.
 
 ## Troubleshooting
 
-- **AI Lite is turned off on this server.** Set `VVR_AI_UPSCALER_ENABLED=true` and restart the server.
+- **AI Lite is turned off on this server.** Set `RIBO_AI_UPSCALER_ENABLED=true` and restart the server.
 - **Needs the Real-ESRGAN program** or **missing the model files.** Check the absolute paths and that `<model>.param` and `<model>.bin` sit directly in the model folder.
 - **Pointed at a program this server does not allow.** The file name has to be one of the names listed above.
 - **Could not be started** or **could not find a Vulkan graphics device.** The GPU driver has to expose Vulkan. Integrated graphics often cannot.
-- **Took too long and was stopped.** Raise `VVR_REALESRGAN_TIMEOUT_MS`, or set `VVR_REALESRGAN_TILE` to `128` or `256` if the GPU runs out of memory on `0`.
+- **Took too long and was stopped.** Raise `RIBO_REALESRGAN_TIMEOUT_MS`, or set `RIBO_REALESRGAN_TILE` to `128` or `256` if the GPU runs out of memory on `0`.
 - **Unexpected image size.** The model did not return a native 4× image. The job fails instead of substituting Standard.
 - Cancel during AI should end `upscayl-bin.exe` or `realesrgan-ncnn-vulkan.exe` in Task Manager. If one remains, the next cancel or a server restart plus the job purge removes the work directory; end the leftover process in Task Manager.
 
@@ -304,7 +304,7 @@ Native binaries and `.bin` weights are **not committed** (see `.gitignore`). Use
 
 | Piece | License | How this app uses it |
 | --- | --- | --- |
-| [Real-ESRGAN](https://github.com/xinntao/Real-ESRGAN) training code and the official `realesrgan-x4plus`, `realesrgan-x4plus-anime`, and `realesrnet-x4plus` weights | BSD 3-Clause. Copyright (c) 2021 Xintao Wang. | Optional NCNN weights when `VVR_REALESRGAN_MODEL_NAME` selects an official id. |
+| [Real-ESRGAN](https://github.com/xinntao/Real-ESRGAN) training code and the official `realesrgan-x4plus`, `realesrgan-x4plus-anime`, and `realesrnet-x4plus` weights | BSD 3-Clause. Copyright (c) 2021 Xintao Wang. | Optional NCNN weights when `RIBO_REALESRGAN_MODEL_NAME` selects an official id. |
 | [Real-ESRGAN-ncnn-vulkan](https://github.com/xinntao/Real-ESRGAN-ncnn-vulkan) | MIT. Copyright (c) 2021 Xintao Wang. Includes the MIT license of nihui's realsr-ncnn-vulkan (copyright (c) 2019 nihui). | Portable Windows build is downloaded next to the repo via `npm run setup:ai-lite` (optional). |
 | [ncnn](https://github.com/Tencent/ncnn) | BSD 3-Clause, Tencent and contributors. | Linked inside the executable above. |
 | [Upscayl](https://github.com/upscayl/upscayl) app and [upscayl-ncnn](https://github.com/upscayl/upscayl-ncnn) | GNU AGPL-3.0. | Ribo Studio does not link Upscayl; the optional `upscayl-lite-4x` weights are fetched from the Upscayl repo for NCNN. Confirm redistribution obligations before shipping those files. |

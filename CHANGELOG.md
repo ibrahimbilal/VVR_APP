@@ -10,18 +10,26 @@ Detailed agent-oriented development notes: `docs/ai/CHANGELOG.md`.
 
 ## [Unreleased]
 
+### Changed
+
+- Renamed remaining internal `vvr` / `VVR_*` identifiers to `ribo` / `RIBO_*` (packages, IndexedDB, env keys, Cursor skills/rules). Existing browser data and `VVR_*` env values migrate once onto the new names.
+
+### Removed
+
+- Hostinger upload/deploy tooling (`hostinger-ribo-deploy` skill/rule, `npm run pack:hostinger`, `scripts/make-deploy-archive.mjs`, `archiver`).
+
 ## [1.0.0] — 2026-11-13
 
 First official stable release of **Ribo Studio** (repository [ibrahimbilal/ribo-studio](https://github.com/ibrahimbilal/ribo-studio)).
 
-This rebaseline establishes SemVer **1.0.0** as the product baseline. It is a branding and release-process milestone, not a rewrite of the application or its development history. Git commits, branches, and any existing tags remain unchanged. Compatibility-sensitive identifiers stay as-is (`package.json` name `vvr-app`, IndexedDB `vvr`, deploy archive `vvr-app.zip`, and `VVR_*` environment keys).
+This rebaseline establishes SemVer **1.0.0** as the product baseline. It is a branding and release-process milestone, not a rewrite of the application or its development history. Git commits, branches, and any existing tags remain unchanged. At 1.0.0, compatibility-sensitive identifiers still used the legacy `vvr` prefix (`vvr-app`, IndexedDB `vvr`, `vvr-app.zip`, `VVR_*`); those were renamed afterward (see Unreleased).
 
 ### Changed
 
 - Product display name: **Video's Factory** → **Ribo Studio** (UI shell, docs, and repository identity).
 - Official SemVer baseline set to **1.0.0**. Earlier `package.json` values such as `3.0.0` were arbitrary development metadata only — no matching Git release tag or GitHub Release existed for them.
 - Version & release management: Keep a Changelog, `scripts/release.mjs` (`npm run release:*`), sidebar version label via Vite `__APP_VERSION__`, and the `release-manager` skill.
-- AI context docs under `docs/ai/`; deep project map split into `.cursor/skills/vvr-project/` topic files.
+- AI context docs under `docs/ai/`; deep project map split into `.cursor/skills/ribo-project/` topic files.
 
 ### Included applications (verified at baseline)
 

@@ -4,7 +4,7 @@ export interface ColorSet {
   colors: string[]
 }
 
-const STORAGE_KEY = 'vvr-color-sets'
+const STORAGE_KEY = 'ribo-color-sets'
 const HEX = /^#[0-9a-fA-F]{6}$/
 
 export function defaultColorSets(): ColorSet[] {

@@ -38,7 +38,7 @@ npm run dev
 Short renders (5–30 s) require the test env flag:
 
 ```powershell
-$env:VVR_SCREENSAVER_TEST="1"
+$env:RIBO_SCREENSAVER_TEST="1"
 npm run test:screensaver-subscribe
 ```
 

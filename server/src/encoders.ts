@@ -171,7 +171,7 @@ async function benchWinner(
   const key = benchKey(width, height, workload, tier)
   const cached = cache.benches[key]
   if (cached?.winner) return cached.winner
-  if (process.env.VVR_ENCODER_BENCH === '0') return 'libx264'
+  if (process.env.RIBO_ENCODER_BENCH === '0') return 'libx264'
   while (benchRunning) {
     await new Promise((resolve) => setTimeout(resolve, 250))
   }

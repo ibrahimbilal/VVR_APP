@@ -1,6 +1,6 @@
 import { existsSync } from 'node:fs'
 import path from 'node:path'
-import { vvrProjectRootFromThisModule } from './projectRoot'
+import { riboProjectRootFromThisModule } from './projectRoot'
 
 export const STANDALONE_ENGINE_RELATIVE = path.join('tools', 'realesrgan')
 
@@ -69,16 +69,16 @@ export function resolveStandalonePaths(opts: {
 export type ProjectRootSource = { kind: 'env'; path: string } | { kind: 'module'; path: string } | null
 
 /**
- * Resolves VVR project root for AI Lite path logic: explicit env, then the server install (from import.meta.url).
+ * Resolves Ribo project root for AI Lite path logic: explicit env, then the server install (from import.meta.url).
  */
-export function resolveVvrProjectRootForRealesrgan(
+export function resolveRiboProjectRootForRealesrgan(
   env: Record<string, string | undefined>,
   metaUrl: string,
 ): { root: string | null; source: ProjectRootSource } {
-  const fromEnv = env.VVR_REALESRGAN_PROJECT_ROOT?.trim()
+  const fromEnv = env.RIBO_REALESRGAN_PROJECT_ROOT?.trim()
   if (fromEnv) return { root: path.resolve(fromEnv), source: { kind: 'env', path: fromEnv } }
 
-  const fromModule = vvrProjectRootFromThisModule(metaUrl)
+  const fromModule = riboProjectRootFromThisModule(metaUrl)
   if (fromModule) return { root: fromModule, source: { kind: 'module', path: fromModule } }
 
   return { root: null, source: null }

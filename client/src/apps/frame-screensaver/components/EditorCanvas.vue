@@ -67,7 +67,7 @@ let renderer: ScreensaverImageRenderer | null = null
 const scheduler = useScreensaverDrawScheduler(() => renderer)
 function webGlBlockedBySession(): boolean {
   try {
-    return sessionStorage.getItem('vvr-screensaver-webgl-failed') === '1'
+    return sessionStorage.getItem('ribo-screensaver-webgl-failed') === '1'
   } catch {
     return false
   }
@@ -78,7 +78,7 @@ function rendererLifecycleOptions() {
     onRestoreFailed: () => {
       if (store.previewRenderer === 'auto') {
         try {
-          sessionStorage.setItem('vvr-screensaver-webgl-failed', '1')
+          sessionStorage.setItem('ribo-screensaver-webgl-failed', '1')
         } catch {
           // ignore
         }

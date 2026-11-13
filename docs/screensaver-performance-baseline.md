@@ -1,6 +1,6 @@
 # Screensaver preview performance baseline
 
-Measurements use the in-app diagnostics panel (`?screensaver_diag=1` or `localStorage.vvr-screensaver-diagnostics=1`) for **browser preview FPS**. CPU placement bake times use `npm run bench:screensaver-compose` (Node, same math as Canvas 2D bake).
+Measurements use the in-app diagnostics panel (`?screensaver_diag=1` or `localStorage.ribo-screensaver-diagnostics=1`) for **browser preview FPS**. CPU placement bake times use `npm run bench:screensaver-compose` (Node, same math as Canvas 2D bake).
 
 Machine: developer Windows workstation, 2026-10-25.
 
@@ -12,7 +12,7 @@ Machine: developer Windows workstation, 2026-10-25.
 4. Play a looping video with non-neutral adjustments.
 5. Run a static export at 1080p and 4K; note export prep time in diagnostics.
 
-Browser preview: after step 1–4, run `await window.__vvrScreensaverBench()` in devtools (2s sample).
+Browser preview: after step 1–4, run `await window.__riboScreensaverBench()` in devtools (2s sample).
 
 ## CPU placement bake (Canvas 2D / static export path)
 
@@ -28,7 +28,7 @@ Representative adjustments: saturation 35, blur 40, sharpness 25, brightness 15.
 
 | Scenario | Preview FPS | Avg draw (ms) | Avg bake (ms) | Notes |
 | --- | --- | --- | --- | --- |
-| 1080p image, idle | not measured | not measured | n/a (GPU) | Use diagnostics + `__vvrScreensaverBench` |
+| 1080p image, idle | not measured | not measured | n/a (GPU) | Use diagnostics + `__riboScreensaverBench` |
 | 1080p, slider drag | not measured | not measured | n/a | Reduced quality while interacting |
 | 4K image, slider drag | not measured | not measured | n/a | |
 | Video + adjustments | not measured | not measured | n/a | Texture upload per frame |

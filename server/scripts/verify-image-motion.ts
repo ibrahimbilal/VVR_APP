@@ -14,9 +14,9 @@ const sample = path.join(work, 'landscape.png')
 
 async function main(): Promise<void> {
   const life = process.env.npm_lifecycle_event ?? ''
-  const enabled = process.env.VVR_IMAGE_MOTION_TEST === '1' || life === 'test:image-motion'
+  const enabled = process.env.RIBO_IMAGE_MOTION_TEST === '1' || life === 'test:image-motion'
   if (!enabled) {
-    console.log('Shared unit tests passed. Set VVR_IMAGE_MOTION_TEST=1 for FFmpeg verify.')
+    console.log('Shared unit tests passed. Set RIBO_IMAGE_MOTION_TEST=1 for FFmpeg verify.')
     return
   }
   await ensureStorage()

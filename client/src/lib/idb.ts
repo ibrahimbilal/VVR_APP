@@ -1,13 +1,27 @@
 import type { ImageMotionProject } from '@shared/imageMotion'
 import type { PersistedClip, PresetId, ProjectStyle, TitleSpan } from '../types'
 
-const DB_NAME = 'vvr'
+const DB_NAME = 'ribo'
+/** Pre-rebrand IndexedDB name; copied once into `ribo` then deleted. */
+const LEGACY_DB_NAME = 'vvr'
 const DB_VERSION = 4
 const IMAGE_MOTION_META_KEY = 'project'
 const IMAGE_MOTION_SCREENSAVER_LINKS_KEY = 'screensaver-links'
 const IMAGE_MOTION_MUSIC_KEY = 'music'
 const RANKING_META_KEY = 'ranking-videos'
 const LEGACY_META_KEY = 'current'
+
+const STORE_NAMES = [
+  'meta',
+  'files',
+  'music',
+  'screensaver',
+  'assets',
+  'thumbnail',
+  'image-motion',
+] as const
+
+let legacyDbMigration: Promise<void> | null = null
 
 export interface SavedProject {
   version: 1
@@ -26,10 +40,11 @@ interface StoredFile {
   blob: Blob
 }
 
-function openDb(): Promise<IDBDatabase> {
+function openDbRaw(name: string, version: number): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
-    const request = indexedDB.open(DB_NAME, DB_VERSION)
+    const request = indexedDB.open(name, version)
     request.onupgradeneeded = (event) => {
+      if (name !== DB_NAME) return
       const db = request.result
       if (!db.objectStoreNames.contains('meta')) db.createObjectStore('meta')
       if (!db.objectStoreNames.contains('files')) db.createObjectStore('files')
@@ -59,6 +74,107 @@ function openDb(): Promise<IDBDatabase> {
     request.onsuccess = () => resolve(request.result)
     request.onerror = () => reject(request.error ?? new Error('Could not open local project storage.'))
   })
+}
+
+function deleteDatabase(name: string): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const request = indexedDB.deleteDatabase(name)
+    request.onsuccess = () => resolve()
+    request.onerror = () => reject(request.error ?? new Error('Could not delete legacy project storage.'))
+    request.onblocked = () => resolve()
+  })
+}
+
+async function copyObjectStore(source: IDBDatabase, target: IDBDatabase, storeName: string): Promise<void> {
+  if (!source.objectStoreNames.contains(storeName) || !target.objectStoreNames.contains(storeName)) return
+  const readTx = source.transaction(storeName, 'readonly')
+  const readStore = readTx.objectStore(storeName)
+  const keys = await requestToPromise(readStore.getAllKeys())
+  const values = await requestToPromise(readStore.getAll())
+  await transactionDone(readTx)
+  if (keys.length === 0) return
+  const writeTx = target.transaction(storeName, 'readwrite')
+  const writeStore = writeTx.objectStore(storeName)
+  for (let i = 0; i < keys.length; i++) {
+    const key = keys[i]!
+    const value = values[i]
+    if (writeStore.keyPath) writeStore.put(value)
+    else writeStore.put(value, key)
+  }
+  await transactionDone(writeTx)
+}
+
+async function riboDatabaseHasData(db: IDBDatabase): Promise<boolean> {
+  for (const name of STORE_NAMES) {
+    if (!db.objectStoreNames.contains(name)) continue
+    const count = await requestToPromise(db.transaction(name, 'readonly').objectStore(name).count())
+    if (count > 0) return true
+  }
+  return false
+}
+
+async function migrateLegacyIndexedDb(): Promise<void> {
+  let legacy: IDBDatabase | null = null
+  try {
+    legacy = await new Promise<IDBDatabase | null>((resolve, reject) => {
+      const request = indexedDB.open(LEGACY_DB_NAME)
+      request.onsuccess = () => {
+        const db = request.result
+        if (db.objectStoreNames.length === 0) {
+          db.close()
+          resolve(null)
+          return
+        }
+        resolve(db)
+      }
+      request.onerror = () => reject(request.error ?? new Error('Could not open legacy project storage.'))
+      // Creating an empty DB just to probe is fine; we delete it when empty/copied.
+      request.onupgradeneeded = () => {
+        /* no stores — empty probe */
+      }
+    })
+  } catch {
+    return
+  }
+  if (!legacy) {
+    try {
+      await deleteDatabase(LEGACY_DB_NAME)
+    } catch {
+      // ignore
+    }
+    return
+  }
+
+  const next = await openDbRaw(DB_NAME, Math.max(DB_VERSION, legacy.version || DB_VERSION))
+  try {
+    if (!(await riboDatabaseHasData(next))) {
+      for (const name of STORE_NAMES) {
+        await copyObjectStore(legacy, next, name)
+      }
+    }
+  } finally {
+    legacy.close()
+    next.close()
+  }
+  try {
+    await deleteDatabase(LEGACY_DB_NAME)
+  } catch {
+    // ignore
+  }
+}
+
+function ensureLegacyDbMigrated(): Promise<void> {
+  if (!legacyDbMigration) {
+    legacyDbMigration = migrateLegacyIndexedDb().catch(() => {
+      // Keep app usable if migration fails; user can still start fresh in `ribo`.
+    })
+  }
+  return legacyDbMigration
+}
+
+async function openDb(): Promise<IDBDatabase> {
+  await ensureLegacyDbMigrated()
+  return openDbRaw(DB_NAME, DB_VERSION)
 }
 
 function requestToPromise<T>(request: IDBRequest<T>): Promise<T> {

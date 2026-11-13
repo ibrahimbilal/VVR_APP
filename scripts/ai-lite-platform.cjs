@@ -40,8 +40,8 @@ function resolveStandaloneLayout(projectRoot, env = process.env, host = { platfo
   const binaryName = realesrganBinaryBaseName(host.platform)
   if (!sub || !binaryName) return { ok: false, reason: 'AI Lite is not supported on this host.', sub: null, binaryName: null }
 
-  const engineRoot = env.VVR_REALESRGAN_ENGINE_DIR
-    ? require('node:path').resolve(env.VVR_REALESRGAN_ENGINE_DIR)
+  const engineRoot = env.RIBO_REALESRGAN_ENGINE_DIR
+    ? require('node:path').resolve(env.RIBO_REALESRGAN_ENGINE_DIR)
   : require('node:path').join(projectRoot, 'tools', 'realesrgan')
 
   return {

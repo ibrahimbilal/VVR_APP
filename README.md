@@ -4,15 +4,13 @@ Repository: [ibrahimbilal/ribo-studio](https://github.com/ibrahimbilal/ribo-stud
 
 A local web platform for video production. It hosts independent editor apps in one shell:
 
-- **Shorts** — 9:16 ranking and compilation videos (the original VVR editor).
+- **Shorts** — 9:16 ranking and compilation videos (the original Ribo editor).
 - **Screensaver** — long-form 16:9 ambient videos from a single image or looping video clip.
 - **Thumbnail Studio** — browser-only YouTube thumbnails: upload an image or pull one from Screensaver, place resolution and duration badges, download PNG or JPEG (no FFmpeg).
 - **Image Upscaler** — PNG, JPEG, and WebP to exact Full HD, 2K, 4K, or 8K pixels. Standard is Lanczos3 on the local server. Optional **AI Lite** uses a local Real-ESRGAN NCNN Vulkan build plus the `upscayl-lite-4x` model under `tools/realesrgan/` (no separate Upscayl app). Run `npm run setup:ai-lite` to fetch artifacts. Details: `docs/image-upscaler.md`.
 - **Audio Looper** — repeat one short audio file to an exact duration (1 minute to 12 hours) as MP3, WAV, or FLAC. Simple mode uses FFmpeg stream looping; Seamless mode equal-power crossfades adjacent repeats.
 
 There are no accounts and no cloud project storage. The Vue client talks to an Express renderer with bundled FFmpeg. Thumbnail Studio runs entirely in the browser.
-
-Production: [https://videos.ibrahimbilal.com](https://videos.ibrahimbilal.com). Deploy steps: `.cursor/skills/hostinger-vvr-deploy/SKILL.md`.
 
 ## Requirements
 
@@ -45,11 +43,11 @@ On Windows, `npm run launch` starts the same dev stack and opens the browser onc
 | `npm run test:screensaver` | Short static-image screensaver render + ffprobe check |
 | `npm run test:ranking` | Two-clip ranking render + ffprobe check |
 | `npm run test:thumbnail` | Thumbnail document contract tests |
-| `npm run test:upscaler` | Upscaler engines, batch, ZIP, and HTTP checks. AI runs only if `VVR_AI_UPSCALER_INTEGRATION=1` |
+| `npm run test:upscaler` | Upscaler engines, batch, ZIP, and HTTP checks. AI runs only if `RIBO_AI_UPSCALER_INTEGRATION=1` |
 | `npm run test:audio-looper` | Audio Looper contract tests, HTTP rejection, and short FFmpeg loop/crossfade checks |
 | `npm run frames:thumbs -w client` | Regenerate 150px Screensaver picker thumbs after editing `client/src/assets/frames/*.png` |
 
-More scripts (benchmarks, visual tests) are listed in `.cursor/skills/vvr-project/run.md` and `docs/ai/PROJECT_MAP.md`.
+More scripts (benchmarks, visual tests) are listed in `.cursor/skills/ribo-project/run.md` and `docs/ai/PROJECT_MAP.md`.
 
 ## Architecture
 
@@ -91,7 +89,7 @@ Direct URLs and refresh work in production; Express serves `client/dist` with SP
 
 ### Persistence
 
-- **Shorts** — IndexedDB `vvr` v2, key `meta/ranking-videos` (migrated from legacy `meta/current`). Clip files and music unchanged.
+- **Shorts** — IndexedDB `ribo` v2, key `meta/ranking-videos` (migrated from legacy `meta/current`). Clip files and music unchanged.
 - **Screensaver** — IndexedDB `screensaver` store (`project`, `source`, `audio`). Shorts **New project** does not clear screensaver data.
 - **Thumbnail Studio** — In-memory while you navigate inside the app; a full page reload resets to defaults.
 - **Audio Looper** — duration, loop, fade, volume, and format in `localStorage` (`vf-audio-looper-settings`). The audio file stays in memory only (no stale filesystem paths).
@@ -108,7 +106,7 @@ Screensaver limits (also enforced on the server):
 
 ## Shorts
 
-Upload clips (or link titles only), order and trim, style banner and ranks, preview, export MP4. Queue multiple exports from one project; the server encodes one job at a time. See `docs/ai/PROJECT_MAP.md` and `.cursor/skills/vvr-project/ranking.md` for file-level detail.
+Upload clips (or link titles only), order and trim, style banner and ranks, preview, export MP4. Queue multiple exports from one project; the server encodes one job at a time. See `docs/ai/PROJECT_MAP.md` and `.cursor/skills/ribo-project/ranking.md` for file-level detail.
 
 ## Screensaver
 
@@ -122,7 +120,7 @@ Upload clips (or link titles only), order and trim, style banner and ranks, prev
 
 Static images are drawn once at the output size and then looped. A matching H.264 video with no crop, frame, or color change is copied instead of re-encoded. Undo is Ctrl+Z or Cmd+Z. Redo is Ctrl+Shift+Z or Cmd+Shift+Z. Arrow keys nudge the image when the canvas is focused.
 
-Long 4K exports can still take a long time. The size estimate is an extrapolation from short local encodes, not a bitrate guarantee. Measured times are in `.cursor/skills/vvr-project/screensaver.md`.
+Long 4K exports can still take a long time. The size estimate is an extrapolation from short local encodes, not a bitrate guarantee. Measured times are in `.cursor/skills/ribo-project/screensaver.md`.
 
 ## Thumbnail Studio
 
@@ -142,7 +140,7 @@ Transfers from Screensaver can pre-fill badge text from output resolution and du
 
 If the source is already longer than the target, the file is trimmed rather than looped. Seamless joins are meant for ambient beds; they will not hide cuts in speech or strongly rhythmic music.
 
-Manual check: open `/looper`, drop a few-second WAV, export 10s in Simple (set `VVR_AUDIO_LOOPER_TEST=1` on the server to allow targets under 60s), confirm the header download extension matches the format, then repeat with Seamless and listen at the first join.
+Manual check: open `/looper`, drop a few-second WAV, export 10s in Simple (set `RIBO_AUDIO_LOOPER_TEST=1` on the server to allow targets under 60s), confirm the header download extension matches the format, then repeat with Seamless and listen at the first join.
 
 ## Adding another app
 
@@ -151,7 +149,7 @@ Manual check: open `/looper`, drop a few-second WAV, export 10s in Simple (set `
 3. Add API routes under a dedicated prefix (e.g. `/api/my-app/...`) if server rendering is needed.
 4. Register new job types in `server/src/jobs.ts` if the app exports video.
 
-## Migration from single-app VVR
+## Migration from single-app RIBO
 
 - Saved ranking projects load automatically (`current` → `ranking-videos`).
 - Bookmark `/shorts` instead of `/` for the editor. Old `/ranking-videos` redirects.

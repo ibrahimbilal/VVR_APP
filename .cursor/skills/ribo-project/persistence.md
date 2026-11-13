@@ -1,6 +1,6 @@
-﻿# Persistence
+# Persistence
 
-IndexedDB database `vvr`, **version 4** (`client/src/lib/idb.ts`): `meta`, `files`, `music`, `screensaver`, `assets`, `thumbnail`, `image-motion` (Image Motion project JSON + per-segment blobs + music).
+IndexedDB database `ribo`, **version 4** (`client/src/lib/idb.ts`): `meta`, `files`, `music`, `screensaver`, `assets`, `thumbnail`, `image-motion` (Image Motion project JSON + per-segment blobs + music). On first open, an empty `ribo` DB is filled from legacy `vvr` (then `vvr` is deleted). Browser `vvr-*` local/session keys copy to `ribo-*` once (`legacyStorageMigration.ts`).
 
 - Ranking: `meta/ranking-videos` (`SavedProject` v1). Legacy `meta/current` migrates on load. Saved 400ms after changes, once hydrated.
 - Screensaver: one record per project at `screensaver/project:<id>`, plus `source:<id>`, `audio:<id>`, and `render:<id>`. `catalog` stores the active id. A project saved before the list (keys `project`, `source`, `audio`) is copied into the first id on load. The editor debounces the active project after 400ms. Render status is stored separately so a running job is not rewritten when the editor changes.

@@ -1,4 +1,4 @@
-﻿# Dependencies and builds
+# Dependencies and builds
 node_modules/
 **/node_modules/
 dist/
@@ -15,7 +15,6 @@ tools/realesrgan/linux-x64/
 tools/realesrgan/models/*.param
 tools/realesrgan/models/*.bin
 *.exe
-vvr-app.zip
 *.log
 
 # Secrets and local env

@@ -1,6 +1,6 @@
 # Features
 
-Verified product surfaces and where they live. Deep detail: `.cursor/skills/vvr-project/` topic files.
+Verified product surfaces and where they live. Deep detail: `.cursor/skills/ribo-project/` topic files.
 
 ## Platform
 

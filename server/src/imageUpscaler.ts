@@ -44,7 +44,7 @@ let configured = false
 export function configureSharp(): void {
   if (configured) return
   configured = true
-  const requested = Number(process.env.VVR_UPSCALER_VIPS_CONCURRENCY)
+  const requested = Number(process.env.RIBO_UPSCALER_VIPS_CONCURRENCY)
   const threads = Number.isFinite(requested) && requested > 0 ? Math.min(4, Math.round(requested)) : Math.min(2, Math.max(1, os.cpus().length))
   sharp.concurrency(threads)
   sharp.cache(false)

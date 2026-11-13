@@ -42,7 +42,7 @@ export interface UpscaleLimits {
   maxIntermediatePixels: number
 }
 
-/** Defaults sized for a shared Hostinger Node process that also runs FFmpeg. */
+/** Defaults sized for a shared Node process that also runs FFmpeg. */
 export const DEFAULT_UPSCALE_LIMITS: UpscaleLimits = {
   maxFileBytes: 40 * 1024 * 1024,
   maxBatch: 8,
@@ -594,22 +594,22 @@ export function normalizeOptions(
 }
 
 export function limitsFromEnv(env: Record<string, string | undefined> = readProcessEnv()): UpscaleLimits {
-  const fileMb = clampInt(env.VVR_UPSCALER_MAX_FILE_MB, 1, 80, DEFAULT_UPSCALE_LIMITS.maxFileBytes / (1024 * 1024))
-  const batch = clampInt(env.VVR_UPSCALER_MAX_BATCH, 1, 12, DEFAULT_UPSCALE_LIMITS.maxBatch)
-  const inputEdge = clampInt(env.VVR_UPSCALER_MAX_INPUT_EDGE, 256, 8192, DEFAULT_UPSCALE_LIMITS.maxInputEdge)
-  const outputEdge = clampInt(env.VVR_UPSCALER_MAX_OUTPUT_EDGE, 256, 7680, DEFAULT_UPSCALE_LIMITS.maxOutputEdge)
-  const inputPixels = clampInt(env.VVR_UPSCALER_MAX_INPUT_PIXELS, 256 * 256, DEFAULT_UPSCALE_LIMITS.maxInputPixels, DEFAULT_UPSCALE_LIMITS.maxInputPixels)
+  const fileMb = clampInt(env.RIBO_UPSCALER_MAX_FILE_MB, 1, 80, DEFAULT_UPSCALE_LIMITS.maxFileBytes / (1024 * 1024))
+  const batch = clampInt(env.RIBO_UPSCALER_MAX_BATCH, 1, 12, DEFAULT_UPSCALE_LIMITS.maxBatch)
+  const inputEdge = clampInt(env.RIBO_UPSCALER_MAX_INPUT_EDGE, 256, 8192, DEFAULT_UPSCALE_LIMITS.maxInputEdge)
+  const outputEdge = clampInt(env.RIBO_UPSCALER_MAX_OUTPUT_EDGE, 256, 7680, DEFAULT_UPSCALE_LIMITS.maxOutputEdge)
+  const inputPixels = clampInt(env.RIBO_UPSCALER_MAX_INPUT_PIXELS, 256 * 256, DEFAULT_UPSCALE_LIMITS.maxInputPixels, DEFAULT_UPSCALE_LIMITS.maxInputPixels)
   const outputPixels = clampInt(
-    env.VVR_UPSCALER_MAX_OUTPUT_PIXELS,
+    env.RIBO_UPSCALER_MAX_OUTPUT_PIXELS,
     256 * 256,
     DEFAULT_UPSCALE_LIMITS.maxOutputPixels,
     DEFAULT_UPSCALE_LIMITS.maxOutputPixels,
   )
-  const concurrency = clampInt(env.VVR_UPSCALER_CONCURRENCY, 1, 2, DEFAULT_UPSCALE_LIMITS.concurrency)
-  const ttlMin = clampInt(env.VVR_UPSCALER_JOB_TTL_MIN, 5, 24 * 60, DEFAULT_UPSCALE_LIMITS.jobTtlMs / 60000)
-  const freeMb = clampInt(env.VVR_UPSCALER_MIN_FREE_MB, 64, 8192, DEFAULT_UPSCALE_LIMITS.minFreeBytes / (1024 * 1024))
-  const preview = clampInt(env.VVR_UPSCALER_PREVIEW_EDGE, 320, 1920, DEFAULT_UPSCALE_LIMITS.previewMaxEdge)
-  const midEdge = clampInt(env.VVR_REALESRGAN_MAX_INTERMEDIATE_EDGE, 1024, 16384, DEFAULT_UPSCALE_LIMITS.maxIntermediateEdge)
+  const concurrency = clampInt(env.RIBO_UPSCALER_CONCURRENCY, 1, 2, DEFAULT_UPSCALE_LIMITS.concurrency)
+  const ttlMin = clampInt(env.RIBO_UPSCALER_JOB_TTL_MIN, 5, 24 * 60, DEFAULT_UPSCALE_LIMITS.jobTtlMs / 60000)
+  const freeMb = clampInt(env.RIBO_UPSCALER_MIN_FREE_MB, 64, 8192, DEFAULT_UPSCALE_LIMITS.minFreeBytes / (1024 * 1024))
+  const preview = clampInt(env.RIBO_UPSCALER_PREVIEW_EDGE, 320, 1920, DEFAULT_UPSCALE_LIMITS.previewMaxEdge)
+  const midEdge = clampInt(env.RIBO_REALESRGAN_MAX_INTERMEDIATE_EDGE, 1024, 16384, DEFAULT_UPSCALE_LIMITS.maxIntermediateEdge)
   return {
     maxFileBytes: fileMb * 1024 * 1024,
     maxBatch: batch,

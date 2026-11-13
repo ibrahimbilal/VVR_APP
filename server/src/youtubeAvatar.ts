@@ -21,7 +21,7 @@ export async function fetchYoutubeAvatarDataUrl(remoteUrl: string): Promise<stri
       signal: controller.signal,
       headers: {
         Accept: 'image/*',
-        'User-Agent': 'Mozilla/5.0 (compatible; VVR/1.0; +https://videos.ibrahimbilal.com)',
+        'User-Agent': 'Mozilla/5.0 (compatible; RiboStudio/1.0; +https://github.com/ibrahimbilal/ribo-studio)',
       },
     })
     if (response.status === 429 || !response.ok) return null

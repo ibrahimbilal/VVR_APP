@@ -15,7 +15,7 @@ import { validateCfrPackets } from '../src/screensaverCfr/validate'
 const execFileAsync = promisify(execFile)
 
 async function main(): Promise<void> {
-  process.env.VVR_SCREENSAVER_TEST = '1'
+  process.env.RIBO_SCREENSAVER_TEST = '1'
   const tmp = path.join(outputsDir, '..', 'verify-cfr')
   await rm(tmp, { recursive: true, force: true })
   await mkdir(tmp, { recursive: true })

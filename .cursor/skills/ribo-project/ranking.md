@@ -1,4 +1,4 @@
-﻿# Shorts — Ranking (deep)
+# Shorts — Ranking (deep)
 
 `RankingVideosView.vue`: **Shorts mode** toggle (`Ranking Shorts` | `Image Motion Shorts`, persisted in `localStorage` key `vf-shorts-mode`). Each mode has its own Pinia store and IndexedDB project (`meta/ranking-videos` vs `image-motion` store v4). Space toggles play in **Ranking** mode only.
 
@@ -7,7 +7,7 @@
 - `xl` and up: clips `300px`, preview flex, style `360px`. The right panel is titled Settings and switches Clip, Style, Output, and Sound. Video settings (resolution, fps, encoder, scaling, transition) live under Output; Style keeps presets, colors, title, and ranking. The selected clip panel sits in that column.
 - Space toggles play on the ranking route only (not in inputs).
 - Hydration overlay until ranking `hydrated`.
-- Dev: `window.__vvr` is the ranking Pinia store.
+- Dev: `window.__ribo` is the ranking Pinia store.
 
 **Image Motion Shorts** — `client/src/apps/image-motion-shorts/`: import up to 30 PNG/JPEG/WebP images, per-segment Full Pan or Slow Cinematic Pan (shared math in `shared/imageMotion.ts`), cut/crossfade joins, optional background audio, canvas preview (`useImageMotionPlayback.ts`), export via `POST /api/image-motion/export` and FFmpeg `renderImageMotion.ts` (`jobs` kind `image-motion`). Defaults: 1080×1920, 30 fps, CPU encoder, 10 s per image, Full Pan RTL, 0.5 s crossfade between images.
 
@@ -56,11 +56,11 @@ Defined in `client/src/types.ts`.
 - Presets: `classic | tier | minimal | custom`. Definitions and default video (1080×1920, 30 fps, crop, cut, fade 0.35, keep audio, normalize, music 0.35) are in `client/src/lib/presets.ts`. Fonts: Oswald, Anton, Bebas Neue, Montserrat, Inter.
 - Rank number colors default to the active color set. `null` on a clip means "use the ranking color". Title color `null` means "use the caption color".
 
-Color sets live outside the project: `localStorage` key `vvr-color-sets` (`client/src/lib/colorSets.ts`). Defaults: Classic, Warm, Cool, Mono. Max 12 hex colors, at least one set, at least one color. Preset apply cycles ranks only for Tier List.
+Color sets live outside the project: `localStorage` key `ribo-color-sets` (`client/src/lib/colorSets.ts`). Defaults: Classic, Warm, Cool, Mono. Max 12 hex colors, at least one set, at least one color. Preset apply cycles ranks only for Tier List.
 
 ## Persistence
 
-See [persistence.md](persistence.md) (IndexedDB `vvr` v4, ranking/screensaver/thumbnail keys, New project vs upload cleanup).
+See [persistence.md](persistence.md) (IndexedDB `ribo` v4, ranking/screensaver/thumbnail keys, New project vs upload cleanup).
 
 ## Order, ranks, and time
 

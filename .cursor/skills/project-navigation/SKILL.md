@@ -1,7 +1,7 @@
 ---
 name: project-navigation
 description: >-
-  Navigates the Ribo Studio (VVR) monorepo using docs/ai maps instead of
+  Navigates the Ribo Studio (Ribo) monorepo using docs/ai maps instead of
   broad tree scans. Use when locating modules, answering architecture questions,
   finding where a feature lives, or before exploring client/server/shared code.
 ---
@@ -16,7 +16,7 @@ description: >-
    - `docs/ai/ARCHITECTURE.md` for data flow / entry points
    - `docs/ai/DECISIONS.md` for invariants
 3. Open the named source files for the task area only.
-4. For deep limits/HTTP/storage/app behavior, open **one** matching file under `.cursor/skills/vvr-project/` (see that skill’s table). Use `docs/ai/CHANGELOG.md` for history.
+4. For deep limits/HTTP/storage/app behavior, open **one** matching file under `.cursor/skills/ribo-project/` (see that skill’s table). Use `docs/ai/CHANGELOG.md` for history.
 
 ## Constraints
 

@@ -1,4 +1,4 @@
-﻿# Server — render queue, HTTP, storage, limits
+# Server — render queue, HTTP, storage, limits
 
 ## Renderer
 
@@ -12,7 +12,7 @@
 - Clip audio (when `keepAudio` and volume > 0): 48 kHz stereo, optional `loudnorm=I=-16:TP=-1.5:LRA=11`. Silent clips get `anullsrc` so concat stays aligned.
 - Music is trimmed to the sequence, faded in/out, then `amix` with clip audio.
 - Output is H.264 + AAC when any audio is present, `+faststart`, yuv420p. Encoder choice matches Screensaver: Auto (default), CPU, or a verified hardware encoder via shared `server/src/encoders.ts` (`ranking_motion` benchmark workload). Auto retries on CPU with a job `warning` when hardware fails; an explicit unavailable encoder stops the job.
-- FFmpeg threading is adaptive (`server/src/ffmpegThreading.ts`): global/filter threads scale with CPU count (conservative under 8 GB RAM). Overrides: `VVR_FFMPEG_THREADS`, `VVR_FFMPEG_FILTER_THREADS`, `VVR_X264_THREADS`.
+- FFmpeg threading is adaptive (`server/src/ffmpegThreading.ts`): global/filter threads scale with CPU count (conservative under 8 GB RAM). Overrides: `RIBO_FFMPEG_THREADS`, `RIBO_FFMPEG_FILTER_THREADS`, `RIBO_X264_THREADS`.
 - If normalize fails, retry without it. If a crossfade fails, retry as hard cuts. The job `warning` explains the fallback.
 - Verify with ffprobe: dimensions, duration near the expected length, and an audio stream when audio was requested. Download is refused until status is `done`.
 

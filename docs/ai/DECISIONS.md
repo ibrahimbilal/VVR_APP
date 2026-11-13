@@ -37,4 +37,4 @@ Verified architectural rules. Do not reverse these without an explicit product d
 
 ## Deep reference
 
-Full limits, HTTP table, and storage layout: `.cursor/skills/vvr-project/server.md`.
+Full limits, HTTP table, and storage layout: `.cursor/skills/ribo-project/server.md`. Product identifiers use the `ribo` / `RIBO_*` prefix (legacy `vvr` / `VVR_*` migrate once).

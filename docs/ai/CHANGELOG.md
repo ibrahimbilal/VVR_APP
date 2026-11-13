@@ -1,4 +1,4 @@
-﻿# Changelog (agent notes)
+# Changelog (agent notes)
 
 Detailed dated development notes for Ribo Studio agents.
 Version source of truth: root `package.json` (currently **1.0.0** — official product baseline).
@@ -9,15 +9,18 @@ Releases: `.cursor/rules/versioning.mdc` + `.cursor/skills/release-manager/`.
 
 Changes since the current `package.json` version. User-facing bullets also belong under **Unreleased** in root `CHANGELOG.md`. On release, the release-manager skill / `npm run release:*` promotes the root changelog; then summarize or clear this section as appropriate.
 
+- 2026-11-13 — Full identifier rename `vvr`/`VVR_*` → `ribo`/`RIBO_*` (packages `ribo-studio`/`ribo-client`/`ribo-server`, IDB `ribo` with one-time migrate from `vvr`, env keys, Cursor `ribo-project`). Legacy `VVR_*` env and `vvr-*` storage keys still promote once.
+- 2026-11-13 — Removed Hostinger deploy/upload tooling (`hostinger-ribo-deploy` skill/rule, `pack:hostinger`, `make-deploy-archive.mjs`, `archiver` dep).
+
 ## History
 
 Dated notes for work included in current and earlier builds. Explicit package bumps use a `Release **vX.Y.Z**` line.
 
-- Release **v1.0.0** (2026-11-13) — Official Ribo Studio baseline: rebrand from Video's Factory, SemVer 1.0.0 (replacing legacy package metadata `3.0.0` with no Git tag), Keep a Changelog + `scripts/release.mjs`, sidebar `AppVersionLabel` / Vite `__APP_VERSION__`, `release-manager` skill. Compatibility IDs unchanged (`vvr-app`, IDB `vvr`, `vvr-app.zip`, `VVR_*`).
-- 2026-11-13 — Repository identity: GitHub `ibrahimbilal/ribo-studio`, display name **Ribo Studio** (package name `vvr-app`, IDB `vvr`, deploy `vvr-app.zip`, and `VVR_*` env keys unchanged).
+- Release **v1.0.0** (2026-11-13) — Official Ribo Studio baseline: rebrand from Video's Factory, SemVer 1.0.0 (replacing legacy package metadata `3.0.0` with no Git tag), Keep a Changelog + `scripts/release.mjs`, sidebar `AppVersionLabel` / Vite `__APP_VERSION__`, `release-manager` skill. At baseline, compatibility IDs were still `vvr-app` / IDB `vvr` / `vvr-app.zip` / `VVR_*` (renamed later; see Unreleased).
+- 2026-11-13 — Repository identity: GitHub `ibrahimbilal/ribo-studio`, display name **Ribo Studio** (legacy package/IDB/env `vvr` prefix retained at that moment).
 - 2026-11-13 — Version & release management: root Keep a Changelog, `scripts/release.mjs`, sidebar `AppVersionLabel`, Vite `__APP_VERSION__`, `release-manager` skill, always-applied versioning rule.
 - 2026-11-13 — Versioning rule aligned to SemVer + Unreleased; agents propose bumps only with approval (`.cursor/rules/versioning.mdc`, `docs/ai/CHANGELOG.md`).
-- 2026-11-13 — Split deep project map into topic files under `.cursor/skills/vvr-project/`; moved changelog to `docs/ai/CHANGELOG.md`; removed monolithic `PROJECT.md`.
+- 2026-11-13 — Split deep project map into topic files under `.cursor/skills/ribo-project/`; moved changelog to `docs/ai/CHANGELOG.md`; removed monolithic `PROJECT.md`.
 - 2026-11-13 — AI context system: concise `docs/ai/` maps, modular Cursor rules/skills, `.cursorignore`; agents prefer `docs/ai` over full-tree scans.
 
 - 2026-11-13 — Production Optimized CFR for Screensaver: timeline segment reuse, quality presets, export UI, VFR duration fix, validation, tests, and YouTube candidates (`server/src/screensaverCfr/`, `renderScreensaverHybrid.ts`, `shared/screensaver.ts`, `docs/optimized-cfr-production-report.md`).
@@ -106,8 +109,8 @@ Dated notes for work included in current and earlier builds. Explicit package bu
 - 2026-11-08 — AI Lite standalone: Windows + Ubuntu Linux x64 (`process.platform` / `process.arch`), shared `models/`, Linux `setup:ai-lite` + `launch:linux`, platform tests, deploy archive skips foreign NCNN dirs (`scripts/setup-ai-lite.mjs`, `scripts/ai-lite-platform.cjs`, `scripts/launch-linux.sh`, `server/src/realesrganStandalone.ts`, `tools/realesrgan/MANIFEST.json`, `docs/image-upscaler.md`).
 - 2026-11-07 — Launcher warns when the process path is not `*.exe` (extension stripping breaks Windows behavior); `launcher/README.md` notes keeping `.exe` (`launcher/Program.cs`).
 - 2026-11-07 — `Video factory.exe` opens the Vite dev URL `http://127.0.0.1:5173/` instead of matching the API log on 3001 (`launcher/Program.cs`, `launcher/README.md`).
-- 2026-11-06 — `Video factory.exe` runs `npm run setup:ai-lite` when AI is enabled and `tools/realesrgan/` is incomplete (unless both `VVR_REALESRGAN_BINARY` and `VVR_REALESRGAN_MODEL_DIR` are set); `launcher/README.md`, `launcher/Program.cs`, `PROJECT.md` Run section.
-- 2026-11-06 — Repo-root `.env` loaded on server boot (`server/src/loadEnv.ts`, `dotenv`) and by `scripts/launch-dev.cjs` / `launcher/Program.cs`; `.env.example` added (`docs/image-upscaler.md`). Empty `VVR_REALESRGAN_*=` lines are cleared so standalone `tools/realesrgan/` auto-detect works (`server/src/envOptional.ts`, `realesrganConfig.ts`).
+- 2026-11-06 — `Video factory.exe` runs `npm run setup:ai-lite` when AI is enabled and `tools/realesrgan/` is incomplete (unless both `RIBO_REALESRGAN_BINARY` and `RIBO_REALESRGAN_MODEL_DIR` are set); `launcher/README.md`, `launcher/Program.cs`, `PROJECT.md` Run section.
+- 2026-11-06 — Repo-root `.env` loaded on server boot (`server/src/loadEnv.ts`, `dotenv`) and by `scripts/launch-dev.cjs` / `launcher/Program.cs`; `.env.example` added (`docs/image-upscaler.md`). Empty `RIBO_REALESRGAN_*=` lines are cleared so standalone `tools/realesrgan/` auto-detect works (`server/src/envOptional.ts`, `realesrganConfig.ts`).
 - 2026-11-06 — Image Upscaler AI Lite standalone: `tools/realesrgan/` layout, server resolves from project root (`server/src/realesrganStandalone.ts`, `server/src/projectRoot.ts`, `server/src/realesrganConfig.ts`), launcher + `scripts/launch-dev.cjs` via `scripts/ai-lite-env.cjs`, optional `npm run setup:ai-lite`, Hostinger archive skips `tools/realesrgan/win-x64`, docs (`docs/image-upscaler.md`, `tools/realesrgan/THIRD_PARTY_NOTICES.md`, `launcher/README.md`).
 - 2026-11-05 — Earlier launch integration detected an installed Upscayl app under `C:\Program Files\Upscayl` (superseded 2026-11-06 by standalone `tools/realesrgan/`).
 - 2026-11-04 — Image Upscaler optional AI Lite (`realesrgan-lite`): local Real-ESRGAN NCNN Vulkan, Lanczos3 remains the default, capabilities endpoint, exact-size fit (`shared/imageUpscaler.ts`, `server/src/realesrganEngine.ts`, `server/src/imageUpscaler*.ts`, `client/src/apps/image-upscaler/`, `docs/image-upscaler.md`).
@@ -209,7 +212,7 @@ Dated notes for work included in current and earlier builds. Explicit package bu
 - 2026-10-25 — Ranking layout: New project beside app title in `AppHeader`; export status column right of the style sidebar (`RankingVideosView.vue`, `AppHeader.vue`).
 - 2026-10-25 — Shared render optimization: adaptive FFmpeg threading (`ffmpegThreading.ts`), ranking encoder Auto/CPU/HW via `encoders.ts`, `GET /api/encoders`, ranking Style panel + export diagnostics, bench/test scripts, `docs/render-benchmark-report.md` (`server/src/render.ts`, `client` ranking UI, `server/scripts/`).
 - 2026-10-27 — Windows launcher spawns dev via `cmd.exe /c npm run dev` (fixes Node 24 `spawn EINVAL` on `npm.cmd`) (`scripts/launch-dev.cjs`).
-- 2026-10-27 — Windows dev launcher script and optional `dist/VVR-Dev.exe` build (`scripts/launch-dev.cjs`, `npm run launch`, `npm run build:launcher`, root `package.json`).
+- 2026-10-27 — Windows dev launcher script and optional `dist/RIBO-Dev.exe` build (`scripts/launch-dev.cjs`, `npm run launch`, `npm run build:launcher`, root `package.json`).
 - 2026-10-25 — Upgrade `multer` to 2.5.0 (CVE-2026-113872); root `overrides` pin (`package.json`, `server/package.json`).
 - 2026-10-25 — Screensaver export progress stats in a collapsible right sidebar (toggle rail, not accordion) (`ScreensaverExportDetails.vue`, `FrameScreensaverView.vue`).
 - 2026-10-25 — Screensaver auto-applies the latest frame PNG after upload (`stores/screensaver.ts`).
@@ -231,7 +234,7 @@ Dated notes for work included in current and earlier builds. Explicit package bu
 - 2026-10-22 — Screensaver: canvas editor (crop, transform, adjustments, procedural frames), 1 fps stills, precomposed PNG encode, hardware-encoder probe with CPU fallback, stream-copy loops, export diagnostics. Ranking encode is unchanged.
 - 2026-10-22 — Screensaver media panel matches Ranking drag-and-drop upload styling and behavior.
 - 2026-10-22 — Multi-app **Video's Factory**: vue-router shell, Dashboard, Screensaver app, IDB v2 ranking migration, screensaver API/render, shared job queue.
-- 2026-10-22 — Documented Hostinger production URL and added `hostinger-vvr-deploy` skill for archive-based redeploys.
+- 2026-10-22 — Documented Hostinger production URL and added `hostinger-ribo-deploy` skill for archive-based redeploys.
 - 2026-10-22 — Timeline uses one export button (progress fill, hover-to-cancel, download when ready); project edits after export clear the ready state.
 - 2026-10-22 — Ranking overlay keeps list order when sort is “As listed”; `playAtEnd` affects playback only, not stack position.
 - 2026-10-22 — Created this map from the current client, server, and shared code. No product behavior changed.

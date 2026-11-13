@@ -31,7 +31,7 @@ describe('AI Lite host detection', () => {
   })
 })
 
-const root = path.join(os.tmpdir(), `vvr-standalone-${process.pid}`)
+const root = path.join(os.tmpdir(), `ribo-standalone-${process.pid}`)
 after(async () => {
   const { rm } = await import('node:fs/promises')
   await rm(root, { recursive: true, force: true })

@@ -17,7 +17,7 @@ const execFileAsync = promisify(execFile)
 const REPORT = path.join(tmpDir, '..', '..', 'docs', 'screensaver-cfr-bench.md')
 
 async function main(): Promise<void> {
-  process.env.VVR_SCREENSAVER_TEST = '1'
+  process.env.RIBO_SCREENSAVER_TEST = '1'
   await ensureStorage()
   const root = path.join(tmpDir, 'cfr-bench')
   await rm(root, { recursive: true, force: true })

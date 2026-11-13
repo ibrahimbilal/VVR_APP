@@ -9,21 +9,21 @@ function lowMemoryHost(): boolean {
 }
 
 export function x264Threads(): number {
-  const env = Number(process.env.VVR_X264_THREADS)
+  const env = Number(process.env.RIBO_X264_THREADS)
   if (Number.isFinite(env) && env >= 1) return Math.min(16, Math.floor(env))
   const cap = lowMemoryHost() ? 2 : 4
   return Math.max(1, Math.min(cap, logicalCpus()))
 }
 
 export function ffmpegGlobalThreads(): number {
-  const env = Number(process.env.VVR_FFMPEG_THREADS)
+  const env = Number(process.env.RIBO_FFMPEG_THREADS)
   if (Number.isFinite(env) && env >= 1) return Math.min(16, Math.floor(env))
   const cap = lowMemoryHost() ? 4 : 8
   return Math.max(1, Math.min(cap, logicalCpus()))
 }
 
 export function ffmpegFilterThreads(): number {
-  const env = Number(process.env.VVR_FFMPEG_FILTER_THREADS)
+  const env = Number(process.env.RIBO_FFMPEG_FILTER_THREADS)
   if (Number.isFinite(env) && env >= 1) return Math.min(8, Math.floor(env))
   return Math.max(1, Math.min(4, Math.floor(logicalCpus() / 2)))
 }

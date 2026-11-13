@@ -1706,7 +1706,7 @@ export const useScreensaverStore = defineStore('screensaver', () => {
     writePreviewRendererMode(mode)
     if (mode === 'webgl2') {
       try {
-        sessionStorage.removeItem('vvr-screensaver-webgl-failed')
+        sessionStorage.removeItem('ribo-screensaver-webgl-failed')
       } catch {
         // ignore
       }

@@ -5,7 +5,7 @@ import { probeRealesrganBinary, type RealesrganProbe } from './realesrganProbe'
 import { envOptional } from './envOptional'
 import {
   resolveStandalonePaths,
-  resolveVvrProjectRootForRealesrgan,
+  resolveRiboProjectRootForRealesrgan,
   unsupportedAiLiteHostReason,
 } from './realesrganStandalone'
 
@@ -58,8 +58,8 @@ export function readRealesrgan(
   metaUrl: string = import.meta.url,
   arch: NodeJS.Architecture | string = process.arch,
 ): ReadResult {
-  const named = modelChoice(env.VVR_REALESRGAN_MODEL_NAME)
-  if (!aiEnabled(env.VVR_AI_UPSCALER_ENABLED)) {
+  const named = modelChoice(env.RIBO_REALESRGAN_MODEL_NAME)
+  if (!aiEnabled(env.RIBO_AI_UPSCALER_ENABLED)) {
     return {
       ok: false,
       reason: 'AI Lite is turned off on this server.',
@@ -76,11 +76,11 @@ export function readRealesrgan(
     return { ok: false, reason: 'AI Lite is configured with a model this server does not allow.', model: null, scale: null, matchesUpscaylLite: false }
   }
 
-  const { root: projectRoot } = resolveVvrProjectRootForRealesrgan(env, metaUrl)
-  const projectRootForRel = envOptional(env, 'VVR_REALESRGAN_PROJECT_ROOT') ? projectRoot : null
-  let binary = envOptional(env, 'VVR_REALESRGAN_BINARY') ?? ''
-  let modelDir = envOptional(env, 'VVR_REALESRGAN_MODEL_DIR') ?? ''
-  const engineRootOverride = envOptional(env, 'VVR_REALESRGAN_ENGINE_DIR') ?? null
+  const { root: projectRoot } = resolveRiboProjectRootForRealesrgan(env, metaUrl)
+  const projectRootForRel = envOptional(env, 'RIBO_REALESRGAN_PROJECT_ROOT') ? projectRoot : null
+  let binary = envOptional(env, 'RIBO_REALESRGAN_BINARY') ?? ''
+  let modelDir = envOptional(env, 'RIBO_REALESRGAN_MODEL_DIR') ?? ''
+  const engineRootOverride = envOptional(env, 'RIBO_REALESRGAN_ENGINE_DIR') ?? null
 
   const standalone = resolveStandalonePaths({
     projectRoot,
@@ -109,9 +109,9 @@ export function readRealesrgan(
       modelName: named.model as RealesrganModelName,
       scale: named.scale ?? 4,
       matchesUpscaylLite: named.matchesUpscaylLite,
-      timeoutMs: clamp(env.VVR_REALESRGAN_TIMEOUT_MS, 10_000, 30 * 60 * 1000, 180_000),
-      tile: tileSize(env.VVR_REALESRGAN_TILE),
-      maxIntermediateEdge: clamp(env.VVR_REALESRGAN_MAX_INTERMEDIATE_EDGE, 1024, 16384, 8192),
+      timeoutMs: clamp(env.RIBO_REALESRGAN_TIMEOUT_MS, 10_000, 30 * 60 * 1000, 180_000),
+      tile: tileSize(env.RIBO_REALESRGAN_TILE),
+      maxIntermediateEdge: clamp(env.RIBO_REALESRGAN_MAX_INTERMEDIATE_EDGE, 1024, 16384, 8192),
     },
   }
 }
@@ -215,13 +215,13 @@ async function resolveBinary(binary: string): Promise<{ ok: true; path: string }
     return {
       ok: false,
       reason:
-        'AI Lite is not configured with a usable program path. Populate tools/realesrgan/ (run npm run setup:ai-lite from the repo root), or set VVR_REALESRGAN_BINARY and VVR_REALESRGAN_MODEL_DIR to absolute paths in .env.',
+        'AI Lite is not configured with a usable program path. Populate tools/realesrgan/ (run npm run setup:ai-lite from the repo root), or set RIBO_REALESRGAN_BINARY and RIBO_REALESRGAN_MODEL_DIR to absolute paths in .env.',
     }
   }
   if (!path.isAbsolute(binary)) {
     return {
       ok: false,
-      reason: 'AI Lite is not configured with a usable program path. Use an absolute path or set VVR_REALESRGAN_PROJECT_ROOT for relative paths.',
+      reason: 'AI Lite is not configured with a usable program path. Use an absolute path or set RIBO_REALESRGAN_PROJECT_ROOT for relative paths.',
     }
   }
   let real: string
@@ -259,7 +259,7 @@ async function resolveModelDir(modelDir: string, modelName: string): Promise<{ o
   if (!path.isAbsolute(modelDir)) {
     return {
       ok: false,
-      reason: 'AI Lite is missing the model files for the selected model. Use an absolute model directory or set VVR_REALESRGAN_PROJECT_ROOT for relative paths.',
+      reason: 'AI Lite is missing the model files for the selected model. Use an absolute model directory or set RIBO_REALESRGAN_PROJECT_ROOT for relative paths.',
     }
   }
   let root: string

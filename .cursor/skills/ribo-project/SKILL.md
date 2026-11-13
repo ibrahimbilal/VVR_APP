@@ -1,12 +1,12 @@
 ---
-name: vvr-project
+name: ribo-project
 description: >-
   Maintains Ribo Studio deep project references (limits, HTTP, storage,
   per-app behavior). Use when docs/ai is insufficient and you need detailed
   ranking, screensaver, thumbnail, upscaler, looper, or server behavior.
 ---
 
-# VVR project role
+# Ribo project role
 
 Prefer `docs/ai/PROJECT_MAP.md` for navigation. Read **only** the deep topic file(s) below that match the task — never load every file at once.
 

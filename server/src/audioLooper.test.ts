@@ -20,7 +20,7 @@ describe('audio looper jobs and routes', () => {
   let port = 0
 
   before(async () => {
-    process.env.VVR_AUDIO_LOOPER_TEST = '1'
+    process.env.RIBO_AUDIO_LOOPER_TEST = '1'
     await ensureStorage()
     const app = express()
     app.use('/api/audio-looper', createAudioLooperRouter())

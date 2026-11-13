@@ -1,15 +1,15 @@
 ---
-description: Minimal VVR context entry — read docs/ai before exploring the repo
+description: Minimal Ribo context entry — read docs/ai before exploring the repo
 alwaysApply: true
 ---
 
-# VVR core
+# Ribo core
 
 Before exploring or editing this repo:
 
 1. Read `docs/ai/PROJECT_MAP.md` (not the whole tree).
 2. Open only files that map names for the task area.
-3. For deep detail, use the `vvr-project` skill and open **only** the matching topic file (ranking, screensaver, server, etc.) — never every deep file at once.
+3. For deep detail, use the `ribo-project` skill and open **only** the matching topic file (ranking, screensaver, server, etc.) — never every deep file at once.
 4. If map and code disagree, trust the code, then update `docs/ai/` (and the matching deep topic + `docs/ai/CHANGELOG.md` when behavior/APIs/limits change).
 
 Do not invent apps, routes, or APIs. Do not modify application behavior when the task is documentation or context only.

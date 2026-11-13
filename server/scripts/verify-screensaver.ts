@@ -10,9 +10,9 @@ import { ensureStorage, outputsDir } from '../src/storage'
 const execFileAsync = promisify(execFile)
 
 async function main(): Promise<void> {
-  const enabled = process.env.VVR_SCREENSAVER_TEST === '1' || process.env.npm_lifecycle_event === 'test:screensaver'
+  const enabled = process.env.RIBO_SCREENSAVER_TEST === '1' || process.env.npm_lifecycle_event === 'test:screensaver'
   if (!enabled) {
-    console.log('Run via npm run test:screensaver or set VVR_SCREENSAVER_TEST=1.')
+    console.log('Run via npm run test:screensaver or set RIBO_SCREENSAVER_TEST=1.')
     return
   }
   const tmp = path.join(outputsDir, '..', 'verify-screensaver')

@@ -42,7 +42,7 @@ async function main(): Promise<void> {
     { label: 'Animated Screensaver', beforeKeys: ['loop-1080p'], afterKeys: ['loop-1080p'], source: 'screensaver' },
   ]
 
-  lines.push('', 'Ranking **before** rows used `VVR_FFMPEG_THREADS=1`, `VVR_FFMPEG_FILTER_THREADS=1`, `VVR_X264_THREADS=1`.', '')
+  lines.push('', 'Ranking **before** rows used `RIBO_FFMPEG_THREADS=1`, `RIBO_FFMPEG_FILTER_THREADS=1`, `RIBO_X264_THREADS=1`.', '')
 
   for (const item of workloads) {
     const beforeFile = item.source === 'ranking' ? rankingBefore : saverBefore

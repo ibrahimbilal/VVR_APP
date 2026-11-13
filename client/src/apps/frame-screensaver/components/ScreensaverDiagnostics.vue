@@ -54,7 +54,7 @@ function toggle(): void {
       <p><span class="text-zinc-500">Avg composite:</span> {{ metrics.avgCompositeMs != null ? `${metrics.avgCompositeMs.toFixed(2)} ms` : 'not measured' }}</p>
       <p><span class="text-zinc-500">Last export prep:</span> {{ exportPrep.ms != null ? `${exportPrep.ms.toFixed(0)} ms` : 'not measured' }}</p>
       <p><span class="text-zinc-500">Export worker:</span> {{ exportPrep.ms != null ? (exportPrep.usedWorker ? 'yes' : 'no') : 'not measured' }}</p>
-      <p class="mt-2 text-zinc-500">Enable with ?screensaver_diag=1 or localStorage vvr-screensaver-diagnostics=1</p>
+      <p class="mt-2 text-zinc-500">Enable with ?screensaver_diag=1 or localStorage ribo-screensaver-diagnostics=1</p>
     </div>
   </div>
 </template>

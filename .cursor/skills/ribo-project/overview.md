@@ -1,8 +1,8 @@
-﻿# Ribo Studio — deep overview
+# Ribo Studio — deep overview
 
 Local **Ribo Studio** platform with five apps:
 
-1. **Shorts** (legacy VVR) — 9:16 ranking compilation editor plus **Image Motion Shorts** (landscape stills → animated vertical video).
+1. **Shorts** (legacy Ribo) — 9:16 ranking compilation editor plus **Image Motion Shorts** (landscape stills → animated vertical video).
 2. **Screensaver** — long-form 16:9 ambient video from one image or looping video.
 3. **Thumbnail Studio** — browser-only YouTube thumbnail tool. Upload an image or take one from Screensaver, then place a resolution badge and a duration badge. It does not call FFmpeg.
 4. **Image Upscaler** — PNG, JPEG, and WebP through a **two-stage** pipeline: upscale to a lossless intermediate PNG (`mid/`), then export fit to preset pixels (default 4K). Standard is Sharp Lanczos3; optional AI Lite runs Real-ESRGAN at native 4× then resizes to the effective scale (auto or 1–4×). Re-export skips upscale when only export settings change. See `docs/image-upscaler.md`.
@@ -10,7 +10,7 @@ Local **Ribo Studio** platform with five apps:
 
 Ranking behavior is unchanged in substance: upload clips (or link titles only), order, style banner and ranks, preview, export MP4.
 
-There are no accounts and no cloud project storage. The editor is a Vue app. The renderer is Express with bundled FFmpeg. **Production** runs on Hostinger Node.js at `https://videos.ibrahimbilal.com` (deploy steps: `.cursor/skills/hostinger-vvr-deploy/SKILL.md`). Local dev still uses separate Vite (5173) and API (3001) processes.
+There are no accounts and no cloud project storage. The editor is a Vue app. The renderer is Express with bundled FFmpeg. Production is `build:prod` + `start:prod` (Express serves `client/dist` + API). Local dev still uses separate Vite (5173) and API (3001) processes.
 
 ## Layout
 
@@ -30,7 +30,7 @@ server/src/imageUpscaler.ts             Lanczos3 Sharp engine and the shared fin
 server/src/realesrganEngine.ts          optional Real-ESRGAN NCNN Vulkan engine
 server/src/realesrganConfig.ts          AI binary/model checks and env vars; standalone `tools/realesrgan/` discovery
 server/src/realesrganStandalone.ts    project-root + bundled engine path resolution
-server/src/projectRoot.ts               finds repo root (`vvr-app` package.json)
+server/src/projectRoot.ts               finds repo root (`ribo-studio` package.json)
 server/src/imageUpscalerJobs.ts         sequential image jobs, separate from FFmpeg
 tools/realesrgan/                      optional NCNN runner + models (gitignored); see MANIFEST.json
 server/src/imageUpscalerRoutes.ts       `/api/image-upscaler/*`

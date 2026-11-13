@@ -64,4 +64,4 @@ Do not add a second ranking project store.
 
 ## Production
 
-Hostinger Node.js at `https://videos.ibrahimbilal.com`. Deploy skill: `.cursor/skills/hostinger-vvr-deploy/`.
+`npm run build:prod` then `npm run start:prod` — Express serves `client/dist` and the API (binds `0.0.0.0` when `PORT` is set).

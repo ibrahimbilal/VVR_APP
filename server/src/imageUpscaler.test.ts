@@ -21,7 +21,7 @@ import { createUpscalerRuntime, streamZipToFile, type UpscalerRuntime } from './
 import { createImageUpscalerRouter } from './imageUpscalerRoutes'
 import { zipEntryNames } from './storedZip'
 
-const root = await mkdtemp(path.join(os.tmpdir(), 'vvr-upscaler-'))
+const root = await mkdtemp(path.join(os.tmpdir(), 'ribo-upscaler-'))
 const incoming = path.join(root, 'incoming')
 await mkdir(incoming)
 

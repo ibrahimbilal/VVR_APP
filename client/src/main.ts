@@ -2,6 +2,7 @@ import { createPinia } from 'pinia'
 import { createApp } from 'vue'
 import App from './App.vue'
 import { router } from './app/router'
+import { migrateLegacyBrowserStorage } from './lib/legacyStorageMigration'
 import { bootstrapRenderQueuesAfterNavigation } from './lib/renderQueueBootstrap'
 import './style.css'
 import '@fontsource/inter/400.css'
@@ -14,6 +15,8 @@ import '@fontsource/oswald/700.css'
 import '@fontsource/bebas-neue/400.css'
 import '@fontsource/montserrat/700.css'
 import '@fontsource/montserrat/800.css'
+
+migrateLegacyBrowserStorage()
 
 const app = createApp(App)
 const pinia = createPinia()

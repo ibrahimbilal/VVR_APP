@@ -49,7 +49,7 @@ function isFileDrag(event: DragEvent): boolean {
   const types = event.dataTransfer?.types
   if (!types) return false
   const list = Array.from(types)
-  return list.includes('Files') && !list.includes('application/x-vvr-clip')
+  return list.includes('Files') && !list.includes('application/x-ribo-clip')
 }
 
 function onFileDragEnter(event: DragEvent) {
@@ -109,7 +109,7 @@ function kept(duration: number, start: number, end: number): string {
         multiple
         label="Drop videos here"
         formats="MP4, MOV, WebM"
-        :ignore-types="['application/x-vvr-clip']"
+        :ignore-types="['application/x-ribo-clip']"
         :highlighted="fileDrag"
         @files="onZoneFiles"
       />

@@ -24,7 +24,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url'
 import { createRealesrganEngine, createUpscaleEngineRegistry, planAiInputSize } from './realesrganEngine'
 import type { NativeRunOptions, NativeRunResult } from './nativeProcess'
 
-const root = await mkdtemp(path.join(os.tmpdir(), 'vvr-realesrgan-'))
+const root = await mkdtemp(path.join(os.tmpdir(), 'ribo-realesrgan-'))
 const binary = path.join(root, 'realesrgan-ncnn-vulkan.exe')
 const modelDir = path.join(root, 'models')
 await writeFile(binary, 'not a real executable')
@@ -56,11 +56,11 @@ function options(partial: Partial<UpscaleOptions> = {}): UpscaleOptions {
 
 function enabledEnv(extra: AppEnv = {}): AppEnv {
   return {
-    VVR_AI_UPSCALER_ENABLED: 'true',
-    VVR_REALESRGAN_BINARY: binary,
-    VVR_REALESRGAN_MODEL_DIR: modelDir,
-    VVR_REALESRGAN_MODEL_NAME: 'upscayl-lite-4x',
-    VVR_REALESRGAN_TIMEOUT_MS: '30000',
+    RIBO_AI_UPSCALER_ENABLED: 'true',
+    RIBO_REALESRGAN_BINARY: binary,
+    RIBO_REALESRGAN_MODEL_DIR: modelDir,
+    RIBO_REALESRGAN_MODEL_NAME: 'upscayl-lite-4x',
+    RIBO_REALESRGAN_TIMEOUT_MS: '30000',
     ...extra,
   }
 }
@@ -141,8 +141,8 @@ describe('standalone engine paths', () => {
 
       const read = readRealesrgan(
         {
-          VVR_AI_UPSCALER_ENABLED: 'true',
-          VVR_REALESRGAN_PROJECT_ROOT: path.join(root, `fake-repo-${plat}`),
+          RIBO_AI_UPSCALER_ENABLED: 'true',
+          RIBO_REALESRGAN_PROJECT_ROOT: path.join(root, `fake-repo-${plat}`),
         },
         plat,
         pathToFileURL(path.join(root, 'server', 'src', 'dummy.ts')).href,
@@ -157,18 +157,18 @@ describe('standalone engine paths', () => {
   }
 
   it('rejects non-x64 architectures', async () => {
-    const read = readRealesrgan({ VVR_AI_UPSCALER_ENABLED: 'true' }, 'linux', testMetaUrl(), 'arm64')
+    const read = readRealesrgan({ RIBO_AI_UPSCALER_ENABLED: 'true' }, 'linux', testMetaUrl(), 'arm64')
     assert.equal(read.ok, false)
     if (!read.ok) assert.match(read.reason, /x64/)
   })
 
-  it('accepts project-relative paths when VVR_REALESRGAN_PROJECT_ROOT is set', async () => {
+  it('accepts project-relative paths when RIBO_REALESRGAN_PROJECT_ROOT is set', async () => {
     const read = readRealesrgan(
       {
-        VVR_AI_UPSCALER_ENABLED: 'true',
-        VVR_REALESRGAN_PROJECT_ROOT: root,
-        VVR_REALESRGAN_BINARY: 'custom\\bin.exe',
-        VVR_REALESRGAN_MODEL_DIR: 'models',
+        RIBO_AI_UPSCALER_ENABLED: 'true',
+        RIBO_REALESRGAN_PROJECT_ROOT: root,
+        RIBO_REALESRGAN_BINARY: 'custom\\bin.exe',
+        RIBO_REALESRGAN_MODEL_DIR: 'models',
       },
       'win32',
       testMetaUrl(),
@@ -198,13 +198,13 @@ describe('realesrgan configuration', () => {
 
   it('rejects a relative path, a disallowed program, a missing model, and an unknown model name', async () => {
     const relative = await resolveRealesrganFiles({
-      ...readOrThrow(enabledEnv({ VVR_REALESRGAN_BINARY: 'realesrgan-ncnn-vulkan.exe' })),
+      ...readOrThrow(enabledEnv({ RIBO_REALESRGAN_BINARY: 'realesrgan-ncnn-vulkan.exe' })),
     })
     assert.equal(relative.ok, false)
     if (!relative.ok) assert.match(relative.reason, /usable program path/)
 
     const cmd = path.join(process.env.SystemRoot ?? 'C:\\Windows', 'System32', 'cmd.exe')
-    const disallowed = await resolveRealesrganFiles(readOrThrow(enabledEnv({ VVR_REALESRGAN_BINARY: cmd })))
+    const disallowed = await resolveRealesrganFiles(readOrThrow(enabledEnv({ RIBO_REALESRGAN_BINARY: cmd })))
     assert.equal(disallowed.ok, false)
     if (!disallowed.ok) {
       assert.match(disallowed.reason, /does not allow/)
@@ -214,20 +214,20 @@ describe('realesrgan configuration', () => {
 
     const empty = path.join(root, 'empty-models')
     await mkdir(empty)
-    const missing = await resolveRealesrganFiles(readOrThrow(enabledEnv({ VVR_REALESRGAN_MODEL_DIR: empty })))
+    const missing = await resolveRealesrganFiles(readOrThrow(enabledEnv({ RIBO_REALESRGAN_MODEL_DIR: empty })))
     assert.equal(missing.ok, false)
     if (!missing.ok) {
       assert.match(missing.reason, /missing the model files/)
       assert.equal(missing.reason.includes(empty), false)
     }
 
-    const unknown = readRealesrgan(enabledEnv({ VVR_REALESRGAN_MODEL_NAME: '../upscayl-lite-4x' }), 'win32', testMetaUrl())
+    const unknown = readRealesrgan(enabledEnv({ RIBO_REALESRGAN_MODEL_NAME: '../upscayl-lite-4x' }), 'win32', testMetaUrl())
     assert.equal(unknown.ok, false)
     if (!unknown.ok) {
       assert.match(unknown.reason, /does not allow/)
       assert.equal(unknown.model, null)
     }
-    const other = readRealesrgan(enabledEnv({ VVR_REALESRGAN_MODEL_NAME: 'remacri-4x' }), 'win32', testMetaUrl())
+    const other = readRealesrgan(enabledEnv({ RIBO_REALESRGAN_MODEL_NAME: 'remacri-4x' }), 'win32', testMetaUrl())
     assert.equal(other.ok, false)
   })
 
@@ -235,7 +235,7 @@ describe('realesrgan configuration', () => {
     const linuxBin = path.join(root, 'realesrgan-ncnn-vulkan')
     await writeFile(linuxBin, 'stub')
     const files = await resolveRealesrganFiles(
-      readOrThrow(enabledEnv({ VVR_REALESRGAN_BINARY: linuxBin }), 'linux'),
+      readOrThrow(enabledEnv({ RIBO_REALESRGAN_BINARY: linuxBin }), 'linux'),
     )
     assert.equal(files.ok, false)
     if (!files.ok) assert.match(files.reason, /executable/)
@@ -255,7 +255,7 @@ describe('realesrgan configuration', () => {
     assert.match(vulkan.capability.reason ?? '', /Vulkan/)
 
     const official = await assessRealesrgan(
-      enabledEnv({ VVR_REALESRGAN_MODEL_NAME: 'realesrgan-x4plus' }),
+      enabledEnv({ RIBO_REALESRGAN_MODEL_NAME: 'realesrgan-x4plus' }),
       async () => ({ ok: true, vulkanFailed: false }),
       'win32',
     )
@@ -284,7 +284,7 @@ describe('realesrgan engine', () => {
     await chmod(linuxBin, 0o755)
     await solid(source, 160, 90)
     const engine = createRealesrganEngine({
-      env: () => enabledEnv({ VVR_REALESRGAN_BINARY: linuxBin }),
+      env: () => enabledEnv({ RIBO_REALESRGAN_BINARY: linuxBin }),
       run: scaleRun(4, 'linux'),
       platform: 'linux',
     })
@@ -466,7 +466,7 @@ describe('realesrgan engine', () => {
     await solid(source, 400, 200)
     let seenWidth = 0
     const engine = createRealesrganEngine({
-      env: () => enabledEnv({ VVR_REALESRGAN_MAX_INTERMEDIATE_EDGE: '1024' }),
+      env: () => enabledEnv({ RIBO_REALESRGAN_MAX_INTERMEDIATE_EDGE: '1024' }),
       platform: 'win32',
       run: async (command, args, runOptions) => {
         seenWidth = (await sharp(arg(args, '-i')).metadata()).width ?? 0
@@ -686,7 +686,7 @@ describe('native process control', () => {
   })
 })
 
-describe('installed realesrgan binary', { skip: process.env.VVR_AI_UPSCALER_INTEGRATION !== '1' }, () => {
+describe('installed realesrgan binary', { skip: process.env.RIBO_AI_UPSCALER_INTEGRATION !== '1' }, () => {
   it('upscales a small PNG to the requested size with the configured model', async () => {
     const source = path.join(root, 'live.png')
     const output = path.join(root, 'live-out.png')

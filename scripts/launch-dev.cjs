@@ -17,7 +17,7 @@ function findProjectRoot(startDir) {
     if (fs.existsSync(pkgPath)) {
       try {
         const pkg = JSON.parse(fs.readFileSync(pkgPath, 'utf8'))
-        if (pkg.name === 'vvr-app') return dir
+        if (pkg.name === 'ribo-studio') return dir
       } catch {
         /* ignore invalid package.json */
       }
@@ -27,15 +27,26 @@ function findProjectRoot(startDir) {
   return null
 }
 
+function promoteLegacyEnvKeys() {
+  for (const [key, value] of Object.entries(process.env)) {
+    if (!key.startsWith('VVR_') || value === undefined) continue
+    const riboKey = `RIBO_${key.slice(4)}`
+    const existing = process.env[riboKey]
+    if (existing !== undefined && String(existing).trim() !== '') continue
+    process.env[riboKey] = value
+  }
+}
+
 function loadRepoDotenv(projectRoot) {
   try {
     // Resolved via workspace hoisting (server depends on dotenv).
     require('dotenv').config({ path: path.join(projectRoot, '.env') })
+    promoteLegacyEnvKeys()
     const clearIfEmpty = [
-      'VVR_REALESRGAN_BINARY',
-      'VVR_REALESRGAN_MODEL_DIR',
-      'VVR_REALESRGAN_ENGINE_DIR',
-      'VVR_REALESRGAN_PROJECT_ROOT',
+      'RIBO_REALESRGAN_BINARY',
+      'RIBO_REALESRGAN_MODEL_DIR',
+      'RIBO_REALESRGAN_ENGINE_DIR',
+      'RIBO_REALESRGAN_PROJECT_ROOT',
     ]
     for (const key of clearIfEmpty) {
       if (process.env[key] !== undefined && String(process.env[key]).trim() === '') {
@@ -107,9 +118,9 @@ function spawnDev(projectRoot) {
 
   if (standalone) {
     if (probe?.ok) {
-      console.log('[VVR] AI Lite: Ready (standalone engine)')
+      console.log('[Ribo] AI Lite: Ready (standalone engine)')
     } else {
-      console.log('[VVR] AI Lite: Unavailable — missing engine, model, or Vulkan support')
+      console.log('[Ribo] AI Lite: Unavailable — missing engine, model, or Vulkan support')
     }
   }
 
@@ -129,7 +140,7 @@ function spawnDev(projectRoot) {
 }
 
 function fail(message) {
-  console.error('\n[VVR launcher]', message)
+  console.error('\n[Ribo]', message)
   console.error('\nPress Enter to close.')
   process.stdin.resume()
   process.stdin.once('data', () => process.exit(1))
@@ -138,8 +149,8 @@ function fail(message) {
 const projectRoot = findProjectRoot(launcherStartDir())
 if (!projectRoot) {
   fail(
-    'Could not find the VVR project folder.\n' +
-      'Keep VVR-Dev.exe inside this repo (for example in dist\\) or run npm install once from the repo root.',
+    'Could not find the Ribo project folder.\n' +
+      'Keep RIBO-Dev.exe inside this repo (for example in dist\\) or run npm install once from the repo root.',
   )
   process.exitCode = 1
 } else {
@@ -151,9 +162,9 @@ if (!projectRoot) {
     process.exitCode = 1
   } else {
     loadRepoDotenv(projectRoot)
-    console.log('[VVR launcher] Project:', projectRoot)
-    console.log('[VVR launcher] Starting dev server (same as npm run dev)...')
-    console.log('[VVR launcher] Close this window to stop.\n')
+    console.log('[Ribo] Project:', projectRoot)
+    console.log('[Ribo] Starting dev server (same as npm run dev)...')
+    console.log('[Ribo] Close this window to stop.\n')
 
     const child = spawnDev(projectRoot)
 
@@ -163,12 +174,12 @@ if (!projectRoot) {
       waitForHttp(HEALTH_URL, 120_000)
         .then(() => {
           browserOpened = true
-          console.log('\n[VVR launcher] Opening', APP_URL)
+          console.log('\n[Ribo] Opening', APP_URL)
           openBrowser(APP_URL)
         })
         .catch(() => {
           console.warn(
-            '\n[VVR launcher] Editor did not respond in time; open manually:',
+            '\n[Ribo] Editor did not respond in time; open manually:',
             APP_URL,
           )
         })
@@ -176,7 +187,7 @@ if (!projectRoot) {
     tryOpenBrowser()
 
     child.on('error', (err) => {
-      console.error('[VVR launcher] Failed to start npm:', err.message)
+      console.error('[Ribo] Failed to start npm:', err.message)
       process.exit(1)
     })
 

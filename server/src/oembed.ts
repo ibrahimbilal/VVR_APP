@@ -51,7 +51,7 @@ async function fetchOembed(
   try {
     const response = await fetch(endpoint, {
       signal: controller.signal,
-      headers: { Accept: 'application/json', 'User-Agent': 'VVR/1.0' },
+      headers: { Accept: 'application/json', 'User-Agent': 'RIBO/1.0' },
     })
     if (!response.ok) return null
     const data = (await response.json()) as { title?: unknown; thumbnail_url?: unknown }

@@ -10,7 +10,6 @@ server/tmp
 .idea
 .vscode
 client/public/samples
-vvr-app.zip
 launcher/bin/
 launcher/obj/
 Video factory.exe

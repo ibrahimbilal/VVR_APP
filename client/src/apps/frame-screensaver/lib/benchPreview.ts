@@ -10,11 +10,11 @@ export function runPreviewMicroBench(): Promise<ReturnType<typeof previewMetrics
 
 declare global {
   interface Window {
-    __vvrScreensaverBench?: () => Promise<ReturnType<typeof previewMetricsSnapshot>>
+    __riboScreensaverBench?: () => Promise<ReturnType<typeof previewMetricsSnapshot>>
   }
 }
 
 export function installPreviewBenchHook(): void {
   if (typeof window === 'undefined') return
-  window.__vvrScreensaverBench = runPreviewMicroBench
+  window.__riboScreensaverBench = runPreviewMicroBench
 }

@@ -20,7 +20,7 @@ Integrated 2026-11-13. The Screensaver export path now supports **Optimized CFR*
 
 **Created:** `server/src/screensaverCfr/*`, `server/scripts/verify-screensaver-cfr.ts`, `server/scripts/bench-screensaver-cfr.ts`, `server/scripts/export-screensaver-cfr-youtube.ts`, `shared/screensaverCfr.test.ts`, `docs/screensaver-cfr-bench.md`, `docs/optimized-cfr-production-report.md`
 
-**Modified:** `shared/screensaver.ts`, `server/src/renderScreensaver.ts`, `server/src/renderScreensaverHybrid.ts`, `server/src/index.ts`, `client/.../stores/screensaver.ts`, `client/.../types.ts`, `client/.../ScreensaverSettingsPanel.vue`, root/`server` `package.json`, deep project docs under `.cursor/skills/vvr-project/`
+**Modified:** `shared/screensaver.ts`, `server/src/renderScreensaver.ts`, `server/src/renderScreensaverHybrid.ts`, `server/src/index.ts`, `client/.../stores/screensaver.ts`, `client/.../types.ts`, `client/.../ScreensaverSettingsPanel.vue`, root/`server` `package.json`, deep project docs under `.cursor/skills/ribo-project/`
 
 ## 3. Rendering modes
 

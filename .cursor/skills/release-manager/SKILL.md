@@ -13,10 +13,10 @@ Never bump the version during ordinary development. Never push, publish, overwri
 
 ## Baseline
 
-- **Approved product baseline:** **1.0.0** — first official stable release of Ribo Studio (display rebrand from Video's Factory / VVR_APP).
+- **Approved product baseline:** **1.0.0** — first official stable release of Ribo Studio (display rebrand from Video's Factory).
 - Planned Git tag: `v1.0.0`. Release title when publishing: `Ribo Studio v1.0.0 — Initial Stable Release`.
 - Pre-baseline `package.json` values (including `3.0.0`) were arbitrary development metadata only. They had no matching annotated Git tags or GitHub Releases. Do not fabricate historical releases for those numbers.
-- Compatibility identifiers stay unchanged across the rebrand: package name `vvr-app`, IndexedDB `vvr`, deploy `vvr-app.zip`, `VVR_*` env keys.
+- Product identifiers use the `ribo` prefix: package name `ribo-studio`, IndexedDB `ribo`, `RIBO_*` env keys (legacy `vvr` / `VVR_*` migrate once where applicable).
 - From 1.0.0 onward, use only normal SemVer bumps (`patch` / `minor` / `major`) via this skill and `npm run release:*`.
 
 ## Phase A — Analyze

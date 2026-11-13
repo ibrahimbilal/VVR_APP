@@ -19,15 +19,15 @@ function isAiExplicitlyDisabled(value) {
  * Standalone layout: tools/realesrgan/<platform>/realesrgan-ncnn-vulkan[.exe] and tools/realesrgan/models/
  */
 function detectStandaloneEngine(projectRoot, env = process.env, host = { platform: process.platform, arch: process.arch }) {
-  if (isAiExplicitlyDisabled(env.VVR_AI_UPSCALER_ENABLED)) return null
+  if (isAiExplicitlyDisabled(env.RIBO_AI_UPSCALER_ENABLED)) return null
   if (unsupportedAiLiteHostReason(host.platform, host.arch)) return null
 
   const layout = resolveStandaloneLayout(projectRoot, env, host)
   if (!layout.ok) return null
 
-  const modelName = (env.VVR_REALESRGAN_MODEL_NAME || DEFAULT_MODEL).trim()
-  const binary = env.VVR_REALESRGAN_BINARY ? path.resolve(env.VVR_REALESRGAN_BINARY) : layout.defaultBinary
-  const modelDir = env.VVR_REALESRGAN_MODEL_DIR ? path.resolve(env.VVR_REALESRGAN_MODEL_DIR) : layout.defaultModelDir
+  const modelName = (env.RIBO_REALESRGAN_MODEL_NAME || DEFAULT_MODEL).trim()
+  const binary = env.RIBO_REALESRGAN_BINARY ? path.resolve(env.RIBO_REALESRGAN_BINARY) : layout.defaultBinary
+  const modelDir = env.RIBO_REALESRGAN_MODEL_DIR ? path.resolve(env.RIBO_REALESRGAN_MODEL_DIR) : layout.defaultModelDir
 
   const hasBin = fs.existsSync(binary)
   const hasModels =
@@ -77,11 +77,11 @@ function aiLiteEnvPatch(projectRoot, env = process.env) {
   if (!standalone) return { patch: {}, standalone: null, probe: null }
 
   const patch = {}
-  if (!env.VVR_AI_UPSCALER_ENABLED) patch.VVR_AI_UPSCALER_ENABLED = 'true'
-  if (!env.VVR_REALESRGAN_BINARY) patch.VVR_REALESRGAN_BINARY = standalone.binary
-  if (!env.VVR_REALESRGAN_MODEL_DIR) patch.VVR_REALESRGAN_MODEL_DIR = standalone.modelDir
-  if (!env.VVR_REALESRGAN_MODEL_NAME) patch.VVR_REALESRGAN_MODEL_NAME = standalone.modelName
-  if (!env.VVR_REALESRGAN_PROJECT_ROOT) patch.VVR_REALESRGAN_PROJECT_ROOT = projectRoot
+  if (!env.RIBO_AI_UPSCALER_ENABLED) patch.RIBO_AI_UPSCALER_ENABLED = 'true'
+  if (!env.RIBO_REALESRGAN_BINARY) patch.RIBO_REALESRGAN_BINARY = standalone.binary
+  if (!env.RIBO_REALESRGAN_MODEL_DIR) patch.RIBO_REALESRGAN_MODEL_DIR = standalone.modelDir
+  if (!env.RIBO_REALESRGAN_MODEL_NAME) patch.RIBO_REALESRGAN_MODEL_NAME = standalone.modelName
+  if (!env.RIBO_REALESRGAN_PROJECT_ROOT) patch.RIBO_REALESRGAN_PROJECT_ROOT = projectRoot
 
   const probe = probeBinaryHelp(standalone.binary)
   return { patch, standalone, probe }
@@ -89,7 +89,7 @@ function aiLiteEnvPatch(projectRoot, env = process.env) {
 
 function applyAiLiteEnv(projectRoot, env = process.env) {
   const { patch, standalone, probe } = aiLiteEnvPatch(projectRoot, env)
-  return { ...env, ...patch, _vvrAiLite: { standalone, probe } }
+  return { ...env, ...patch, _riboAiLite: { standalone, probe } }
 }
 
 module.exports = {

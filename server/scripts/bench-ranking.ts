@@ -86,9 +86,9 @@ async function main(): Promise<void> {
 
 async function threadSweep(): Promise<void> {
   const configs = [
-    { VVR_FFMPEG_THREADS: '1', VVR_FFMPEG_FILTER_THREADS: '1', VVR_X264_THREADS: '1' },
-    { VVR_FFMPEG_THREADS: '4', VVR_FFMPEG_FILTER_THREADS: '2', VVR_X264_THREADS: '2' },
-    { VVR_FFMPEG_THREADS: '4', VVR_FFMPEG_FILTER_THREADS: '4', VVR_X264_THREADS: '4' },
+    { RIBO_FFMPEG_THREADS: '1', RIBO_FFMPEG_FILTER_THREADS: '1', RIBO_X264_THREADS: '1' },
+    { RIBO_FFMPEG_THREADS: '4', RIBO_FFMPEG_FILTER_THREADS: '2', RIBO_X264_THREADS: '2' },
+    { RIBO_FFMPEG_THREADS: '4', RIBO_FFMPEG_FILTER_THREADS: '4', RIBO_X264_THREADS: '4' },
   ]
   await ensureStorage()
   const work = path.join(tmpDir, 'bench-ranking-sweep')

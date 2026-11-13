@@ -9,5 +9,5 @@ alwaysApply: false
 - `shared/` is the contract between client and server (path imports, not a package).
 - Put cross-boundary math, enums, and limits here once. Do not fork copies in Vue or Express.
 - Ranking: `frame.ts` (geometry), `timeline.ts` (duration/fade). Screensaver/Image Motion/Upscaler/Looper/Thumbnail have matching modules.
-- Changing a shared limit or type requires updating callers and, when user-visible or API-facing, `docs/ai/`, the matching `vvr-project` topic file, and `docs/ai/CHANGELOG.md`.
+- Changing a shared limit or type requires updating callers and, when user-visible or API-facing, `docs/ai/`, the matching `ribo-project` topic file, and `docs/ai/CHANGELOG.md`.
 - Respect decisions in `docs/ai/DECISIONS.md` (local-first, no social download, one FFmpeg at a time, single ranking store).

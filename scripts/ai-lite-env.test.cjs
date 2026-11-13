@@ -11,7 +11,7 @@ const {
 } = require('./ai-lite-env.cjs')
 const { resolveStandaloneLayout } = require('./ai-lite-platform.cjs')
 
-const root = path.join(os.tmpdir(), `vvr-ai-lite-env-${process.pid}`)
+const root = path.join(os.tmpdir(), `ribo-ai-lite-env-${process.pid}`)
 
 after(() => {
   fs.rmSync(root, { recursive: true, force: true })
@@ -38,14 +38,14 @@ function layoutFor(platform) {
 describe('ai-lite-env (Windows)', () => {
   it('detects win-x64 layout', () => {
     const { repo, binPath, modelDir } = layoutFor('win32')
-    const env = { VVR_AI_UPSCALER_ENABLED: 'true' }
+    const env = { RIBO_AI_UPSCALER_ENABLED: 'true' }
     const detected = detectStandaloneEngine(repo, env, { platform: 'win32', arch: 'x64' })
     assert.ok(detected)
     assert.equal(detected.binary, binPath)
     assert.equal(detected.modelDir, modelDir)
     const { patch } = aiLiteEnvPatch(repo, {})
-    assert.equal(patch.VVR_REALESRGAN_BINARY, binPath)
-    assert.equal(patch.VVR_REALESRGAN_PROJECT_ROOT, repo)
+    assert.equal(patch.RIBO_REALESRGAN_BINARY, binPath)
+    assert.equal(patch.RIBO_REALESRGAN_PROJECT_ROOT, repo)
   })
 })
 
@@ -73,12 +73,12 @@ describe('ai-lite-env preserves overrides', () => {
     const customBin = path.join(repo, 'custom-bin')
     fs.writeFileSync(customBin, 'x')
     const { patch } = aiLiteEnvPatch(repo, {
-      VVR_AI_UPSCALER_ENABLED: 'true',
-      VVR_REALESRGAN_BINARY: customBin,
-      VVR_REALESRGAN_MODEL_DIR: '/abs/models',
+      RIBO_AI_UPSCALER_ENABLED: 'true',
+      RIBO_REALESRGAN_BINARY: customBin,
+      RIBO_REALESRGAN_MODEL_DIR: '/abs/models',
     })
-    assert.equal(patch.VVR_REALESRGAN_BINARY, undefined)
-    assert.equal(patch.VVR_REALESRGAN_MODEL_DIR, undefined)
-    assert.equal(patch.VVR_AI_UPSCALER_ENABLED, undefined)
+    assert.equal(patch.RIBO_REALESRGAN_BINARY, undefined)
+    assert.equal(patch.RIBO_REALESRGAN_MODEL_DIR, undefined)
+    assert.equal(patch.RIBO_AI_UPSCALER_ENABLED, undefined)
   })
 })

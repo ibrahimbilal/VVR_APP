@@ -1,7 +1,7 @@
 ---
 name: update-project-context
 description: >-
-  Updates AI context docs and deep VVR topic files after architecture or
+  Updates AI context docs and deep Ribo topic files after architecture or
   feature location changes. Use when routes, folders, APIs, limits, stores, or
   major features change, or when the user asks to refresh project context.
 ---
@@ -15,7 +15,7 @@ description: >-
 3. Patch the smallest set of:
    - `docs/ai/PROJECT_MAP.md`
    - `docs/ai/ARCHITECTURE.md` / `FEATURES.md` / `CONVENTIONS.md` / `DECISIONS.md`
-4. If behavior, data shapes, APIs, limits, storage, layout, or file responsibilities changed, update the matching file(s) under `.cursor/skills/vvr-project/` (see that skill’s table) and append **one** dated line under **Unreleased** in `docs/ai/CHANGELOG.md`. For user-facing product changes, also update root `CHANGELOG.md` Unreleased. Do not bump `package.json` unless the user approved a release (`.cursor/rules/versioning.mdc`, `release-manager` skill).
+4. If behavior, data shapes, APIs, limits, storage, layout, or file responsibilities changed, update the matching file(s) under `.cursor/skills/ribo-project/` (see that skill’s table) and append **one** dated line under **Unreleased** in `docs/ai/CHANGELOG.md`. For user-facing product changes, also update root `CHANGELOG.md` Unreleased. Do not bump `package.json` unless the user approved a release (`.cursor/rules/versioning.mdc`, `release-manager` skill).
 5. Verify every referenced path exists.
 6. Keep docs concise; link to source instead of pasting code.
 

@@ -6,7 +6,7 @@ alwaysApply: true
 # Context efficiency
 
 - Prefer `docs/ai/*.md` over scanning `client/`, `server/`, or `shared/`.
-- Do not read every `.cursor/skills/vvr-project/*.md` file. Open only the topic that matches the task.
+- Do not read every `.cursor/skills/ribo-project/*.md` file. Open only the topic that matches the task.
 - Avoid parallel broad globs (`**/*`) when the map already names paths.
 - Reuse findings already in the conversation; do not re-explore the same area.
 - Keep edits inside the named task area. Match existing Vue/Pinia/Express style.

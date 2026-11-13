@@ -1,6 +1,6 @@
 # Project map
 
-Concise navigation for Ribo Studio (VVR; repo `ibrahimbilal/ribo-studio`). Deep detail: `.cursor/skills/vvr-project/` topic files (see that skill’s table). Release changelog: root [`CHANGELOG.md`](../../CHANGELOG.md). Agent notes: [CHANGELOG.md](CHANGELOG.md).
+Concise navigation for Ribo Studio (repo `ibrahimbilal/ribo-studio`). Deep detail: `.cursor/skills/ribo-project/` topic files (see that skill’s table). Release changelog: root [`CHANGELOG.md`](../../CHANGELOG.md). Agent notes: [CHANGELOG.md](CHANGELOG.md).
 
 ## Stack
 
@@ -44,10 +44,9 @@ Router: `client/src/app/router.ts`. Nav: `client/src/app/navigation.ts`.
 | Encoders / threading | `server/src/encoders.ts`, `ffmpegThreading.ts`, `ffmpegUtil.ts` |
 | Temp data | `server/tmp/` (gitignored) |
 
-## Scripts / deploy
+## Scripts
 
-- Root scripts: `package.json` (`dev`, `typecheck`, `test:*`, `bench:*`, `pack:hostinger`, `release:*`).
-- Deploy: `.cursor/skills/hostinger-vvr-deploy/`.
+- Root scripts: `package.json` (`dev`, `typecheck`, `test:*`, `bench:*`, `release:*`).
 - Releases: `.cursor/skills/release-manager/`; SemVer in root `package.json`; UI via `client/src/lib/appVersion.ts`.
 - Optional AI Lite binaries: `tools/realesrgan/` (gitignored natives).
 

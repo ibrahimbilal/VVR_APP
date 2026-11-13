@@ -84,7 +84,7 @@ async function fetchYoutubeOembed(
   try {
     const response = await fetch(endpoint, {
       signal: controller.signal,
-      headers: { Accept: 'application/json', 'User-Agent': 'VVR/1.0' },
+      headers: { Accept: 'application/json', 'User-Agent': 'RIBO/1.0' },
     })
     if (!response.ok) return null
     const data = (await response.json()) as { author_name?: unknown; author_url?: unknown }
@@ -108,7 +108,7 @@ async function fetchChannelPage(
       signal: controller.signal,
       headers: {
         Accept: 'text/html',
-        'User-Agent': 'Mozilla/5.0 (compatible; VVR/1.0; +https://videos.ibrahimbilal.com)',
+        'User-Agent': 'Mozilla/5.0 (compatible; RiboStudio/1.0; +https://github.com/ibrahimbilal/ribo-studio)',
         'Accept-Language': 'en-US,en;q=0.9',
       },
     })

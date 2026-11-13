@@ -202,7 +202,7 @@ async function prepareUpload(files: Express.Multer.File[], settingsField: unknow
     }
   }
 
-  const minDuration = process.env.VVR_AUDIO_LOOPER_TEST === '1' ? TEST_MIN_DURATION_SECONDS : MIN_DURATION_SECONDS
+  const minDuration = process.env.RIBO_AUDIO_LOOPER_TEST === '1' ? TEST_MIN_DURATION_SECONDS : MIN_DURATION_SECONDS
   const settings = normalizeSettings(settingsRaw, { minDurationSeconds: minDuration })
   const probed: AudioDetails[] = []
   for (const file of files) {

@@ -1051,7 +1051,7 @@ function parseScreensaverProject(raw: unknown): ScreensaverProjectInput {
       renderingMode === 'optimized-cfr' ? 'Choose 24, 25, 30, 50, or 60 fps for Optimized CFR.' : 'Choose 1, 24, 30, or 60 fps.',
     )
   }
-  const minDuration = process.env.VVR_SCREENSAVER_TEST === '1' ? TEST_MIN_DURATION_SECONDS : MIN_DURATION_SECONDS
+  const minDuration = process.env.RIBO_SCREENSAVER_TEST === '1' ? TEST_MIN_DURATION_SECONDS : MIN_DURATION_SECONDS
   const duration = Number(data.duration)
   if (!Number.isFinite(duration) || duration < minDuration || duration > MAX_DURATION_SECONDS) {
     throw new ClientError(400, 'Choose a duration between 5 minutes and 10 hours.')
@@ -1230,7 +1230,7 @@ async function main(): Promise<void> {
   const ffmpegReady = await checkFfmpeg()
   await logEncodeCheck()
   const server = app.listen(port, host, () => {
-    console.log(`VVR renderer at http://${host}:${port} (ffmpeg: ${ffmpegReady ? 'ready' : 'missing'})`)
+    console.log(`RIBO renderer at http://${host}:${port} (ffmpeg: ${ffmpegReady ? 'ready' : 'missing'})`)
   })
   server.requestTimeout = 0
   server.headersTimeout = 0

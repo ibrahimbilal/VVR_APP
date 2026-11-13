@@ -115,7 +115,7 @@ async function main() {
 
   const sub = standalonePlatformSubdir(process.platform, process.arch)
   const exeName = platManifest.ncnnExecutable.binaryName
-  const tmp = await mkdtemp(path.join(os.tmpdir(), 'vvr-ai-lite-'))
+  const tmp = await mkdtemp(path.join(os.tmpdir(), 'ribo-ai-lite-'))
   const zipPath = path.join(tmp, 'ncnn.zip')
   try {
     console.log('Downloading', platManifest.ncnnExecutable.source)

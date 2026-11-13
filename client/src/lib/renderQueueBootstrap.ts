@@ -1,8 +1,8 @@
 import { pageWasReloaded } from './pageNavigation'
 import { usePlatformStore } from '../stores/platform'
 
-const ACTIVE_JOBS_KEY = 'vvr-active-render-jobs'
-const READY_KEY = 'vvr-render-notifications'
+const ACTIVE_JOBS_KEY = 'ribo-active-render-jobs'
+const READY_KEY = 'ribo-render-notifications'
 
 export function clearPersistedRenderQueues(): void {
   try {

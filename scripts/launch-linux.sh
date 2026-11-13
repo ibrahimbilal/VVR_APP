@@ -6,7 +6,7 @@ ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
 
 if [[ ! -d node_modules ]]; then
-  echo "[VVR launcher] Run npm install once from: $ROOT" >&2
+  echo "[Ribo] Run npm install once from: $ROOT" >&2
   exit 1
 fi
 
@@ -17,13 +17,13 @@ ai_lite_files_ready() {
 }
 
 should_auto_setup() {
-  if [[ "${VVR_AI_UPSCALER_ENABLED:-}" =~ ^(false|0|no)$ ]]; then
+  if [[ "${RIBO_AI_UPSCALER_ENABLED:-}" =~ ^(false|0|no)$ ]]; then
     return 1
   fi
-  if [[ -n "${VVR_REALESRGAN_BINARY:-}" && -n "${VVR_REALESRGAN_MODEL_DIR:-}" ]]; then
+  if [[ -n "${RIBO_REALESRGAN_BINARY:-}" && -n "${RIBO_REALESRGAN_MODEL_DIR:-}" ]]; then
     return 1
   fi
-  if [[ "${VVR_SKIP_AI_LITE_SETUP:-}" == "1" ]]; then
+  if [[ "${RIBO_SKIP_AI_LITE_SETUP:-}" == "1" ]]; then
     return 1
   fi
   if ai_lite_files_ready; then
@@ -33,8 +33,8 @@ should_auto_setup() {
 }
 
 if should_auto_setup; then
-  echo "[VVR launcher] AI Lite files missing — running npm run setup:ai-lite (requires network) …"
-  npm run setup:ai-lite || echo "[VVR launcher] setup:ai-lite failed; Standard (Lanczos3) still works." >&2
+  echo "[Ribo] AI Lite files missing — running npm run setup:ai-lite (requires network) …"
+  npm run setup:ai-lite || echo "[Ribo] setup:ai-lite failed; Standard (Lanczos3) still works." >&2
 fi
 
 exec node scripts/launch-dev.cjs

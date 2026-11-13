@@ -5,8 +5,8 @@ using System.Text;
 using System.Text.Json;
 using System.Text.RegularExpressions;
 
-const string MutexName = "Global\\VVR_VideosFactory_StartDevServer";
-const string PackageName = "vvr-app";
+const string MutexName = "Global\\RIBO_VideosFactory_StartDevServer";
+const string PackageName = "ribo-studio";
 const string AiModelName = "upscayl-lite-4x";
 const string AiExeName = "realesrgan-ncnn-vulkan.exe";
 /** Dev UI (Vite); API is 3001 — do not open the API URL in the browser. */
@@ -34,7 +34,7 @@ var projectRoot = FindProjectRoot(exeDir);
 if (projectRoot is null)
 {
     Fail(
-        "Could not find the project folder (package.json with name \"vvr-app\").\n" +
+        "Could not find the project folder (package.json with name \"ribo-studio\").\n" +
             "Place Video factory.exe in the repo root (or a subfolder) and run npm install once.");
 }
 
@@ -233,22 +233,22 @@ static void MaybeRunAiLiteSetup(string projectRoot)
 {
     if (!OperatingSystem.IsWindows()) return;
 
-    var enabledFlag = Environment.GetEnvironmentVariable("VVR_AI_UPSCALER_ENABLED");
+    var enabledFlag = Environment.GetEnvironmentVariable("RIBO_AI_UPSCALER_ENABLED");
     if (enabledFlag is "false" or "0" or "no") return;
 
-    var hasBin = !string.IsNullOrEmpty(Environment.GetEnvironmentVariable("VVR_REALESRGAN_BINARY"));
-    var hasModel = !string.IsNullOrEmpty(Environment.GetEnvironmentVariable("VVR_REALESRGAN_MODEL_DIR"));
+    var hasBin = !string.IsNullOrEmpty(Environment.GetEnvironmentVariable("RIBO_REALESRGAN_BINARY"));
+    var hasModel = !string.IsNullOrEmpty(Environment.GetEnvironmentVariable("RIBO_REALESRGAN_MODEL_DIR"));
     if (hasBin && hasModel) return;
 
-    var engineRoot = Environment.GetEnvironmentVariable("VVR_REALESRGAN_ENGINE_DIR");
+    var engineRoot = Environment.GetEnvironmentVariable("RIBO_REALESRGAN_ENGINE_DIR");
     if (string.IsNullOrWhiteSpace(engineRoot))
         engineRoot = Path.Combine(projectRoot, "tools", "realesrgan");
 
-    var modelName = Environment.GetEnvironmentVariable("VVR_REALESRGAN_MODEL_NAME");
+    var modelName = Environment.GetEnvironmentVariable("RIBO_REALESRGAN_MODEL_NAME");
     if (string.IsNullOrWhiteSpace(modelName)) modelName = AiModelName;
 
-    var binary = hasBin ? Environment.GetEnvironmentVariable("VVR_REALESRGAN_BINARY")! : Path.Combine(engineRoot, "win-x64", AiExeName);
-    var modelDir = hasModel ? Environment.GetEnvironmentVariable("VVR_REALESRGAN_MODEL_DIR")! : Path.Combine(engineRoot, "models");
+    var binary = hasBin ? Environment.GetEnvironmentVariable("RIBO_REALESRGAN_BINARY")! : Path.Combine(engineRoot, "win-x64", AiExeName);
+    var modelDir = hasModel ? Environment.GetEnvironmentVariable("RIBO_REALESRGAN_MODEL_DIR")! : Path.Combine(engineRoot, "models");
 
     if (File.Exists(binary)
         && Directory.Exists(modelDir)
@@ -304,6 +304,22 @@ static void ApplyRepoDotenvToProcess(string projectRoot)
         if (string.IsNullOrEmpty(Environment.GetEnvironmentVariable(key)))
             Environment.SetEnvironmentVariable(key, value);
     }
+    PromoteLegacyEnvKeys();
+}
+
+/** Copy pre-rebrand VVR_* values onto RIBO_* when the new key is unset. */
+static void PromoteLegacyEnvKeys()
+{
+    foreach (System.Collections.DictionaryEntry entry in Environment.GetEnvironmentVariables())
+    {
+        var key = entry.Key as string;
+        if (key is null || !key.StartsWith("VVR_", StringComparison.Ordinal)) continue;
+        var value = entry.Value as string;
+        if (string.IsNullOrEmpty(value)) continue;
+        var riboKey = "RIBO_" + key["VVR_".Length..];
+        if (string.IsNullOrEmpty(Environment.GetEnvironmentVariable(riboKey)))
+            Environment.SetEnvironmentVariable(riboKey, value);
+    }
 }
 
 static void TryKillTree(Process process)
@@ -323,20 +339,20 @@ static bool TryApplyAiLiteEnv(string projectRoot, ProcessStartInfo psi, out stri
     note = "";
     if (!OperatingSystem.IsWindows()) return false;
 
-    var enabledFlag = Environment.GetEnvironmentVariable("VVR_AI_UPSCALER_ENABLED");
+    var enabledFlag = Environment.GetEnvironmentVariable("RIBO_AI_UPSCALER_ENABLED");
     if (enabledFlag is "false" or "0" or "no") return false;
 
-    var hasBin = !string.IsNullOrEmpty(Environment.GetEnvironmentVariable("VVR_REALESRGAN_BINARY"));
-    var hasModel = !string.IsNullOrEmpty(Environment.GetEnvironmentVariable("VVR_REALESRGAN_MODEL_DIR"));
+    var hasBin = !string.IsNullOrEmpty(Environment.GetEnvironmentVariable("RIBO_REALESRGAN_BINARY"));
+    var hasModel = !string.IsNullOrEmpty(Environment.GetEnvironmentVariable("RIBO_REALESRGAN_MODEL_DIR"));
     if (hasBin && hasModel) return false;
 
-    var engineRoot = Environment.GetEnvironmentVariable("VVR_REALESRGAN_ENGINE_DIR");
+    var engineRoot = Environment.GetEnvironmentVariable("RIBO_REALESRGAN_ENGINE_DIR");
     if (string.IsNullOrWhiteSpace(engineRoot))
         engineRoot = Path.Combine(projectRoot, "tools", "realesrgan");
 
-    var binary = hasBin ? Environment.GetEnvironmentVariable("VVR_REALESRGAN_BINARY")! : Path.Combine(engineRoot, "win-x64", AiExeName);
-    var modelDir = hasModel ? Environment.GetEnvironmentVariable("VVR_REALESRGAN_MODEL_DIR")! : Path.Combine(engineRoot, "models");
-    var modelName = Environment.GetEnvironmentVariable("VVR_REALESRGAN_MODEL_NAME");
+    var binary = hasBin ? Environment.GetEnvironmentVariable("RIBO_REALESRGAN_BINARY")! : Path.Combine(engineRoot, "win-x64", AiExeName);
+    var modelDir = hasModel ? Environment.GetEnvironmentVariable("RIBO_REALESRGAN_MODEL_DIR")! : Path.Combine(engineRoot, "models");
+    var modelName = Environment.GetEnvironmentVariable("RIBO_REALESRGAN_MODEL_NAME");
     if (string.IsNullOrWhiteSpace(modelName)) modelName = AiModelName;
 
     if (!File.Exists(binary)
@@ -344,23 +360,23 @@ static bool TryApplyAiLiteEnv(string projectRoot, ProcessStartInfo psi, out stri
         || !File.Exists(Path.Combine(modelDir, modelName + ".param"))
         || !File.Exists(Path.Combine(modelDir, modelName + ".bin")))
     {
-        note = "[VVR] AI Lite: Unavailable — missing engine, model, or Vulkan support";
+        note = "[Ribo] AI Lite: Unavailable — missing engine, model, or Vulkan support";
         return true;
     }
 
     if (!ProbeRealesrganHelp(binary, out _))
     {
-        note = "[VVR] AI Lite: Unavailable — missing engine, model, or Vulkan support";
+        note = "[Ribo] AI Lite: Unavailable — missing engine, model, or Vulkan support";
         return true;
     }
 
-    SetChildEnvIfEmpty(psi, "VVR_AI_UPSCALER_ENABLED", "true");
-    if (!hasBin) SetChildEnvIfEmpty(psi, "VVR_REALESRGAN_BINARY", binary);
-    if (!hasModel) SetChildEnvIfEmpty(psi, "VVR_REALESRGAN_MODEL_DIR", modelDir);
-    SetChildEnvIfEmpty(psi, "VVR_REALESRGAN_MODEL_NAME", modelName);
-    SetChildEnvIfEmpty(psi, "VVR_REALESRGAN_PROJECT_ROOT", projectRoot);
+    SetChildEnvIfEmpty(psi, "RIBO_AI_UPSCALER_ENABLED", "true");
+    if (!hasBin) SetChildEnvIfEmpty(psi, "RIBO_REALESRGAN_BINARY", binary);
+    if (!hasModel) SetChildEnvIfEmpty(psi, "RIBO_REALESRGAN_MODEL_DIR", modelDir);
+    SetChildEnvIfEmpty(psi, "RIBO_REALESRGAN_MODEL_NAME", modelName);
+    SetChildEnvIfEmpty(psi, "RIBO_REALESRGAN_PROJECT_ROOT", projectRoot);
 
-    note = "[VVR] AI Lite: Ready (standalone engine)";
+    note = "[Ribo] AI Lite: Ready (standalone engine)";
     return true;
 }
 

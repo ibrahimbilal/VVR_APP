@@ -10,9 +10,9 @@ import { ensureStorage, outputsDir } from '../src/storage'
 const execFileAsync = promisify(execFile)
 
 async function main(): Promise<void> {
-  const enabled = process.env.VVR_RANKING_TEST === '1' || process.env.npm_lifecycle_event === 'test:ranking'
+  const enabled = process.env.RIBO_RANKING_TEST === '1' || process.env.npm_lifecycle_event === 'test:ranking'
   if (!enabled) {
-    console.log('Run via npm run test:ranking or set VVR_RANKING_TEST=1.')
+    console.log('Run via npm run test:ranking or set RIBO_RANKING_TEST=1.')
     return
   }
   const work = path.join(outputsDir, '..', 'verify-ranking')

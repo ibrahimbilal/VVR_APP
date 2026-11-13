@@ -16,7 +16,7 @@ const execFileAsync = promisify(execFile)
 const OUT = path.join(tmpDir, 'cfr-production')
 
 async function main(): Promise<void> {
-  process.env.VVR_SCREENSAVER_TEST = '1'
+  process.env.RIBO_SCREENSAVER_TEST = '1'
   await ensureStorage()
   await rm(OUT, { recursive: true, force: true })
   await mkdir(OUT, { recursive: true })
@@ -126,7 +126,7 @@ async function main(): Promise<void> {
   ])
 
   const longId = '00000000-0000-4000-8000-000000000041'
-  const longDuration = Number(process.env.VVR_CFR_LONG_SECONDS ?? 600)
+  const longDuration = Number(process.env.RIBO_CFR_LONG_SECONDS ?? 600)
   console.log(`Encoding ${longDuration}s 1080p60 Optimized CFR (long sample)…`)
   await renderScreensaver(
     {

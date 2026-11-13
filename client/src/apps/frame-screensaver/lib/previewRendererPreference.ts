@@ -1,6 +1,6 @@
 export type PreviewRendererMode = 'auto' | 'webgl2' | 'canvas2d'
 
-const STORAGE_KEY = 'vvr-screensaver-renderer'
+const STORAGE_KEY = 'ribo-screensaver-renderer'
 
 export function readPreviewRendererMode(): PreviewRendererMode {
   try {

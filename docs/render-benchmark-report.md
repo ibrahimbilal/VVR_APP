@@ -16,7 +16,7 @@ npm run bench:render-report
 | Workload | Before | After | Improvement | Quality |
 | --- | --- | --- | --- | --- |
 
-Ranking **before** rows used `VVR_FFMPEG_THREADS=1`, `VVR_FFMPEG_FILTER_THREADS=1`, `VVR_X264_THREADS=1`.
+Ranking **before** rows used `RIBO_FFMPEG_THREADS=1`, `RIBO_FFMPEG_FILTER_THREADS=1`, `RIBO_X264_THREADS=1`.
 
 | Ranking 1080p | 18.18s | 5.72s | 68.5% | verified |
 | Ranking with transitions | 20.97s | 9.9s | 52.8% | verified |
