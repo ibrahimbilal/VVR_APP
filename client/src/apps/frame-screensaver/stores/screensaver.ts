@@ -1,25 +1,36 @@
 import { aspectRatio, clampComposition, compositionForFit, cropForAspect, defaultComposition, placementForFit, type CropAspect, type ScreensaverComposition } from '@shared/screensaverComposition'
 import { FRAME_FILE_LIMIT, isBuiltinFrameId } from '@shared/screensaverFrames'
 import {
+  DEFAULT_CFR_FPS,
   DEFAULT_DURATION_PRESET_KEY,
   DEFAULT_DURATION_SECONDS,
+  DEFAULT_SCREENSAVER_CFR_QUALITY,
   DEFAULT_SCREENSAVER_OUTPUT,
+  DEFAULT_SCREENSAVER_RENDER_MODE,
   DURATION_PRESETS,
   estimateOutputBytes,
   formatDurationLabel,
   isEncoderChoice,
+  isScreensaverCfrQuality,
   isScreensaverProfile,
+  isScreensaverRenderMode,
   MAX_DURATION_SECONDS,
   MIN_DURATION_SECONDS,
   profileFps,
+  SCREENSAVER_CFR_FPS,
+  SCREENSAVER_CFR_QUALITY_PRESETS,
+  SCREENSAVER_FPS,
   SCREENSAVER_OUTPUTS,
   SCREENSAVER_PROFILES,
+  SCREENSAVER_RENDER_MODES,
   type EncoderChoice,
   type ScreensaverAudioMode,
+  type ScreensaverCfrQuality,
   type ScreensaverFit,
   type ScreensaverLoop,
   type ScreensaverMode,
   type ScreensaverProfile,
+  type ScreensaverRenderMode,
 } from '@shared/screensaver'
 import {
   defaultSubscribeAnimation,
@@ -166,7 +177,7 @@ function defaultProject(): Omit<SavedScreensaverProject, 'version'> {
     thumbnail: null,
     outputWidth: output.width,
     outputHeight: output.height,
-    fps: 1,
+    fps: DEFAULT_CFR_FPS,
     durationSeconds: DEFAULT_DURATION_SECONDS,
     durationPresetKey: DEFAULT_DURATION_PRESET_KEY,
     fit: 'contain',
@@ -179,6 +190,10 @@ function defaultProject(): Omit<SavedScreensaverProject, 'version'> {
     loopAudio: true,
     backgroundColor: '#000000',
     audioFileName: null,
+    renderingMode: DEFAULT_SCREENSAVER_RENDER_MODE,
+    cfrQuality: DEFAULT_SCREENSAVER_CFR_QUALITY,
+    profile: 'balanced',
+    encoder: 'cpu',
   }
 }
 
@@ -219,9 +234,11 @@ export const useScreensaverStore = defineStore('screensaver', () => {
 
   const outputWidth = ref<number>(DEFAULT_SCREENSAVER_OUTPUT.width)
   const outputHeight = ref<number>(DEFAULT_SCREENSAVER_OUTPUT.height)
-  const fps = ref(1)
-  const profile = ref<ScreensaverProfile>('static-fast')
+  const fps = ref(DEFAULT_CFR_FPS)
+  const profile = ref<ScreensaverProfile>('balanced')
   const encoder = ref<EncoderChoice>('cpu')
+  const renderingMode = ref<ScreensaverRenderMode>(DEFAULT_SCREENSAVER_RENDER_MODE)
+  const cfrQuality = ref<ScreensaverCfrQuality>(DEFAULT_SCREENSAVER_CFR_QUALITY)
   const composition = ref<ScreensaverComposition>(defaultComposition())
   const frames = ref<api.ScreensaverFrame[]>([])
   const framesLoaded = ref(false)
@@ -336,6 +353,8 @@ export const useScreensaverStore = defineStore('screensaver', () => {
       backgroundColor: backgroundColor.value,
       profile: profile.value,
       encoder: encoder.value,
+      renderingMode: renderingMode.value,
+      cfrQuality: cfrQuality.value,
       composition: cloneComposition(composition.value),
       subscribeAnimation: overlay
         ? { ...animSettings, overlayX: overlay.x, overlayY: overlay.y }
@@ -356,6 +375,9 @@ export const useScreensaverStore = defineStore('screensaver', () => {
     if (uploadState.value !== 'ready' || !serverId.value) return 'Upload an image or video first.'
     if (mode.value === 'loop' && mediaKind.value !== 'video') return 'Looping mode needs a video source.'
     if (mode.value === 'static' && mediaKind.value !== 'image') return 'Static art mode needs an image source.'
+    if (renderingMode.value === 'optimized-cfr' && (mode.value !== 'static' || mediaKind.value !== 'image')) {
+      return 'Optimized CFR is only available for static image exports. Switch to Fast VFR for video.'
+    }
     if (durationSeconds.value < MIN_DURATION_SECONDS || durationSeconds.value > MAX_DURATION_SECONDS) {
       return `Duration must be between ${formatDurationLabel(MIN_DURATION_SECONDS)} and ${formatDurationLabel(MAX_DURATION_SECONDS)}.`
     }
@@ -406,6 +428,8 @@ export const useScreensaverStore = defineStore('screensaver', () => {
       audioFileName,
       profile,
       encoder,
+      renderingMode,
+      cfrQuality,
       composition,
       subscribeAnimation,
     ],
@@ -516,6 +540,8 @@ export const useScreensaverStore = defineStore('screensaver', () => {
       backgroundColor: project.backgroundColor,
       profile: project.profile ?? 'static-fast',
       encoder: project.encoder ?? 'cpu',
+      renderingMode: project.renderingMode ?? 'fast-vfr',
+      cfrQuality: project.cfrQuality ?? 'balanced',
       composition,
       subscribeAnimation: overlay
         ? { ...animSettings, overlayX: overlay.x, overlayY: overlay.y }
@@ -940,6 +966,9 @@ export const useScreensaverStore = defineStore('screensaver', () => {
     audioFileName.value = saved.audioFileName
     profile.value = isScreensaverProfile(saved.profile) ? saved.profile : 'balanced'
     encoder.value = isEncoderChoice(saved.encoder) ? saved.encoder : 'cpu'
+    // Older saves omit renderingMode — keep Fast VFR; do not migrate to Optimized CFR.
+    renderingMode.value = isScreensaverRenderMode(saved.renderingMode) ? saved.renderingMode : 'fast-vfr'
+    cfrQuality.value = isScreensaverCfrQuality(saved.cfrQuality) ? saved.cfrQuality : DEFAULT_SCREENSAVER_CFR_QUALITY
     composition.value =
       saved.version !== 1 && saved.composition
         ? clampComposition(saved.composition)
@@ -987,6 +1016,8 @@ export const useScreensaverStore = defineStore('screensaver', () => {
       audioFileName: audioFileName.value,
       profile: profile.value,
       encoder: encoder.value,
+      renderingMode: renderingMode.value,
+      cfrQuality: cfrQuality.value,
       composition: cloneComposition(composition.value),
       subscribeAnimation: sanitizeSubscribeAnimation(subscribeAnimation.value),
     }
@@ -1040,9 +1071,12 @@ export const useScreensaverStore = defineStore('screensaver', () => {
     mediaKind.value = kind
     mode.value = kind === 'image' ? 'static' : 'loop'
     if (kind === 'image') {
-      profile.value = 'static-fast'
-      fps.value = 1
+      renderingMode.value = DEFAULT_SCREENSAVER_RENDER_MODE
+      cfrQuality.value = DEFAULT_SCREENSAVER_CFR_QUALITY
+      profile.value = 'balanced'
+      fps.value = DEFAULT_CFR_FPS
     } else {
+      renderingMode.value = 'fast-vfr'
       profile.value = 'animated'
       fps.value = 30
     }
@@ -1167,9 +1201,11 @@ export const useScreensaverStore = defineStore('screensaver', () => {
       sourceDuration,
       hasAudio: hasSourceAudio,
       thumbnail,
-      fps: kind === 'image' ? 1 : 30,
-      profile: kind === 'image' ? 'static-fast' : 'animated',
+      fps: kind === 'image' ? DEFAULT_CFR_FPS : 30,
+      profile: kind === 'image' ? 'balanced' : 'animated',
       encoder: 'cpu',
+      renderingMode: kind === 'image' ? DEFAULT_SCREENSAVER_RENDER_MODE : 'fast-vfr',
+      cfrQuality: DEFAULT_SCREENSAVER_CFR_QUALITY,
       composition: compositionForFit(
         'contain',
         sourceWidth || 1,
@@ -1365,8 +1401,10 @@ export const useScreensaverStore = defineStore('screensaver', () => {
     backgroundColor.value = defaults.backgroundColor
     audioFileName.value = defaults.audioFileName
     audioFileSize.value = null
-    profile.value = 'static-fast'
+    profile.value = 'balanced'
     encoder.value = 'cpu'
+    renderingMode.value = DEFAULT_SCREENSAVER_RENDER_MODE
+    cfrQuality.value = DEFAULT_SCREENSAVER_CFR_QUALITY
     composition.value = defaultComposition()
     history.value = [cloneComposition(composition.value)]
     historyIndex.value = 0
@@ -1606,7 +1644,23 @@ export const useScreensaverStore = defineStore('screensaver', () => {
 
   function setProfile(next: ScreensaverProfile) {
     profile.value = next
-    fps.value = profileFps(next)
+    if (renderingMode.value === 'fast-vfr') fps.value = profileFps(next)
+  }
+
+  function setRenderingMode(next: ScreensaverRenderMode) {
+    renderingMode.value = next
+    if (next === 'optimized-cfr') {
+      if (!(SCREENSAVER_CFR_FPS as readonly number[]).includes(fps.value)) fps.value = DEFAULT_CFR_FPS
+      if (mode.value === 'loop' || mediaKind.value === 'video') {
+        // Optimized CFR is static-image only; keep selection but export will require static mode.
+      }
+    } else if (!(SCREENSAVER_FPS as readonly number[]).includes(fps.value)) {
+      fps.value = profileFps(profile.value)
+    }
+  }
+
+  function setCfrQuality(next: ScreensaverCfrQuality) {
+    cfrQuality.value = next
   }
 
   function resetAdjustments() {
@@ -2114,6 +2168,8 @@ export const useScreensaverStore = defineStore('screensaver', () => {
     fps,
     profile,
     encoder,
+    renderingMode,
+    cfrQuality,
     composition,
     frames,
     frameUploading,
@@ -2130,6 +2186,10 @@ export const useScreensaverStore = defineStore('screensaver', () => {
     autoStill,
     autoMotion,
     SCREENSAVER_PROFILES,
+    SCREENSAVER_RENDER_MODES,
+    SCREENSAVER_CFR_QUALITY_PRESETS,
+    SCREENSAVER_CFR_FPS,
+    SCREENSAVER_FPS,
     durationSeconds,
     durationPresetKey,
     durationLabel,
@@ -2173,6 +2233,8 @@ export const useScreensaverStore = defineStore('screensaver', () => {
     setCustomDurationMinutes,
     setResolution,
     setProfile,
+    setRenderingMode,
+    setCfrQuality,
     setFit,
     replaceComposition,
     replaceSubscribeAnimation,

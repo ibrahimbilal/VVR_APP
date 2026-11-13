@@ -11,6 +11,64 @@ export const DEFAULT_SCREENSAVER_OUTPUT =
 
 export const SCREENSAVER_FPS = [1, 24, 30, 60] as const
 
+/** Frame rates allowed when Optimized CFR is selected. */
+export const SCREENSAVER_CFR_FPS = [24, 25, 30, 50, 60] as const
+
+export const DEFAULT_CFR_FPS = 60
+
+export const SCREENSAVER_RENDER_MODES = [
+  {
+    id: 'optimized-cfr',
+    label: 'Optimized CFR',
+    recommended: true,
+    detail:
+      'Produces smooth, constant-frame-rate videos by reusing encoded static segments instead of rendering every frame.',
+  },
+  {
+    id: 'fast-vfr',
+    label: 'Fast VFR',
+    recommended: false,
+    detail:
+      'Creates smaller videos using variable frame rates. Animated content may lose smoothness after YouTube processing.',
+  },
+] as const
+
+export type ScreensaverRenderMode = (typeof SCREENSAVER_RENDER_MODES)[number]['id']
+
+/** Default for newly created Screensaver projects. Saved projects without a mode stay on Fast VFR. */
+export const DEFAULT_SCREENSAVER_RENDER_MODE: ScreensaverRenderMode = 'optimized-cfr'
+
+export const SCREENSAVER_CFR_QUALITY_PRESETS = [
+  {
+    id: 'high',
+    label: 'High Quality',
+    detail: 'Prioritize preservation of fine artwork details.',
+  },
+  {
+    id: 'balanced',
+    label: 'Balanced',
+    detail: 'Balance visual quality, file size, and encoding performance.',
+  },
+  {
+    id: 'compact',
+    label: 'Compact',
+    detail: 'Reduce output file size while preserving acceptable visual quality.',
+  },
+] as const
+
+export type ScreensaverCfrQuality = (typeof SCREENSAVER_CFR_QUALITY_PRESETS)[number]['id']
+
+export const DEFAULT_SCREENSAVER_CFR_QUALITY: ScreensaverCfrQuality = 'balanced'
+
+/** Track timescale that represents every SCREENSAVER_CFR_FPS value exactly. */
+export const SCREENSAVER_CFR_TIMESCALE = 60_000
+
+/** Candidate reusable static segment lengths (seconds). Production picks adaptively; UI stays hidden. */
+export const SCREENSAVER_CFR_SEGMENT_CANDIDATES_SEC = [2, 5, 10, 30, 60] as const
+
+/** Validated baseline segment length from the Optimized CFR proof of concept. */
+export const SCREENSAVER_CFR_DEFAULT_SEGMENT_SEC = 10
+
 export const SCREENSAVER_PROFILES = [
   { id: 'static-fast', label: 'Static Art', detail: 'One precomposed image, 1 fps, same H.264 quality band as Balanced.' },
   { id: 'balanced', label: 'Balanced', detail: 'General use. CRF 20 on CPU, equivalent CQ on a verified hardware encoder.' },
@@ -57,6 +115,27 @@ export function isAllowedScreensaverFps(fps: number): boolean {
   return (SCREENSAVER_FPS as readonly number[]).includes(fps)
 }
 
+export function isAllowedScreensaverCfrFps(fps: number): boolean {
+  return (SCREENSAVER_CFR_FPS as readonly number[]).includes(fps)
+}
+
+export function isScreensaverRenderMode(value: unknown): value is ScreensaverRenderMode {
+  return value === 'optimized-cfr' || value === 'fast-vfr'
+}
+
+export function isScreensaverCfrQuality(value: unknown): value is ScreensaverCfrQuality {
+  return value === 'high' || value === 'balanced' || value === 'compact'
+}
+
+/**
+ * Fast VFR keeps the legacy fps list. Optimized CFR uses the CFR list.
+ * Unknown / missing mode is treated as Fast VFR so older saved projects stay valid.
+ */
+export function isAllowedScreensaverFpsForMode(fps: number, mode: ScreensaverRenderMode | null | undefined): boolean {
+  if (mode === 'optimized-cfr') return isAllowedScreensaverCfrFps(fps)
+  return isAllowedScreensaverFps(fps)
+}
+
 export function isScreensaverProfile(value: unknown): value is ScreensaverProfile {
   return value === 'static-fast' || value === 'balanced' || value === 'high' || value === 'animated'
 }
@@ -73,6 +152,11 @@ export function profileFps(profile: ScreensaverProfile): number {
 
 export function profileQualityTier(profile: ScreensaverProfile): 'standard' | 'high' {
   return profile === 'high' ? 'high' : 'standard'
+}
+
+/** Map CFR quality preset onto the existing encoder tier used by hardware Auto selection. */
+export function cfrQualityToEncoderTier(quality: ScreensaverCfrQuality): 'standard' | 'high' {
+  return quality === 'high' ? 'high' : 'standard'
 }
 
 export function clampDuration(seconds: number): number {

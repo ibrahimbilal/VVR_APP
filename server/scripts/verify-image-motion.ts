@@ -39,6 +39,8 @@ async function main(): Promise<void> {
     width: 1920,
     height: 1080,
     hasAudio: false,
+    hasVideo: true,
+    codec: 'png' as string | null,
     size: 4096,
   }
   const incomingA = path.join(incomingDir, 'imotion-a.png')

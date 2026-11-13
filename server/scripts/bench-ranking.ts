@@ -120,7 +120,7 @@ function baseRequest(
   metrics: ReturnType<typeof frameMetrics>,
   patch: Partial<RenderRequest>,
 ): RenderRequest {
-  return {
+  const base: RenderRequest = {
     clips,
     overlays,
     musicPath: null,
@@ -137,8 +137,15 @@ function baseRequest(
     normalize: false,
     originalVolume: 1,
     musicVolume: 0.35,
+    musicFadeIn: 0.25,
+    musicFadeOut: 0.25,
     encoder: 'cpu',
+  }
+  return {
+    ...base,
     ...patch,
+    musicFadeIn: patch.musicFadeIn ?? base.musicFadeIn,
+    musicFadeOut: patch.musicFadeOut ?? base.musicFadeOut,
   }
 }
 

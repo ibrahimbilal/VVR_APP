@@ -1,6 +1,12 @@
 import { mkdir, rm, writeFile } from 'node:fs/promises'
 import path from 'node:path'
-import type { EncoderChoice, ScreensaverProfile } from '../../shared/screensaver'
+import {
+  cfrQualityToEncoderTier,
+  type EncoderChoice,
+  type ScreensaverCfrQuality,
+  type ScreensaverProfile,
+  type ScreensaverRenderMode,
+} from '../../shared/screensaver'
 import type { SubscribeAnimationSettings } from '../../shared/screensaverSubscribeAnimation'
 import type { ScreensaverComposition } from '../../shared/screensaverComposition'
 import { EncoderRejected, selectEncoder, type EncoderId } from './encoders'
@@ -8,6 +14,7 @@ import { n, RenderCancelled, spawnFfmpeg, verifyVideoOutput, type FfmpegStats } 
 import { probeSourceDetails } from './probe'
 import { audioFilterLine, canStreamCopy, compositionFilterLines, legacyScaleFilter, type GraphJob } from './screensaverGraph'
 import { renderScreensaverHybrid } from './renderScreensaverHybrid'
+import { renderScreensaverCfr } from './screensaverCfr/renderScreensaverCfr'
 import { jobsDir, outputsDir } from './storage'
 
 export interface ScreensaverRenderRequest {
@@ -32,6 +39,9 @@ export interface ScreensaverRenderRequest {
   sourceHasAudio: boolean
   profile?: ScreensaverProfile
   encoder?: EncoderChoice
+  /** Missing on older jobs — treated as fast-vfr. */
+  renderingMode?: ScreensaverRenderMode | null
+  cfrQuality?: ScreensaverCfrQuality | null
   composition?: ScreensaverComposition | null
   compositionPath?: string | null
   framePath?: string | null
@@ -72,9 +82,12 @@ export async function renderScreensaver(
   hooks.onStatus('preparing', 'Preparing media')
   const job = normalize(raw)
   const still = job.mediaKind === 'image' || Boolean(job.compositionPath)
+  const encoderTier =
+    job.renderingMode === 'optimized-cfr' ? cfrQualityToEncoderTier(job.cfrQuality ?? 'balanced') : undefined
   const chosen = await selectEncoder({
     choice: job.encoder,
     profile: job.profile,
+    tier: encoderTier,
     width: job.width,
     height: job.height,
     still,
@@ -85,7 +98,14 @@ export async function renderScreensaver(
   } catch (error) {
     if (job.encoder !== 'auto' || chosen.id === 'libx264' || hooks.cancelled() || error instanceof RenderCancelled) throw error
     const detail = error instanceof Error ? error.message : 'The hardware encoder failed.'
-    const cpu = await selectEncoder({ choice: 'cpu', profile: job.profile, width: job.width, height: job.height, still })
+    const cpu = await selectEncoder({
+      choice: 'cpu',
+      profile: job.profile,
+      tier: encoderTier,
+      width: job.width,
+      height: job.height,
+      still,
+    })
     hooks.onEncode?.({ encoder: cpu.label, hardware: false, encoderId: cpu.id })
     const result = await renderWithEncoder(job, cpu, hooks, null)
     return { ...result, warning: joinWarning(result.warning, `${chosen.label} failed (${detail}). Used CPU encoding instead.`) }
@@ -143,6 +163,44 @@ async function renderWithEncoder(
     } else {
       warning = joinWarning(warning, 'Smooth loop was not possible for this clip. Used a hard loop instead.')
     }
+  }
+
+  const useOptimizedCfr =
+    job.renderingMode === 'optimized-cfr' &&
+    job.compositionPath &&
+    (job.mediaKind === 'image' || job.mode === 'static')
+
+  if (useOptimizedCfr) {
+    const cfrResult = await renderScreensaverCfr(
+      {
+        id: job.id,
+        width: job.width,
+        height: job.height,
+        fps: job.fps,
+        duration: job.duration,
+        compositionPath: job.compositionPath!,
+        musicPath: job.musicPath,
+        mediaPath: job.mediaPath,
+        mediaKind: job.mediaKind,
+        audioMode: job.audioMode,
+        audioVolume: job.audioVolume,
+        audioFadeIn: job.audioFadeIn,
+        audioFadeOut: job.audioFadeOut,
+        loopAudio: job.loopAudio,
+        sourceHasAudio: job.sourceHasAudio,
+        subscribeAnimation: job.subscribeAnimation ?? null,
+        animationDir: job.animationDir ?? null,
+        animationOverlayX: job.animationOverlayX ?? 0,
+        animationOverlayY: job.animationOverlayY ?? 0,
+        cfrQuality: job.cfrQuality ?? 'balanced',
+      },
+      encoder,
+      outputPath,
+      workDir,
+      hooks,
+      warning,
+    )
+    return cfrResult
   }
 
   if (job.subscribeAnimation && job.animationDir && job.compositionPath && (job.mediaKind === 'image' || job.mode === 'static')) {
@@ -430,6 +488,8 @@ function normalize(raw: ScreensaverRenderRequest & { id: string }): NormalizedJo
     ...raw,
     profile: raw.profile ?? 'balanced',
     encoder: raw.encoder ?? 'cpu',
+    renderingMode: raw.renderingMode ?? 'fast-vfr',
+    cfrQuality: raw.cfrQuality ?? 'balanced',
     composition: raw.composition ?? null,
     compositionPath: raw.compositionPath ?? null,
     framePath: raw.framePath ?? null,
