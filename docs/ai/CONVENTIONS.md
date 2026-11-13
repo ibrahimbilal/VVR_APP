@@ -36,7 +36,7 @@ Patterns observed in this repo. Prefer matching them over inventing new ones.
 
 ## Naming
 
-- User-facing: Shorts, Screensaver, Thumbnails, Image Upscaler, Audio Looper, Video's Factory.
+- User-facing: Shorts, Screensaver, Thumbnails, Image Upscaler, Audio Looper, Ribo Studio.
 - Code paths often keep legacy names (`ranking-videos`, `frame-screensaver`).
 - Routes are one-word: `/shorts`, `/screensaver`, `/thumbnails`, `/upscale`, `/looper`.
 

@@ -1,7 +1,7 @@
 ---
 name: project-navigation
 description: >-
-  Navigates the Video's Factory (VVR) monorepo using docs/ai maps instead of
+  Navigates the Ribo Studio (VVR) monorepo using docs/ai maps instead of
   broad tree scans. Use when locating modules, answering architecture questions,
   finding where a feature lives, or before exploring client/server/shared code.
 ---

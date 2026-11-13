@@ -1,4 +1,4 @@
-# Video Factory launcher (Windows)
+# Ribo Studio launcher (Windows)
 
 Lightweight native launcher — runs `npm run dev` from the repo root and opens the Vite URL when ready.
 

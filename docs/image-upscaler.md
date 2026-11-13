@@ -1,6 +1,6 @@
 # Image Upscaler
 
-Image Upscaler is a Video's Factory app at `/image-upscaler`. It resizes PNG, JPEG, and WebP images to an exact pixel size.
+Image Upscaler is a Ribo Studio app at `/image-upscaler`. It resizes PNG, JPEG, and WebP images to an exact pixel size.
 
 Two engines are available:
 
@@ -220,8 +220,8 @@ Optional **repo-root `.env`**: copy **`.env.example`** (at the repo root) to **`
 
 ```powershell
 $env:VVR_AI_UPSCALER_ENABLED = 'true'
-$env:VVR_REALESRGAN_BINARY = 'C:\path\to\VVR_APP\tools\realesrgan\win-x64\realesrgan-ncnn-vulkan.exe'
-$env:VVR_REALESRGAN_MODEL_DIR = 'C:\path\to\VVR_APP\tools\realesrgan\models'
+$env:VVR_REALESRGAN_BINARY = 'C:\path\to\ribo-studio\tools\realesrgan\win-x64\realesrgan-ncnn-vulkan.exe'
+$env:VVR_REALESRGAN_MODEL_DIR = 'C:\path\to\ribo-studio\tools\realesrgan\models'
 $env:VVR_REALESRGAN_MODEL_NAME = 'upscayl-lite-4x'
 npm run dev
 ```
@@ -230,8 +230,8 @@ npm run dev
 
 ```bash
 export VVR_AI_UPSCALER_ENABLED=true
-export VVR_REALESRGAN_BINARY=/path/to/VVR_APP/tools/realesrgan/linux-x64/realesrgan-ncnn-vulkan
-export VVR_REALESRGAN_MODEL_DIR=/path/to/VVR_APP/tools/realesrgan/models
+export VVR_REALESRGAN_BINARY=/path/to/ribo-studio/tools/realesrgan/linux-x64/realesrgan-ncnn-vulkan
+export VVR_REALESRGAN_MODEL_DIR=/path/to/ribo-studio/tools/realesrgan/models
 export VVR_REALESRGAN_MODEL_NAME=upscayl-lite-4x
 npm run dev
 ```
@@ -307,7 +307,7 @@ Native binaries and `.bin` weights are **not committed** (see `.gitignore`). Use
 | [Real-ESRGAN](https://github.com/xinntao/Real-ESRGAN) training code and the official `realesrgan-x4plus`, `realesrgan-x4plus-anime`, and `realesrnet-x4plus` weights | BSD 3-Clause. Copyright (c) 2021 Xintao Wang. | Optional NCNN weights when `VVR_REALESRGAN_MODEL_NAME` selects an official id. |
 | [Real-ESRGAN-ncnn-vulkan](https://github.com/xinntao/Real-ESRGAN-ncnn-vulkan) | MIT. Copyright (c) 2021 Xintao Wang. Includes the MIT license of nihui's realsr-ncnn-vulkan (copyright (c) 2019 nihui). | Portable Windows build is downloaded next to the repo via `npm run setup:ai-lite` (optional). |
 | [ncnn](https://github.com/Tencent/ncnn) | BSD 3-Clause, Tencent and contributors. | Linked inside the executable above. |
-| [Upscayl](https://github.com/upscayl/upscayl) app and [upscayl-ncnn](https://github.com/upscayl/upscayl-ncnn) | GNU AGPL-3.0. | Video's Factory does not link Upscayl; the optional `upscayl-lite-4x` weights are fetched from the Upscayl repo for NCNN. Confirm redistribution obligations before shipping those files. |
+| [Upscayl](https://github.com/upscayl/upscayl) app and [upscayl-ncnn](https://github.com/upscayl/upscayl-ncnn) | GNU AGPL-3.0. | Ribo Studio does not link Upscayl; the optional `upscayl-lite-4x` weights are fetched from the Upscayl repo for NCNN. Confirm redistribution obligations before shipping those files. |
 | Upscayl Lite model `upscayl-lite-4x` | Published in the Upscayl tree. Verify terms before redistribution; this project does not assert a particular license for the weights. | Downloaded by `npm run setup:ai-lite` or placed manually under `tools/realesrgan/models/`. |
 
 ## Measured on this PC

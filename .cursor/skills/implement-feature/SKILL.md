@@ -1,7 +1,7 @@
 ---
 name: implement-feature
 description: >-
-  Implements a feature in Video's Factory while preserving preview/export
+  Implements a feature in Ribo Studio while preserving preview/export
   alignment, Pinia ownership, and shared contracts. Use when adding or extending
   editor behavior, UI, API routes, or export paths.
 ---

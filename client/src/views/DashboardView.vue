@@ -13,10 +13,10 @@ const rest = computed(() => apps.value.filter((item) => item.path !== '/shorts' 
     <div class="mx-auto grid max-w-6xl gap-10 px-5 py-8 lg:grid-cols-[17rem_minmax(0,1fr)] lg:px-10 lg:py-12">
       <section class="dash-enter lg:sticky lg:top-12 lg:self-start">
         <img src="/logo.png" alt="" class="h-16 w-16 object-contain" />
-        <p class="mt-8 text-xs font-semibold uppercase tracking-[0.22em] text-brand">Creative studio</p>
-        <h2 class="mt-3 text-4xl font-black leading-none tracking-tight text-zinc-50">Video's Factory</h2>
+        <p class="mt-8 text-xs font-semibold uppercase tracking-[0.22em] text-brand">All-in-One Creative Studio</p>
+        <h2 class="mt-3 text-4xl font-black leading-none tracking-tight text-zinc-50">Ribo Studio</h2>
         <p class="mt-4 max-w-xs text-sm leading-relaxed text-zinc-400">
-          A workspace for vertical compilations, ambient video, thumbnails, stills, and long audio beds. Each tool keeps its own project.
+          Build Shorts rankings, ambient screensaver videos, YouTube thumbnails, exact-size image upscales, and looped audio tracks — each in its own editor, all on your machine.
         </p>
       </section>
 

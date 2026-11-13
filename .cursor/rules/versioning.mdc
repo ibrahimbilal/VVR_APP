@@ -1,31 +1,17 @@
 ---
-description: SemVer and release process for Video's Factory (package.json + docs/ai/CHANGELOG.md)
-alwaysApply: false
+description: SemVer source of truth and release gates for Ribo Studio
+alwaysApply: true
 ---
 
-# Version management
+# Versioning
 
-Follow SemVer 2.0.0.
+Follow Semantic Versioning 2.0.0 (`MAJOR.MINOR.PATCH`).
 
-- **MAJOR** — breaking compatibility (APIs, persisted shapes, limits that break old projects).
-- **MINOR** — backward-compatible features.
-- **PATCH** — backward-compatible fixes.
-
-## Source of truth
-
-- App version: root `package.json` `"version"` only (workspaces do not own a version).
-- Never hardcode the version in UI components; read from the package if display is needed.
-- History: `docs/ai/CHANGELOG.md`.
-
-## During development
-
-- Do **not** bump `package.json` after every edit.
-- Append dated bullets under **Unreleased** in `docs/ai/CHANGELOG.md` when behavior/APIs/limits/storage/layout change (same bar as `docs/ai/MAINTENANCE.md`).
-- Prefer Conventional Commits for commits when the user asks to commit.
-
-## When releasing
-
-1. Propose the next version from changes under **Unreleased** since the current `package.json` version. Ask for approval before bumping.
-2. After approval: set `"version"` in root `package.json`, move Unreleased bullets under a `Release **vX.Y.Z**` line (date + summary), leave Unreleased empty.
-3. Run relevant `npm run typecheck` / `test:*` for touched areas before tagging or deploy.
-4. Never overwrite an existing release tag. Never push, publish, or deploy a release without explicit user approval.
+- **Source of truth:** root `package.json` `"version"` only. Sync `package-lock.json`. No per-app versions.
+- **Official baseline:** **1.0.0** is the first approved stable SemVer release of Ribo Studio (tag `v1.0.0`). Earlier `package.json` numbers (e.g. `2.0.0`, `3.0.0`) were legacy development metadata without matching Git release tags — do not treat them as published releases.
+- **UI:** never hardcode the version; use `client/src/lib/appVersion.ts` (Vite injects `__APP_VERSION__`).
+- **Changelog:** user-facing Keep a Changelog at root `CHANGELOG.md`; detailed agent notes in `docs/ai/CHANGELOG.md`.
+- Do **not** bump the version after ordinary development. Record meaningful changes under **Unreleased**.
+- Release work: use the `release-manager` skill. Require user approval before prepare and before finalize (commit/tag).
+- After the 1.0.0 baseline, advance only with normal SemVer bumps (`patch` / `minor` / `major`). Never invent historical release versions or tags.
+- Never push, publish, or modify existing release tags without explicit approval.

@@ -87,7 +87,7 @@ Not measured. Arithmetic only, using this timeline shape (7 s animation, then st
 
 ## YouTube
 
-Upload candidate: `C:\Users\Gebruiker\Desktop\VVR_APP\server\tmp\cfr-poc\out\youtube-optimized-cfr-60s.mp4`
+Upload candidate: `<repo>/server/tmp/cfr-poc/out/youtube-optimized-cfr-60s.mp4`
 
 Do not treat this file as YouTube-compatible until a manual upload shows:
 

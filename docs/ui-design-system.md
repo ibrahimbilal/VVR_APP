@@ -1,4 +1,4 @@
-# Video's Factory UI
+# Ribo Studio UI
 
 Dark production workspace. Brand blue stays `#0078f8` (`--color-brand`). Inter is the application font. Overlay and badge artwork keep their own fonts and SVG assets.
 

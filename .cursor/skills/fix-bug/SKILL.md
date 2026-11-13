@@ -1,7 +1,7 @@
 ---
 name: fix-bug
 description: >-
-  Diagnoses and fixes bugs in Video's Factory with minimal scope. Use when
+  Diagnoses and fixes bugs in Ribo Studio with minimal scope. Use when
   something is broken in preview, export, persistence, uploads, notifications,
   or a specific app editor.
 ---

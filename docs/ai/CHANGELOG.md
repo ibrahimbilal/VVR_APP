@@ -1,19 +1,24 @@
-﻿# Changelog
+﻿# Changelog (agent notes)
 
-Product and architecture history for Video's Factory.
-Version source of truth: root `package.json` (currently **3.0.0**). See `.cursor/rules/versioning.mdc`.
+Detailed dated development notes for Ribo Studio agents.
+Version source of truth: root `package.json` (currently **1.0.0** — official product baseline).
+User-facing Keep a Changelog: root [`CHANGELOG.md`](../../CHANGELOG.md).
+Releases: `.cursor/rules/versioning.mdc` + `.cursor/skills/release-manager/`.
 
 ## Unreleased
 
-Changes since the current `package.json` version. On release, fold these under a `Release **vX.Y.Z**` line and clear this section.
-
-- 2026-11-13 — Versioning rule aligned to SemVer + Unreleased; agents propose bumps only with approval (`.cursor/rules/versioning.mdc`, `docs/ai/CHANGELOG.md`).
-- 2026-11-13 — Split deep project map into topic files under `.cursor/skills/vvr-project/`; moved changelog to `docs/ai/CHANGELOG.md`; removed monolithic `PROJECT.md`.
-- 2026-11-13 — AI context system: concise `docs/ai/` maps, modular Cursor rules/skills, `.cursorignore`; agents prefer `docs/ai` over full-tree scans.
+Changes since the current `package.json` version. User-facing bullets also belong under **Unreleased** in root `CHANGELOG.md`. On release, the release-manager skill / `npm run release:*` promotes the root changelog; then summarize or clear this section as appropriate.
 
 ## History
 
 Dated notes for work included in current and earlier builds. Explicit package bumps use a `Release **vX.Y.Z**` line.
+
+- Release **v1.0.0** (2026-11-13) — Official Ribo Studio baseline: rebrand from Video's Factory, SemVer 1.0.0 (replacing legacy package metadata `3.0.0` with no Git tag), Keep a Changelog + `scripts/release.mjs`, sidebar `AppVersionLabel` / Vite `__APP_VERSION__`, `release-manager` skill. Compatibility IDs unchanged (`vvr-app`, IDB `vvr`, `vvr-app.zip`, `VVR_*`).
+- 2026-11-13 — Repository identity: GitHub `ibrahimbilal/ribo-studio`, display name **Ribo Studio** (package name `vvr-app`, IDB `vvr`, deploy `vvr-app.zip`, and `VVR_*` env keys unchanged).
+- 2026-11-13 — Version & release management: root Keep a Changelog, `scripts/release.mjs`, sidebar `AppVersionLabel`, Vite `__APP_VERSION__`, `release-manager` skill, always-applied versioning rule.
+- 2026-11-13 — Versioning rule aligned to SemVer + Unreleased; agents propose bumps only with approval (`.cursor/rules/versioning.mdc`, `docs/ai/CHANGELOG.md`).
+- 2026-11-13 — Split deep project map into topic files under `.cursor/skills/vvr-project/`; moved changelog to `docs/ai/CHANGELOG.md`; removed monolithic `PROJECT.md`.
+- 2026-11-13 — AI context system: concise `docs/ai/` maps, modular Cursor rules/skills, `.cursorignore`; agents prefer `docs/ai` over full-tree scans.
 
 - 2026-11-13 — Production Optimized CFR for Screensaver: timeline segment reuse, quality presets, export UI, VFR duration fix, validation, tests, and YouTube candidates (`server/src/screensaverCfr/`, `renderScreensaverHybrid.ts`, `shared/screensaver.ts`, `docs/optimized-cfr-production-report.md`).
 - 2026-11-12 — Optimized CFR proof of concept for Screensaver: 60 s 4K segment-reuse encode, benchmark report, YouTube candidate left unwired (`server/scripts/poc-optimized-cfr.ts`, `docs/optimized-cfr-poc-report.md`).

@@ -4,6 +4,7 @@ import { onMounted, onUnmounted, ref, watch } from 'vue'
 import { RouterLink, useRoute } from 'vue-router'
 import { navItems } from '../../app/navigation'
 import { usePlatformStore } from '../../stores/platform'
+import AppVersionLabel from './AppVersionLabel.vue'
 
 const platform = usePlatformStore()
 const route = useRoute()
@@ -76,11 +77,11 @@ function onNavigate() {
           <RouterLink
             :to="{ name: 'dashboard' }"
             class="focus-ring flex min-w-0 items-center gap-2 rounded-sm text-zinc-100 transition-colors hover:text-brand"
-            aria-label="Video's Factory, go to dashboard"
+            aria-label="Ribo Studio, go to dashboard"
             @click="onNavigate"
           >
             <img src="/logo.png" alt="" class="h-8 w-8 shrink-0 object-contain" />
-            <span class="truncate text-sm font-black tracking-[0.06em]">Video's Factory</span>
+            <span class="truncate text-sm font-black tracking-[0.06em]">Ribo Studio</span>
           </RouterLink>
           <button class="btn btn-ghost cursor-pointer" type="button" aria-label="Close menu" @click="emit('close')">
             <X :size="20" />
@@ -105,6 +106,9 @@ function onNavigate() {
             {{ item.label }}
           </RouterLink>
         </nav>
+        <div class="mt-auto border-t border-zinc-800">
+          <AppVersionLabel show-brand />
+        </div>
       </div>
     </div>
   </Teleport>

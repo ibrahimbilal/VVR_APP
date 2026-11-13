@@ -1,7 +1,7 @@
 ---
 name: ui-ux-improvement
 description: >-
-  Improves Video's Factory UI using the existing design system and studio
+  Improves Ribo Studio UI using the existing design system and studio
   layouts. Use when changing layout, controls, motion, empty states, settings
   panels, or shared chrome without altering encode pipelines.
 ---

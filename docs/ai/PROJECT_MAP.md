@@ -1,6 +1,6 @@
 # Project map
 
-Concise navigation for Video's Factory (VVR). Deep detail: `.cursor/skills/vvr-project/` topic files (see that skill’s table). Changelog: [CHANGELOG.md](CHANGELOG.md).
+Concise navigation for Ribo Studio (VVR; repo `ibrahimbilal/ribo-studio`). Deep detail: `.cursor/skills/vvr-project/` topic files (see that skill’s table). Release changelog: root [`CHANGELOG.md`](../../CHANGELOG.md). Agent notes: [CHANGELOG.md](CHANGELOG.md).
 
 ## Stack
 
@@ -28,7 +28,7 @@ Router: `client/src/app/router.ts`. Nav: `client/src/app/navigation.ts`.
 | --- | --- |
 | Shell, toasts, page transition | `client/src/App.vue` |
 | Design tokens / shared classes | `client/src/style.css`, `docs/ui-design-system.md` |
-| Sidebar / header / mobile drawer | `client/src/components/layout/` |
+| Sidebar / header / mobile drawer / app version | `client/src/components/layout/` (`AppVersionLabel.vue`) |
 | Shared UI primitives | `client/src/components/ui/` |
 | Renderer health, notifications | `client/src/stores/platform.ts` |
 | Export queue / job poll / notifications | `client/src/lib/managedExportJobs.ts`, `exportQueueRunner.ts`, `jobPoll.ts`, `renderNotifications.ts` |
@@ -46,8 +46,9 @@ Router: `client/src/app/router.ts`. Nav: `client/src/app/navigation.ts`.
 
 ## Scripts / deploy
 
-- Root scripts: `package.json` (`dev`, `typecheck`, `test:*`, `bench:*`, `pack:hostinger`).
+- Root scripts: `package.json` (`dev`, `typecheck`, `test:*`, `bench:*`, `pack:hostinger`, `release:*`).
 - Deploy: `.cursor/skills/hostinger-vvr-deploy/`.
+- Releases: `.cursor/skills/release-manager/`; SemVer in root `package.json`; UI via `client/src/lib/appVersion.ts`.
 - Optional AI Lite binaries: `tools/realesrgan/` (gitignored natives).
 
 ## Where to change (quick)
@@ -67,5 +68,6 @@ Router: `client/src/app/router.ts`. Nav: `client/src/app/navigation.ts`.
 - Conventions: [CONVENTIONS.md](CONVENTIONS.md)
 - Decisions: [DECISIONS.md](DECISIONS.md)
 - Maintenance: [MAINTENANCE.md](MAINTENANCE.md)
-- Changelog: [CHANGELOG.md](CHANGELOG.md) (Unreleased + History; version in root `package.json`)
-- Versioning: `.cursor/rules/versioning.mdc`
+- Release changelog: root [`CHANGELOG.md`](../../CHANGELOG.md) (Keep a Changelog; version in root `package.json`)
+- Agent changelog: [CHANGELOG.md](CHANGELOG.md)
+- Versioning: `.cursor/rules/versioning.mdc` (always applied); skill: `.cursor/skills/release-manager/`

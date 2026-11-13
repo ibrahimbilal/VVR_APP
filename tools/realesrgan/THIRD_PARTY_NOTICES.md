@@ -1,6 +1,6 @@
 # Third-party notices — bundled Real-ESRGAN AI Lite (optional)
 
-Video's Factory can run **AI Lite** with a **standalone** copy of the NCNN Vulkan executable and model files under `tools/realesrgan/`. Nothing in this folder is required for Standard (Lanczos3) upscaling.
+Ribo Studio can run **AI Lite** with a **standalone** copy of the NCNN Vulkan executable and model files under `tools/realesrgan/`. Nothing in this folder is required for Standard (Lanczos3) upscaling.
 
 ## Real-ESRGAN-ncnn-vulkan (executable)
 
@@ -17,7 +17,7 @@ Video's Factory can run **AI Lite** with a **standalone** copy of the NCNN Vulka
 
 - **Source tree:** [upscayl/upscayl — `resources/models`](https://github.com/upscayl/upscayl/tree/main/resources/models)
 - **Upscayl application:** [upscayl/upscayl](https://github.com/upscayl/upscayl) (GNU **AGPL-3.0**).
-- **Use in Video's Factory:** these files are **data** read by the NCNN runner; Video's Factory does **not** link Upscayl code. If you redistribute the model pair, confirm your obligations under AGPL-3.0 and any upstream model terms.
+- **Use in Ribo Studio:** these files are **data** read by the NCNN runner; Ribo Studio does **not** link Upscayl code. If you redistribute the model pair, confirm your obligations under AGPL-3.0 and any upstream model terms.
 
 ## No checksum pins in-repo
 

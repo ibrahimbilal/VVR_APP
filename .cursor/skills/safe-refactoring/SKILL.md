@@ -1,7 +1,7 @@
 ---
 name: safe-refactoring
 description: >-
-  Refactors Video's Factory code without changing product behavior. Use when
+  Refactors Ribo Studio code without changing product behavior. Use when
   renaming, splitting files, cleaning structure, or deduplicating while keeping
   preview, export, and APIs equivalent.
 ---

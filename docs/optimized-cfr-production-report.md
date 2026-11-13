@@ -79,8 +79,8 @@ Hybrid verify OK (Fast VFR path still works).
 
 Manual upload still required for Stats for Nerds acceptance.
 
-- `C:\Users\Gebruiker\Desktop\VVR_APP\server\tmp\cfr-production\youtube-production-cfr-4k60-60s.mp4`
-- `C:\Users\Gebruiker\Desktop\VVR_APP\server\tmp\cfr-production\youtube-production-cfr-1080p60-600s.mp4`
+- `<repo>/server/tmp/cfr-production/youtube-production-cfr-4k60-60s.mp4`
+- `<repo>/server/tmp/cfr-production/youtube-production-cfr-1080p60-600s.mp4`
 
 Acceptance: 2160p60 available, Stats `3840x2160@60`, smooth subscribe animation, no join flashes, correct duration and audio sync.
 

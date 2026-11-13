@@ -21,7 +21,7 @@ const thumbnail = useThumbnailStore()
 const upscaler = useImageUpscalerStore()
 const audioLooper = useAudioLooperStore()
 
-const title = computed(() => (route.meta.title as string) || "Video's Factory")
+const title = computed(() => (route.meta.title as string) || 'Ribo Studio')
 const showNewProject = computed(() =>
   route.name === 'shorts' ||
   route.name === 'screensaver' ||

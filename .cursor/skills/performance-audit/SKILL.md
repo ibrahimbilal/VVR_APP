@@ -1,7 +1,7 @@
 ---
 name: performance-audit
 description: >-
-  Audits render, preview, and export performance in Video's Factory using
+  Audits render, preview, and export performance in Ribo Studio using
   existing benches and known bottlenecks. Use when investigating slow encodes,
   preview jank, upscaler throughput, or asking about FFmpeg/CPU/GPU cost.
 ---

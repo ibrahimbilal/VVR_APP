@@ -15,33 +15,34 @@ export const navItems: NavItem[] = [
     label: 'Shorts',
     icon: ListVideo,
     description:
-      'Create vertical ranking and compilation videos with customizable titles, numbered clips, transitions, and audio.',
+      'Export 9:16 ranking compilations from clips, or Image Motion Shorts from stills with pan, transitions, and music.',
   },
   {
     path: '/screensaver',
     label: 'Screensaver',
     icon: MonitorPlay,
     description:
-      'Create long-form 16:9 ambient videos, digital art displays, and TV screensavers from images and videos.',
+      'Export long 16:9 ambient videos from one image or looping clip, with frames, adjustments, and Fast VFR or Optimized CFR.',
   },
   {
     path: '/thumbnails',
     label: 'Thumbnails',
     icon: ThumbnailIcon,
-    description: 'Design YouTube thumbnails from your own images or from a Shorts or Screensaver project.',
+    description:
+      'Compose 16:9 YouTube thumbnails in the browser with resolution and duration badges; PNG or JPEG download, no FFmpeg.',
   },
   {
     path: '/upscale',
     label: 'Image Upscaler',
     icon: Sparkles,
     description:
-      'Resize PNG, JPEG, and WebP images to exact Full HD, 2K, 4K, or 8K pixels with Lanczos3 resampling. It interpolates existing pixels and does not invent missing detail.',
+      'Upscale PNG, JPEG, and WebP to exact Full HD, 2K, 4K, or 8K. Standard uses Lanczos3; optional AI Lite uses local Real-ESRGAN.',
   },
   {
     path: '/looper',
     label: 'Audio Looper',
     icon: AudioLines,
     description:
-      'Turn one short audio file into an exact-length ambient track. Simple repeats, or seamless equal-power crossfades, then export MP3, WAV, or FLAC.',
+      'Repeat one or more short audio files to an exact length (1 minute to 12 hours). Simple loop or Seamless crossfade between tracks.',
   },
 ]

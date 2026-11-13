@@ -1,5 +1,5 @@
 ---
-description: Vue/Pinia client conventions for Video's Factory editors and shell
+description: Vue/Pinia client conventions for Ribo Studio editors and shell
 globs: client/**/*.{vue,ts,css}
 alwaysApply: false
 ---

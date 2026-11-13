@@ -1,9 +1,9 @@
 ---
 name: hostinger-vvr-deploy
 description: >-
-  Deploys the VVR monorepo to Hostinger Node.js hosting (videos.ibrahimbilal.com domain in REFERENCE.md)
+  Deploys the Ribo Studio (VVR) monorepo to Hostinger Node.js hosting (videos.ibrahimbilal.com domain in REFERENCE.md)
   via archive upload and Start Node.js build. Use when the user asks to upload,
-  publish, redeploy, or update VVR on Hostinger, or to fix the live site.
+  publish, redeploy, or update Ribo Studio on Hostinger, or to fix the live site.
 ---
 
 # Hostinger deploy (VVR)

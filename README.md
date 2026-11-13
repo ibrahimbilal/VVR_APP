@@ -1,4 +1,6 @@
-# Video's Factory
+# Ribo Studio
+
+Repository: [ibrahimbilal/ribo-studio](https://github.com/ibrahimbilal/ribo-studio).
 
 A local web platform for video production. It hosts independent editor apps in one shell:
 

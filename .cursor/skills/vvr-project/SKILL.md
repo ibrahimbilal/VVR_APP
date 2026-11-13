@@ -1,7 +1,7 @@
 ---
 name: vvr-project
 description: >-
-  Maintains Video's Factory deep project references (limits, HTTP, storage,
+  Maintains Ribo Studio deep project references (limits, HTTP, storage,
   per-app behavior). Use when docs/ai is insufficient and you need detailed
   ranking, screensaver, thumbnail, upscaler, looper, or server behavior.
 ---

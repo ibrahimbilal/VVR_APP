@@ -22,4 +22,4 @@ Node `^20.19.0 || >=22.12.0`. From the repo root:
 - `npm run build:dev` / `npm run start:dev` — Vite development build, then the renderer serves `client/dist` and the API on port 3001.
 - `npm run build:prod` / `npm run start:prod` — production client build plus esbuild server bundle (`server/dist/index.js`). Listens on `PORT` or 3001. Host is `0.0.0.0` when `PORT` is set, otherwise `127.0.0.1`.
 
-Workspaces: root `vvr-app` **2.0.0**, `client` (`vvr-client`), `server` (`vvr-server`). Shared TypeScript is imported by path, not as a package.
+Workspaces: root `vvr-app` (SemVer in root `package.json`; official baseline **1.0.0**), `client` (`vvr-client`), `server` (`vvr-server`). Shared TypeScript is imported by path, not as a package.

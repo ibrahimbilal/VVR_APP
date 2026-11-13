@@ -1,12 +1,20 @@
 {
   "name": "vvr-app",
   "private": true,
-  "version": "3.0.0",
+  "version": "1.0.0",
   "workspaces": [
     "client",
     "server"
   ],
-  "description": "Video's Factory — Shorts, Screensaver, Thumbnail Studio, Image Upscaler, and Audio Looper",
+  "description": "Ribo Studio — Shorts, Screensaver, Thumbnail Studio, Image Upscaler, and Audio Looper",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ibrahimbilal/ribo-studio.git"
+  },
+  "homepage": "https://github.com/ibrahimbilal/ribo-studio#readme",
+  "bugs": {
+    "url": "https://github.com/ibrahimbilal/ribo-studio/issues"
+  },
   "engines": {
     "node": "^20.19.0 || >=22.12.0"
   },
@@ -42,7 +50,14 @@
     "launch:linux": "bash scripts/launch-linux.sh",
     "build:launcher": "node scripts/build-launcher.mjs",
     "pack:hostinger": "node scripts/make-deploy-archive.mjs",
-    "setup:ai-lite": "node scripts/setup-ai-lite.mjs"
+    "setup:ai-lite": "node scripts/setup-ai-lite.mjs",
+    "release:check": "node scripts/release.mjs check",
+    "release:patch": "node scripts/release.mjs prepare patch",
+    "release:minor": "node scripts/release.mjs prepare minor",
+    "release:major": "node scripts/release.mjs prepare major",
+    "release:dry-patch": "node scripts/release.mjs prepare patch --dry-run",
+    "release:dry-minor": "node scripts/release.mjs prepare minor --dry-run",
+    "release:dry-major": "node scripts/release.mjs prepare major --dry-run"
   },
   "devDependencies": {
     "archiver": "^8.0.0",

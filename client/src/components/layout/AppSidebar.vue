@@ -3,6 +3,7 @@ import { ChevronLeft, ChevronRight } from '@lucide/vue'
 import { RouterLink, useRoute } from 'vue-router'
 import { navItems } from '../../app/navigation'
 import { usePlatformStore } from '../../stores/platform'
+import AppVersionLabel from './AppVersionLabel.vue'
 
 const route = useRoute()
 const platform = usePlatformStore()
@@ -29,7 +30,7 @@ function railLabel(label: string): string {
       <RouterLink
         :to="{ name: 'dashboard' }"
         class="focus-ring grid h-11 w-11 place-items-center rounded-2xl bg-elevated"
-        aria-label="Video's Factory, go to dashboard"
+        aria-label="Ribo Studio, go to dashboard"
         title="Dashboard"
       >
         <img src="/logo.png" alt="" class="h-7 w-7 object-contain" />
@@ -54,6 +55,7 @@ function railLabel(label: string): string {
         <span v-if="!platform.sidebarCollapsed" class="max-w-full truncate">{{ railLabel(item.label) }}</span>
       </RouterLink>
     </nav>
+    <AppVersionLabel compact class="mx-1 mb-1" />
     <button
       class="focus-ring mx-2 mb-3 flex cursor-pointer items-center justify-center rounded-xl py-2 text-zinc-500 hover:bg-white/5 hover:text-zinc-200"
       type="button"
