@@ -18,7 +18,7 @@ From the repo root:
 npm run build:launcher
 ```
 
-Output: **`Video factory.exe`** in the repo root (keep the **`.exe`** extension; if the name is changed to omit it, Windows may not treat the file as an executable).
+Output: **`Ribo Studio.exe`** in the repo root (keep the **`.exe`** extension; if the name is changed to omit it, Windows may not treat the file as an executable).
 
 ## Icon
 
@@ -28,21 +28,21 @@ You can still commit a custom **`launcher/icon.ico`** only if you do not use `cl
 
 ## Environment
 
-Optional **`.env`** in the repo root (copy from **`.env.example`**): `Video factory.exe` reads it into the launcher process before starting `npm run dev`, so you can set `RIBO_*` (and other) variables without the Windows shell. Existing environment variables still win. The Node server also loads the same file when it starts.
+Optional **`.env`** in the repo root (copy from **`.env.example`**): `Ribo Studio.exe` reads it into the launcher process before starting `npm run dev`, so you can set `RIBO_*` (and other) variables without the Windows shell. Existing environment variables still win. The Node server also loads the same file when it starts.
 
 **AI Lite auto-setup:** On Windows, if AI is not disabled (`RIBO_AI_UPSCALER_ENABLED` not `false`/`0`/`no`), you have not set **both** `RIBO_REALESRGAN_BINARY` and `RIBO_REALESRGAN_MODEL_DIR`, and the standalone files under `tools/realesrgan/` are still missing, the launcher runs **`npm run setup:ai-lite`** once (downloads the NCNN build and model; needs **network**). To skip this, set both paths yourself or place the files under `tools/realesrgan/` before starting.
 
 ## Usage
 
 1. Run `npm install` once in the repo root.
-2. Double-click **`Video Factory.exe`** (keep it in the repo root or any subfolder — it walks up to find `package.json` / `ribo-studio`). It opens **`http://127.0.0.1:5173/`** (Vite dev UI). Port **3001** is the API only.
+2. Double-click **`Ribo Studio.exe`** (keep it in the repo root or any subfolder — it walks up to find `package.json` / `ribo-studio`). It opens **`http://127.0.0.1:5173/`** (Vite dev UI). Port **3001** is the API only.
 3. Close the console window to stop the dev server (child processes are terminated).
 
 Only one launcher instance can run at a time.
 
 ## Image Upscaler AI Lite (Windows)
 
-When you start the dev server through **`Video Factory.exe`** or **`npm run launch`**, the launcher looks under **`tools/realesrgan/`** for `win-x64/realesrgan-ncnn-vulkan.exe` and `models/upscayl-lite-4x.{param,bin}` (or your chosen `RIBO_REALESRGAN_MODEL_NAME`). Populate that folder with `npm run setup:ai-lite` from the repo root, or copy files manually (see `docs/image-upscaler.md`).
+When you start the dev server through **`Ribo Studio.exe`** or **`npm run launch`**, the launcher looks under **`tools/realesrgan/`** for `win-x64/realesrgan-ncnn-vulkan.exe` and `models/upscayl-lite-4x.{param,bin}` (or your chosen `RIBO_REALESRGAN_MODEL_NAME`). Populate that folder with `npm run setup:ai-lite` from the repo root, or copy files manually (see `docs/image-upscaler.md`).
 
 If the engine and model files are present **and** a quick `realesrgan-ncnn-vulkan.exe -h` succeeds (Vulkan available), it prints **`[Ribo] AI Lite: Ready (standalone engine)`** and sets (only when a value is not already in your environment):
 

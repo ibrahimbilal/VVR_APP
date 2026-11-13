@@ -197,7 +197,7 @@ Native libs: the official ubuntu zip is built for glibc (typical Ubuntu). It nee
 
 ### Automatic enable (development)
 
-**`npm run launch`**, **`npm run launch:linux`**, and **`Video Factory.exe`** (Windows only) set the same environment when the standalone files exist and you have not set both `RIBO_REALESRGAN_BINARY` and `RIBO_REALESRGAN_MODEL_DIR` yourself (existing env vars are never overwritten):
+**`npm run launch`**, **`npm run launch:linux`**, and **`Ribo Studio.exe`** (Windows only) set the same environment when the standalone files exist and you have not set both `RIBO_REALESRGAN_BINARY` and `RIBO_REALESRGAN_MODEL_DIR` yourself (existing env vars are never overwritten):
 
 - `RIBO_AI_UPSCALER_ENABLED=true`
 - `RIBO_REALESRGAN_BINARY` → `tools/realesrgan/<platform>/realesrgan-ncnn-vulkan[.exe]`
@@ -212,7 +212,7 @@ The server discovers `tools/realesrgan` when AI is enabled and you leave **both*
 
 **Relative paths:** if you set `RIBO_REALESRGAN_PROJECT_ROOT` to the repo root, `RIBO_REALESRGAN_BINARY` and `RIBO_REALESRGAN_MODEL_DIR` may be relative to that root. Without `RIBO_REALESRGAN_PROJECT_ROOT`, relative paths are rejected (use absolute paths or rely on standalone auto-detection).
 
-Optional **repo-root `.env`**: copy **`.env.example`** (at the repo root) to **`.env`** and set `RIBO_*` variables there. The **server loads `.env` on startup** (via `server/src/loadEnv.ts`); values already set in the OS environment are **not** overridden. **`npm run launch`** and **`Video factory.exe`** also merge `.env` into the dev process before starting `npm run dev`. Lines such as `RIBO_REALESRGAN_BINARY=` with **no value** are treated as **unset** so standalone **`tools/realesrgan/`** can be auto-detected; omit those keys entirely if you rely on auto-detect.
+Optional **repo-root `.env`**: copy **`.env.example`** (at the repo root) to **`.env`** and set `RIBO_*` variables there. The **server loads `.env` on startup** (via `server/src/loadEnv.ts`); values already set in the OS environment are **not** overridden. **`npm run launch`** and **`Ribo Studio.exe`** also merge `.env` into the dev process before starting `npm run dev`. Lines such as `RIBO_REALESRGAN_BINARY=` with **no value** are treated as **unset** so standalone **`tools/realesrgan/`** can be auto-detected; omit those keys entirely if you rely on auto-detect.
 
 ### Manual env (absolute paths)
 

@@ -8,7 +8,7 @@ const launcherDir = path.dirname(fileURLToPath(import.meta.url))
 const root = path.join(launcherDir, '..')
 const iconPath = path.join(launcherDir, 'icon.ico')
 const faviconIco = path.join(root, 'client', 'public', 'favicon.ico')
-const outExe = path.join(root, 'Video factory.exe')
+const outExe = path.join(root, 'Ribo Studio.exe')
 const projectFile = path.join(launcherDir, 'Launcher.csproj')
 
 function findDotnet() {
@@ -85,7 +85,7 @@ function main() {
   const result = spawnSync(dotnet, args, { stdio: 'inherit', cwd: launcherDir })
   if (result.status !== 0) process.exit(result.status ?? 1)
 
-  const built = path.join(publishDir, 'Video factory.exe')
+  const built = path.join(publishDir, 'Ribo Studio.exe')
   if (!fs.existsSync(built)) {
     console.error('[build:launcher] Missing output:', built)
     process.exit(1)

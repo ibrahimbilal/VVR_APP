@@ -13,6 +13,7 @@ Detailed agent-oriented development notes: `docs/ai/CHANGELOG.md`.
 ### Changed
 
 - Renamed remaining internal `vvr` / `VVR_*` identifiers to `ribo` / `RIBO_*` (packages, IndexedDB, env keys, Cursor skills/rules). Existing browser data and `VVR_*` env values migrate once onto the new names.
+- Windows launcher output renamed from `Video factory.exe` to **`Ribo Studio.exe`** (`npm run build:launcher`).
 
 ### Removed
 

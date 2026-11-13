@@ -11,6 +11,7 @@ Changes since the current `package.json` version. User-facing bullets also belon
 
 - 2026-11-13 — Full identifier rename `vvr`/`VVR_*` → `ribo`/`RIBO_*` (packages `ribo-studio`/`ribo-client`/`ribo-server`, IDB `ribo` with one-time migrate from `vvr`, env keys, Cursor `ribo-project`). Legacy `VVR_*` env and `vvr-*` storage keys still promote once.
 - 2026-11-13 — Removed Hostinger deploy/upload tooling (`hostinger-ribo-deploy` skill/rule, `pack:hostinger`, `make-deploy-archive.mjs`, `archiver` dep).
+- 2026-11-13 — Windows launcher exe renamed `Video factory.exe` → `Ribo Studio.exe` (`launcher/Launcher.csproj`, `launcher/build.mjs`, `launcher/Program.cs`).
 
 ## History
 

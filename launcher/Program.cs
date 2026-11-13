@@ -15,7 +15,7 @@ const string ViteDevUrl = "http://127.0.0.1:5173/";
 using var mutex = new Mutex(true, MutexName, out var ownsMutex);
 if (!ownsMutex)
 {
-    Console.Error.WriteLine("[Video factory] Another launcher is already running.");
+    Console.Error.WriteLine("[Ribo Studio] Another launcher is already running.");
     Console.Error.WriteLine("Close the other window or stop its dev server before starting again.");
     PauseBeforeExit(1);
 }
@@ -24,7 +24,7 @@ var processPath = Environment.ProcessPath ?? "";
 if (!string.Equals(Path.GetExtension(processPath), ".exe", StringComparison.OrdinalIgnoreCase))
 {
     Console.Error.WriteLine(
-        "[Video factory] Warning: This file should use a .exe extension (e.g. Video factory.exe). "
+        "[Ribo Studio] Warning: This file should use a .exe extension (e.g. Ribo Studio.exe). "
             + "Without it Windows may not run or trust the app correctly. Path: "
             + (string.IsNullOrEmpty(processPath) ? "(unknown)" : processPath));
 }
@@ -35,7 +35,7 @@ if (projectRoot is null)
 {
     Fail(
         "Could not find the project folder (package.json with name \"ribo-studio\").\n" +
-            "Place Video factory.exe in the repo root (or a subfolder) and run npm install once.");
+            "Place Ribo Studio.exe in the repo root (or a subfolder) and run npm install once.");
 }
 
 if (!Directory.Exists(Path.Combine(projectRoot, "node_modules")))
@@ -53,9 +53,9 @@ if (!CommandExists("node"))
     Fail("node was not found on PATH.\nInstall Node.js and reopen this window.");
 }
 
-Console.WriteLine("[Video factory] Project: " + projectRoot);
-Console.WriteLine("[Video factory] Running npm run dev …");
-Console.WriteLine("[Video factory] Close this window to stop the dev server.\n");
+Console.WriteLine("[Ribo Studio] Project: " + projectRoot);
+Console.WriteLine("[Ribo Studio] Running npm run dev …");
+Console.WriteLine("[Ribo Studio] Close this window to stop the dev server.\n");
 
 ApplyRepoDotenvToProcess(projectRoot);
 
@@ -91,7 +91,7 @@ var psi = new ProcessStartInfo
 
 if (TryApplyAiLiteEnv(projectRoot, psi, out var aiNote))
 {
-    Console.WriteLine("[Video factory] " + aiNote);
+    Console.WriteLine("[Ribo Studio] " + aiNote);
 }
 
 devProcess = new Process { StartInfo = psi, EnableRaisingEvents = true };
@@ -114,7 +114,7 @@ try
 }
 catch (OperationCanceledException)
 {
-    Console.WriteLine("\n[Video factory] Stopping dev server …");
+    Console.WriteLine("\n[Ribo Studio] Stopping dev server …");
     TryKillTree(devProcess);
     devProcess.WaitForExit(5000);
     return 0;
@@ -143,7 +143,7 @@ async Task TryOpenBrowserWhenReady(string url)
                 using var response = await http.GetAsync(url, cts.Token);
                 if ((int)response.StatusCode is >= 200 and < 500)
                 {
-                    Console.WriteLine("\n[Video factory] Opening " + url);
+                    Console.WriteLine("\n[Ribo Studio] Opening " + url);
                     OpenBrowser(url);
                     return;
                 }
@@ -157,7 +157,7 @@ async Task TryOpenBrowserWhenReady(string url)
         }
 
         if (!cts.IsCancellationRequested)
-            Console.WriteLine("\n[Video factory] Server did not respond in time. Open manually: " + url);
+            Console.WriteLine("\n[Ribo Studio] Server did not respond in time. Open manually: " + url);
     }
     catch (OperationCanceledException)
     {
@@ -258,7 +258,7 @@ static void MaybeRunAiLiteSetup(string projectRoot)
         return;
     }
 
-    Console.WriteLine("[Video factory] AI Lite files missing — running npm run setup:ai-lite (requires network) …");
+    Console.WriteLine("[Ribo Studio] AI Lite files missing — running npm run setup:ai-lite (requires network) …");
     try
     {
         using var setup = Process.Start(
@@ -269,19 +269,19 @@ static void MaybeRunAiLiteSetup(string projectRoot)
             });
         if (setup is null)
         {
-            Console.Error.WriteLine("[Video factory] Could not start npm run setup:ai-lite.");
+            Console.Error.WriteLine("[Ribo Studio] Could not start npm run setup:ai-lite.");
             return;
         }
 
         setup.WaitForExit();
         if (setup.ExitCode != 0)
-            Console.Error.WriteLine("[Video factory] setup:ai-lite exited with code " + setup.ExitCode + ". AI Lite may stay unavailable.");
+            Console.Error.WriteLine("[Ribo Studio] setup:ai-lite exited with code " + setup.ExitCode + ". AI Lite may stay unavailable.");
         else
-            Console.WriteLine("[Video factory] setup:ai-lite finished.");
+            Console.WriteLine("[Ribo Studio] setup:ai-lite finished.");
     }
     catch (Exception ex)
     {
-        Console.Error.WriteLine("[Video factory] setup:ai-lite failed: " + ex.Message);
+        Console.Error.WriteLine("[Ribo Studio] setup:ai-lite failed: " + ex.Message);
     }
 }
 
@@ -442,7 +442,7 @@ static void SetChildEnvIfEmpty(ProcessStartInfo psi, string key, string value)
 [DoesNotReturn]
 static void Fail(string message)
 {
-    Console.Error.WriteLine("\n[Video factory] " + message.Replace("\n", "\n[Video factory] "));
+    Console.Error.WriteLine("\n[Ribo Studio] " + message.Replace("\n", "\n[Ribo Studio] "));
     PauseBeforeExit(1);
 }
 

@@ -30,7 +30,7 @@ npm run dev
 
 Open [http://127.0.0.1:5173](http://127.0.0.1:5173).
 
-On Windows, `npm run launch` starts the same dev stack and opens the browser once Vite is ready. Optional **`Video Factory.exe`** in the repo root (build with `npm run build:launcher`) wraps the same flow; Node and npm must still be on `PATH`.
+On Windows, `npm run launch` starts the same dev stack and opens the browser once Vite is ready. Optional **`Ribo Studio.exe`** in the repo root (build with `npm run build:launcher`) wraps the same flow; Node and npm must still be on `PATH`.
 
 ### Scripts
 

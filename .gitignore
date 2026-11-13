@@ -12,7 +12,7 @@ server/tmp
 client/public/samples
 launcher/bin/
 launcher/obj/
-Video factory.exe
+Ribo Studio.exe
 *.exe
 tools/realesrgan/win-x64/
 tools/realesrgan/linux-x64/
