@@ -3,7 +3,7 @@ import { computed, ref } from 'vue'
 import { Eye, RotateCcw, SquareSplitHorizontal, Trash2, X } from '@lucide/vue'
 import { ADJUSTMENT_FIELDS } from '@shared/screensaverAdjust'
 import { FRAME_FILE_LIMIT } from '@shared/screensaverFrames'
-import { DURATION_PRESETS, SCREENSAVER_FPS, SCREENSAVER_OUTPUTS } from '@shared/screensaver'
+import { DURATION_PRESETS, SCREENSAVER_OUTPUTS, type ScreensaverCfrQuality, type ScreensaverRenderMode } from '@shared/screensaver'
 import { SUBSCRIBE_ANIMATION_DURATION_SEC, SUBSCRIBE_ANIMATION_FPS, SUBSCRIBE_ANIMATION_POSITIONS, SUBSCRIBE_ANIMATION_STYLES, SUBSCRIBE_CHANNEL_CARD_THEMES, MAX_SUBSCRIBE_EDGE_DISTANCE, MIN_SUBSCRIBE_EDGE_DISTANCE, MIN_SUBSCRIBE_SIZE_PERCENT, MAX_SUBSCRIBE_SIZE_PERCENT, defaultSubscribeSizePercent, type SubscribeAnimationStyle } from '@shared/screensaverSubscribeAnimation'
 import AdvancedAudioControls from '../../../components/audio/AdvancedAudioControls.vue'
 import AudioFileField from '../../../components/audio/AudioFileField.vue'
@@ -354,16 +354,47 @@ const inspectorTabs = [
           {{ output.label }}
         </option>
       </select>
-      <label class="mt-3 block text-xs text-zinc-500">Profile</label>
-      <select class="field mt-1" :value="store.profile" @change="store.setProfile(($event.target as HTMLSelectElement).value as never)">
-        <option v-for="item in store.SCREENSAVER_PROFILES" :key="item.id" :value="item.id">{{ item.label }}</option>
+      <label class="mt-3 block text-xs text-zinc-500">Rendering mode</label>
+      <select
+        class="field mt-1"
+        :value="store.renderingMode"
+        @change="store.setRenderingMode(($event.target as HTMLSelectElement).value as ScreensaverRenderMode)"
+      >
+        <option v-for="item in store.SCREENSAVER_RENDER_MODES" :key="item.id" :value="item.id">
+          {{ item.label }}{{ item.recommended ? ' — Recommended' : ' — Legacy' }}
+        </option>
       </select>
-      <p class="mt-1 text-xs text-zinc-500">{{ store.SCREENSAVER_PROFILES.find((item) => item.id === store.profile)?.detail }}</p>
-      <label class="mt-3 block text-xs text-zinc-500">Frame rate</label>
-      <select v-model.number="store.fps" class="field mt-1">
-        <option v-for="rate in SCREENSAVER_FPS" :key="rate" :value="rate">{{ rate }} fps</option>
-      </select>
-      <p class="mt-1 text-xs text-zinc-500">Static Art defaults to 1 fps. 60 fps encodes more data and takes longer.</p>
+      <p class="mt-1 text-xs text-zinc-500">{{ store.SCREENSAVER_RENDER_MODES.find((item) => item.id === store.renderingMode)?.detail }}</p>
+      <template v-if="store.renderingMode === 'optimized-cfr'">
+        <label class="mt-3 block text-xs text-zinc-500">Frame rate</label>
+        <select v-model.number="store.fps" class="field mt-1">
+          <option v-for="rate in store.SCREENSAVER_CFR_FPS" :key="rate" :value="rate">{{ rate }} fps</option>
+        </select>
+        <p class="mt-1 text-xs text-zinc-500">Constant frame rate for the whole timeline. Default is 60 fps.</p>
+        <label class="mt-3 block text-xs text-zinc-500">Quality</label>
+        <select
+          class="field mt-1"
+          :value="store.cfrQuality"
+          @change="store.setCfrQuality(($event.target as HTMLSelectElement).value as ScreensaverCfrQuality)"
+        >
+          <option v-for="item in store.SCREENSAVER_CFR_QUALITY_PRESETS" :key="item.id" :value="item.id">
+            {{ item.label }}{{ item.id === 'balanced' ? ' — Default' : '' }}
+          </option>
+        </select>
+        <p class="mt-1 text-xs text-zinc-500">{{ store.SCREENSAVER_CFR_QUALITY_PRESETS.find((item) => item.id === store.cfrQuality)?.detail }}</p>
+      </template>
+      <template v-else>
+        <label class="mt-3 block text-xs text-zinc-500">Profile</label>
+        <select class="field mt-1" :value="store.profile" @change="store.setProfile(($event.target as HTMLSelectElement).value as never)">
+          <option v-for="item in store.SCREENSAVER_PROFILES" :key="item.id" :value="item.id">{{ item.label }}</option>
+        </select>
+        <p class="mt-1 text-xs text-zinc-500">{{ store.SCREENSAVER_PROFILES.find((item) => item.id === store.profile)?.detail }}</p>
+        <label class="mt-3 block text-xs text-zinc-500">Frame rate</label>
+        <select v-model.number="store.fps" class="field mt-1">
+          <option v-for="rate in store.SCREENSAVER_FPS" :key="rate" :value="rate">{{ rate }} fps</option>
+        </select>
+        <p class="mt-1 text-xs text-zinc-500">Static Art defaults to 1 fps. Mixed frame rates may be transcoded differently by YouTube.</p>
+      </template>
       <label class="mt-3 block text-xs text-zinc-500">Preview rendering</label>
       <select
         class="field mt-1"

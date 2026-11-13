@@ -2,10 +2,12 @@ import type { ScreensaverComposition } from '@shared/screensaverComposition'
 import type {
   EncoderChoice,
   ScreensaverAudioMode,
+  ScreensaverCfrQuality,
   ScreensaverFit,
   ScreensaverLoop,
   ScreensaverMode,
   ScreensaverProfile,
+  ScreensaverRenderMode,
 } from '@shared/screensaver'
 import type { SubscribeAnimationSettings } from '@shared/screensaverSubscribeAnimation'
 
@@ -42,6 +44,9 @@ export interface SavedScreensaverProject {
   audioFileName: string | null
   profile?: ScreensaverProfile
   encoder?: EncoderChoice
+  /** Missing on older saves — load as fast-vfr (do not migrate silently). */
+  renderingMode?: ScreensaverRenderMode
+  cfrQuality?: ScreensaverCfrQuality
   composition?: ScreensaverComposition
   /** Saved with the project so Open restores the subscribe overlay. */
   subscribeAnimation?: SubscribeAnimationSettings

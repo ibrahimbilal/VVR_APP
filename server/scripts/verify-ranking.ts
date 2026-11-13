@@ -112,6 +112,8 @@ async function runCase(
       originalVolume: 1,
       musicVolume: 0,
       encoder: 'cpu',
+      musicFadeIn: 0.25,
+      musicFadeOut: 0.25,
     },
     {
       cancelled: () => false,

@@ -11,15 +11,19 @@ import { frameMetrics, isAllowedFps, isAllowedOutput } from '../../shared/frame'
 import { sanitizeComposition } from '../../shared/screensaverComposition'
 import { FRAME_FILE_LIMIT, hasCustomFrame } from '../../shared/screensaverFrames'
 import {
-  isAllowedScreensaverFps,
+  isAllowedScreensaverFpsForMode,
   isAllowedScreensaverOutput,
   isEncoderChoice,
+  isScreensaverCfrQuality,
   isScreensaverProfile,
+  isScreensaverRenderMode,
   MAX_DURATION_SECONDS,
   MIN_DURATION_SECONDS,
   TEST_MIN_DURATION_SECONDS,
   type EncoderChoice,
+  type ScreensaverCfrQuality,
   type ScreensaverProfile,
+  type ScreensaverRenderMode,
 } from '../../shared/screensaver'
 import {
   sanitizeSubscribeAnimation,
@@ -692,6 +696,8 @@ app.post(
           downloadName: safeDownloadName(project.filename),
           profile: project.profile,
           encoder: project.encoder,
+          renderingMode: project.renderingMode,
+          cfrQuality: project.cfrQuality,
           composition: project.composition,
           compositionPath,
           framePath,
@@ -1014,6 +1020,8 @@ interface ScreensaverProjectInput {
   backgroundColor: string
   profile: ScreensaverProfile
   encoder: EncoderChoice
+  renderingMode: ScreensaverRenderMode
+  cfrQuality: ScreensaverCfrQuality
   composition: ReturnType<typeof sanitizeComposition>
   subscribeAnimation: SubscribeAnimationSettings & { overlayX: number; overlayY: number }
 }
@@ -1034,7 +1042,15 @@ function parseScreensaverProject(raw: unknown): ScreensaverProjectInput {
   if (!isAllowedScreensaverOutput(Number(data.width), Number(data.height))) {
     throw new ClientError(400, 'Choose a supported 16:9 output resolution.')
   }
-  if (!isAllowedScreensaverFps(Number(data.fps))) throw new ClientError(400, 'Choose 1, 24, 30, or 60 fps.')
+  // Older clients omit renderingMode — keep Fast VFR so saved projects are unchanged.
+  const renderingMode: ScreensaverRenderMode = isScreensaverRenderMode(data.renderingMode) ? data.renderingMode : 'fast-vfr'
+  const cfrQuality: ScreensaverCfrQuality = isScreensaverCfrQuality(data.cfrQuality) ? data.cfrQuality : 'balanced'
+  if (!isAllowedScreensaverFpsForMode(Number(data.fps), renderingMode)) {
+    throw new ClientError(
+      400,
+      renderingMode === 'optimized-cfr' ? 'Choose 24, 25, 30, 50, or 60 fps for Optimized CFR.' : 'Choose 1, 24, 30, or 60 fps.',
+    )
+  }
   const minDuration = process.env.VVR_SCREENSAVER_TEST === '1' ? TEST_MIN_DURATION_SECONDS : MIN_DURATION_SECONDS
   const duration = Number(data.duration)
   if (!Number.isFinite(duration) || duration < minDuration || duration > MAX_DURATION_SECONDS) {
@@ -1050,6 +1066,9 @@ function parseScreensaverProject(raw: unknown): ScreensaverProjectInput {
   }
   if (mode === 'loop' && kind !== 'video') {
     throw new ClientError(400, 'Looping mode requires a video source.')
+  }
+  if (renderingMode === 'optimized-cfr' && (kind !== 'image' || mode !== 'static')) {
+    throw new ClientError(400, 'Optimized CFR is only available for static image exports.')
   }
   const subscribeAnimation = sanitizeSubscribeAnimation(data.subscribeAnimation)
   const validation = validateSubscribeAnimation(subscribeAnimation, duration, {
@@ -1082,6 +1101,8 @@ function parseScreensaverProject(raw: unknown): ScreensaverProjectInput {
     backgroundColor: String(data.backgroundColor),
     profile: isScreensaverProfile(data.profile) ? data.profile : 'balanced',
     encoder: isEncoderChoice(data.encoder) ? data.encoder : 'auto',
+    renderingMode,
+    cfrQuality,
     composition: sanitizeComposition(data.composition),
     subscribeAnimation: { ...subscribeAnimation, ...overlay },
   }

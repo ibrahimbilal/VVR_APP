@@ -1,10 +1,19 @@
 import { rm, writeFile } from 'node:fs/promises'
 import path from 'node:path'
+import { SCREENSAVER_CFR_TIMESCALE } from '../../shared/screensaver'
 import { SUBSCRIBE_ANIMATION_FPS, type SubscribeAnimationSettings } from '../../shared/screensaverSubscribeAnimation'
 import type { EncoderId } from './encoders'
 import { n, RenderCancelled, spawnFfmpeg, verifyVideoOutput } from './ffmpegUtil'
 import { audioFilterLine } from './screensaverGraph'
 import type { ScreensaverRenderHooks } from './renderScreensaver'
+
+/**
+ * Shared MP4 track timescale for hybrid VFR segments.
+ * Static (1 fps) and animation (SUBSCRIBE_ANIMATION_FPS) keep different packet
+ * durations, but the same timescale so concat stream-copy preserves wall-clock
+ * length. See docs/optimized-cfr-poc-report.md (64 s vs 60 s defect).
+ */
+const VFR_TIMESCALE = SCREENSAVER_CFR_TIMESCALE
 
 export interface HybridJob {
   id: string
@@ -67,11 +76,18 @@ export async function renderScreensaverHybrid(
     }
     if (hooks.cancelled()) throw new RenderCancelled()
 
-    const entries: string[] = []
-    if (startSec >= 0.05) entries.push(`file '${segA.replace(/\\/g, '/')}'`)
-    entries.push(`file '${segB.replace(/\\/g, '/')}'`)
-    if (tailSec >= 0.05) entries.push(`file '${segC.replace(/\\/g, '/')}'`)
-    await writeFile(concatList, entries.join('\n'))
+    const entries: string[] = ['ffconcat version 1.0']
+    if (startSec >= 0.05) {
+      entries.push(`file '${escapeConcatPath(segA)}'`)
+      entries.push(`duration ${n(startSec)}`)
+    }
+    entries.push(`file '${escapeConcatPath(segB)}'`)
+    entries.push(`duration ${n(animSec)}`)
+    if (tailSec >= 0.05) {
+      entries.push(`file '${escapeConcatPath(segC)}'`)
+      entries.push(`duration ${n(tailSec)}`)
+    }
+    await writeFile(concatList, `${entries.join('\n')}\n`)
     try {
       await concatCopy(concatList, videoOnly, job.duration, hooks)
     } catch (error) {
@@ -125,6 +141,8 @@ async function encodeStaticSegment(
     ...encoder.args,
     '-r',
     '1',
+    '-video_track_timescale',
+    String(VFR_TIMESCALE),
     '-movflags',
     '+faststart',
     output,
@@ -176,8 +194,10 @@ async function encodeAnimationSegment(
     ...encoder.args,
     '-r',
     animFps,
-    '-t',
-    n(durationSec + 0.02),
+    '-frames:v',
+    String(Math.max(1, Math.round(durationSec * SUBSCRIBE_ANIMATION_FPS))),
+    '-video_track_timescale',
+    String(VFR_TIMESCALE),
     '-movflags',
     '+faststart',
     output,
@@ -200,13 +220,19 @@ async function concatCopy(listPath: string, output: string, expectedDuration: nu
     listPath,
     '-c',
     'copy',
-    '-fflags',
-    '+genpts',
+    '-avoid_negative_ts',
+    'make_zero',
+    '-video_track_timescale',
+    String(VFR_TIMESCALE),
     '-movflags',
     '+faststart',
     output,
   ]
   await spawnFfmpeg(args, expectedDuration, hooks)
+}
+
+function escapeConcatPath(file: string): string {
+  return file.replace(/\\/g, '/').replace(/'/g, "'\\''")
 }
 
 async function concatReencode(job: HybridJob, encoder: ChosenEncoder, listPath: string, output: string, hooks: ScreensaverRenderHooks): Promise<void> {
